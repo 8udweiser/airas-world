@@ -13,6 +13,7 @@ import { DebugOverlayF3 } from './ui/hud/DebugOverlayF3';
 import { RendererGhostEntity } from './renderer/IRenderer';
 import { Bell, Users } from 'lucide-react';
 import { audioManager } from './audio/AudioManager';
+import { MobileTouchControls } from './ui/touch/MobileTouchControls';
 
 export const App: React.FC = () => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -38,17 +39,28 @@ export const App: React.FC = () => {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isF3Open, setIsF3Open] = useState(false);
-  const [isPaletteOpen, setIsPaletteOpen] = useState(true);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth > 768 : true);
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
   const [currentAvatarId, setCurrentAvatarId] = useState('character_schoolgirl');
   const [ghostEntities, setGhostEntities] = useState<RendererGhostEntity[]>([]);
   const [isDriving, setIsDriving] = useState(false);
+  const [isSitting, setIsSitting] = useState(false);
   const [nearbyVehicle, setNearbyVehicle] = useState<{ id: string; name: string; assetId: string } | null>(null);
+  const [nearbyBench, setNearbyBench] = useState<{ id: string; name: string } | null>(null);
 
   // サウンドミュート状態の同期
   useEffect(() => {
     audioManager.setMuted(isMuted);
   }, [isMuted]);
+
+  // モード切り替え時のパレット表示制御 (スマホ時は探索中は隠して視界を確保)
+  useEffect(() => {
+    if (activeMode === 'edit') {
+      setIsPaletteOpen(true);
+    } else if (window.innerWidth <= 768) {
+      setIsPaletteOpen(false);
+    }
+  }, [activeMode]);
 
   // 1. レンダラー初期化 (1回のみ実行)
   useEffect(() => {
@@ -131,16 +143,23 @@ export const App: React.FC = () => {
         useUIStore.getState().setFps(liveFps);
 
         const driving = renderer.playerState.isDriving;
+        const sitting = renderer.playerState.isSitting;
         setIsDriving((prev) => (prev !== driving ? driving : prev));
+        setIsSitting((prev) => (prev !== sitting ? sitting : prev));
 
-        if (!driving) {
-          // 周囲に乗れる車両があるかチェック (距離 85px以内)
+        if (driving || sitting) {
+          setNearbyVehicle(null);
+          setNearbyBench(null);
+        } else {
           const currentWorld = useWorldStore.getState().world;
           const currentAssets = useWorldStore.getState().assets;
+
+          // 周囲に乗れる車両があるかチェック (距離 85px以内, 現在運転中車両は除外)
           let foundVehicle: { id: string; name: string; assetId: string } | null = null;
           let minDist = 85;
 
           for (const ent of Object.values(currentWorld.entities)) {
+            if (ent.id === renderer.playerState.drivingEntityId) continue;
             const a = currentAssets[ent.assetId];
             if (a?.category === 'vehicle' || a?.interactions?.some((i) => i.type === 'drive')) {
               const d = Math.hypot(ent.position.x - px, ent.position.y - py);
@@ -155,8 +174,26 @@ export const App: React.FC = () => {
             if (prev && foundVehicle && prev.id === foundVehicle.id) return prev;
             return foundVehicle;
           });
-        } else {
-          setNearbyVehicle((prev) => (prev !== null ? null : prev));
+
+          // 周囲に座れるベンチがあるかチェック (距離 45px以内)
+          let foundBench: { id: string; name: string } | null = null;
+          let minBenchDist = 45;
+
+          for (const ent of Object.values(currentWorld.entities)) {
+            const a = currentAssets[ent.assetId];
+            if (a?.interactions?.some((i) => i.type === 'sit')) {
+              const d = Math.hypot(ent.position.x - px, ent.position.y - py);
+              if (d < minBenchDist) {
+                minBenchDist = d;
+                foundBench = { id: ent.id, name: ent.name || a.name };
+              }
+            }
+          }
+          setNearbyBench((prev) => {
+            if (!prev && !foundBench) return null;
+            if (prev && foundBench && prev.id === foundBench.id) return prev;
+            return foundBench;
+          });
         }
       };
     });
@@ -225,6 +262,19 @@ export const App: React.FC = () => {
     }
   }, [moveObject, showNotification]);
 
+  // 🛋️ ベンチ着席・立ち上がりトグル
+  const handleToggleSit = useCallback(() => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    const sat = renderer.toggleSit();
+    setIsSitting(sat);
+    if (sat) {
+      showNotification('🛋️ 木製ベンチで休憩中（[WASD] または [Space] で立ち上がります）');
+    } else {
+      showNotification('立ち上がりました');
+    }
+  }, [showNotification]);
+
   // 4. マインクラフトPC版キーボード入力 (レンダラーへ直接入力伝播)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -238,9 +288,26 @@ export const App: React.FC = () => {
         rendererRef.current.keys[e.key] = true;
       }
 
-      // F: 乗り物乗車 / 降車
+      // F: 乗り物乗車 / 降車 / ベンチ着席・立ち上がり
       if ((e.code === 'KeyF' || e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
+        if (e.repeat) return;
+        if (rendererRef.current?.playerState.isSitting) {
+          handleToggleSit();
+          return;
+        }
+        if (rendererRef.current?.playerState.isDriving) {
+          handleToggleVehicle();
+          return;
+        }
+        if (nearbyVehicle) {
+          handleToggleVehicle();
+          return;
+        }
+        if (nearbyBench) {
+          handleToggleSit();
+          return;
+        }
         handleToggleVehicle();
         return;
       }
@@ -468,7 +535,7 @@ export const App: React.FC = () => {
             <span className="text-2xl">🏎️</span>
             <div>
               <div className="text-xs font-bold text-white tracking-wide flex items-center gap-1.5">
-                <span>ランボルギーニ・ウラカン</span>
+                <span className="text-amber-300">黄色いランボルギーニ</span>
                 <span className="px-1.5 py-0.5 rounded bg-amber-500/30 text-amber-300 text-[9px] border border-amber-400/40">爆走中</span>
               </div>
               <div className="text-[10px] text-amber-300/80 font-mono">V10 5.2L AWD | 最高速 325km/h</div>
@@ -491,9 +558,30 @@ export const App: React.FC = () => {
         </div>
       )}
 
+      {/* 🛋️ ベンチ着席中 HUD */}
+      {isSitting && (
+        <div className="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-2xl glass-panel border border-emerald-400/50 text-emerald-200 shadow-2xl flex items-center gap-4 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
+          <span className="text-2xl">🛋️</span>
+          <div>
+            <div className="text-xs font-bold text-white tracking-wide flex items-center gap-1.5">
+              <span>木製ベンチで休憩中</span>
+              <span className="px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300 text-[9px] border border-emerald-400/40">リラックス</span>
+            </div>
+            <div className="text-[10px] text-emerald-300/80">[WASD] または [Space] で立ち上がります</div>
+          </div>
+          <button
+            onClick={handleToggleSit}
+            className="px-3.5 py-1.5 rounded-xl bg-emerald-500/30 hover:bg-emerald-500/50 border border-emerald-400/50 text-emerald-100 text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="px-1.5 py-0.5 rounded bg-black/40 text-[9px] font-mono text-emerald-200 border border-emerald-400/30">F</span>
+            <span>立ち上がる</span>
+          </button>
+        </div>
+      )}
+
       {/* 🚗 周囲に乗り物がある時の乗車プロンプト */}
-      {nearbyVehicle && !isDriving && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-cyan-400/50 text-cyan-100 shadow-2xl flex items-center gap-3.5 transition-all duration-200">
+      {nearbyVehicle && !isDriving && !isSitting && (
+        <div className="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-cyan-400/50 text-cyan-100 shadow-2xl flex items-center gap-3.5 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
           <span className="text-2xl">🏎️</span>
           <div>
             <div className="text-xs font-bold text-white">
@@ -510,6 +598,37 @@ export const App: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* 🛋️ 周囲にベンチがある時の着席プロンプト */}
+      {nearbyBench && !isSitting && !isDriving && !nearbyVehicle && (
+        <div className="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-emerald-400/50 text-emerald-100 shadow-2xl flex items-center gap-3.5 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
+          <span className="text-2xl">🛋️</span>
+          <div>
+            <div className="text-xs font-bold text-white">
+              <span className="text-emerald-300">{nearbyBench.name}</span>
+            </div>
+            <div className="text-[10px] text-slate-400">近づいてひと休みできます</div>
+          </div>
+          <button
+            onClick={handleToggleSit}
+            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/30 to-emerald-600/30 hover:from-emerald-500/50 hover:to-emerald-600/50 border border-emerald-400/60 text-emerald-200 text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="px-1.5 py-0.5 rounded bg-black/40 text-[9px] font-mono text-emerald-300 border border-emerald-400/30">F</span>
+            <span>座る</span>
+          </button>
+        </div>
+      )}
+
+      {/* 📱 スマホ・マルチタッチ操作バーチャルジョイスティック */}
+      <MobileTouchControls
+        renderer={rendererRef.current}
+        isDriving={isDriving}
+        isSitting={isSitting}
+        nearbyVehicleName={nearbyVehicle?.name}
+        nearbyBenchName={nearbyBench?.name}
+        onToggleVehicle={handleToggleVehicle}
+        onToggleSit={handleToggleSit}
+      />
 
       {/* 画面左下: マイクラ風キーヒント */}
       <div className="absolute bottom-4 left-4 z-20 glass-panel px-3 py-1.5 rounded-xl border border-white/10 text-[11px] text-slate-300 pointer-events-none flex items-center gap-3">
@@ -531,7 +650,7 @@ export const App: React.FC = () => {
         </div>
         <div className="flex items-center gap-1.5 text-amber-300 font-semibold">
           <span className="px-1.5 py-0.5 rounded bg-black/40 font-mono text-[10px] text-amber-300 border border-amber-400/30">F</span>
-          <span>乗降</span>
+          <span>乗降/座る</span>
         </div>
         <div className="flex items-center gap-1.5 hidden md:flex">
           <span className="px-1.5 py-0.5 rounded bg-black/40 font-mono text-[10px] text-slate-300 border border-white/10">右クリック</span>

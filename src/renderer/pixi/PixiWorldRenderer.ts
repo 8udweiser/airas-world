@@ -43,6 +43,8 @@ export class PixiWorldRenderer implements IRenderer {
     isJumping: false,
     isSprinting: false,
     isSneaking: false,
+    isSitting: false,
+    sittingEntityId: null as string | null,
     assetId: 'character_schoolgirl',
     isDriving: false,
     drivingVehicleAssetId: null as string | null,
@@ -169,6 +171,100 @@ export class PixiWorldRenderer implements IRenderer {
     });
   }
 
+  // 🧱 オブジェクト当たり判定 & 天面高さ判定 (すり抜け防止 & 屋根乗り)
+  private getCollidingObjects(testPx: number, testPy: number, excludeEntityId?: string | null) {
+    if (!this.currentWorld || !this.currentAssets) return [];
+    const results: Array<{ id: string; topZ: number; bounds: { l: number; r: number; t: number; b: number } }> = [];
+
+    for (const ent of Object.values(this.currentWorld.entities)) {
+      if (this.playerState.isDriving && ent.id === this.playerState.drivingEntityId) continue;
+      if (excludeEntityId && ent.id === excludeEntityId) continue;
+
+      const asset = this.currentAssets[ent.assetId];
+      if (!asset || !asset.collision || !asset.collision.enabled) continue;
+
+      const col = asset.collision;
+      const l = ent.position.x + col.offsetX;
+      const t = ent.position.y + col.offsetY;
+      const r = l + col.width;
+      const b = t + col.height;
+
+      // プレイヤー足元当たり判定 (幅12px, 高さ6px)
+      const pl = testPx - 6;
+      const pr = testPx + 6;
+      const pt = testPy - 3;
+      const pb = testPy + 3;
+
+      if (!(pr < l || pl > r || pb < t || pt > b)) {
+        // 天面高さの算出 (上に登れる高さ)
+        let topZ = 36;
+        if (asset.category === 'furniture') topZ = 14;
+        else if (asset.category === 'vehicle') topZ = 24;
+        else if (asset.category === 'structure' || asset.category === 'infrastructure') topZ = 42;
+        results.push({ id: ent.id, topZ, bounds: { l, r, t, b } });
+      }
+    }
+    return results;
+  }
+
+  // プレイヤーが現在立っている足場の高さ（地面=0、または乗っかっているオブジェクトの天面）
+  public getElevatedFloorZ(px: number, py: number): number {
+    const overlapping = this.getCollidingObjects(px, py);
+    let highestZ = 0;
+    for (const obj of overlapping) {
+      if (this.playerState.z >= obj.topZ - 5) {
+        if (obj.topZ > highestZ) highestZ = obj.topZ;
+      }
+    }
+    return highestZ;
+  }
+
+  // 🛋️ ベンチ着席トグル
+  public toggleSit(targetEntityId?: string): boolean {
+    if (this.playerState.isSitting) {
+      // 立ち上がる
+      this.playerState.isSitting = false;
+      this.playerState.sittingEntityId = null;
+      this.playerState.y += 12;
+      this.playerState.z = 0;
+      return false;
+    } else {
+      if (!this.currentWorld || !this.currentAssets) return false;
+      const px = this.playerState.x;
+      const py = this.playerState.y;
+
+      let benchEnt: any = null;
+      if (targetEntityId) {
+        benchEnt = this.currentWorld.entities[targetEntityId];
+      } else {
+        // 最寄りの座れるベンチを探す (45px以内)
+        let minDist = 45;
+        for (const ent of Object.values(this.currentWorld.entities)) {
+          const a = this.currentAssets[ent.assetId];
+          if (a?.interactions?.some((i) => i.type === 'sit')) {
+            const d = Math.hypot(ent.position.x - px, ent.position.y - py);
+            if (d < minDist) {
+              minDist = d;
+              benchEnt = ent;
+            }
+          }
+        }
+      }
+
+      if (benchEnt) {
+        this.playerState.isSitting = true;
+        this.playerState.sittingEntityId = benchEnt.id;
+        this.playerState.x = benchEnt.position.x;
+        this.playerState.y = benchEnt.position.y - 2;
+        this.playerState.z = 6;
+        this.playerState.direction = 'down';
+        audioManager.playSit();
+        return true;
+      }
+      return false;
+    }
+  }
+
   // キー入力に応じたプレイヤー物理演算
   private updatePlayerPhysics(dt: number) {
     const k = this.keys;
@@ -194,6 +290,19 @@ export class PixiWorldRenderer implements IRenderer {
     this.playerState.isSprinting = isSprint && isMoving;
     this.playerState.isSneaking = isSneak;
 
+    // 着席中の処理 (WASDやSpaceで自然に立ち上がる)
+    if (this.playerState.isSitting) {
+      if (isMoving || isJump) {
+        this.playerState.isSitting = false;
+        this.playerState.sittingEntityId = null;
+        this.playerState.y += 10;
+        this.playerState.z = 0;
+      } else {
+        this.updatePlayerSpriteVisual();
+        return;
+      }
+    }
+
     // キビキビ動く快適な速度設定
     let speed = 230; // 通常歩行
     if (this.playerState.isDriving) {
@@ -205,9 +314,12 @@ export class PixiWorldRenderer implements IRenderer {
       else if (isSneak) speed = 90; // スニーク
     }
 
+    // 現在の足場高さ (地面=0、またはオブジェクトの天面)
+    const floorZ = this.getElevatedFloorZ(this.playerState.x, this.playerState.y);
+
     // ジャンプ物理
     const gravity = 800; // px/s^2
-    if (isJump && this.playerState.z <= 0) {
+    if (isJump && this.playerState.z <= floorZ + 2) {
       this.playerState.vz = 300; // 上向き初速
       this.playerState.isJumping = true;
       if (!this.playerState.isDriving) {
@@ -215,11 +327,11 @@ export class PixiWorldRenderer implements IRenderer {
       }
     }
 
-    if (this.playerState.isJumping || this.playerState.z > 0) {
+    if (this.playerState.isJumping || this.playerState.z > floorZ) {
       this.playerState.z += this.playerState.vz * dt;
       this.playerState.vz -= gravity * dt;
-      if (this.playerState.z <= 0) {
-        this.playerState.z = 0;
+      if (this.playerState.z <= floorZ) {
+        this.playerState.z = floorZ;
         this.playerState.vz = 0;
         if (this.playerState.isJumping && !this.playerState.isDriving) {
           audioManager.playLand();
@@ -228,11 +340,27 @@ export class PixiWorldRenderer implements IRenderer {
       }
     }
 
-    // 移動の適用
+    // 移動の適用（衝突判定 ＆ スライディング移動）
     if (isMoving) {
       const len = Math.sqrt(dx * dx + dy * dy);
-      this.playerState.x += (dx / len) * speed * dt;
-      this.playerState.y += (dy / len) * speed * dt;
+      const moveDistX = (dx / len) * speed * dt;
+      const moveDistY = (dy / len) * speed * dt;
+
+      // X方向の移動検証 (天面より下にいる時のみ壁としてブロック)
+      const nextX = this.playerState.x + moveDistX;
+      const collidersX = this.getCollidingObjects(nextX, this.playerState.y);
+      const isBlockedX = collidersX.some((c) => this.playerState.z < c.topZ - 4);
+      if (!isBlockedX) {
+        this.playerState.x = nextX;
+      }
+
+      // Y方向の移動検証 (Xと独立して滑らかに壁沿いをスライド移動)
+      const nextY = this.playerState.y + moveDistY;
+      const collidersY = this.getCollidingObjects(this.playerState.x, nextY);
+      const isBlockedY = collidersY.some((c) => this.playerState.z < c.topZ - 4);
+      if (!isBlockedY) {
+        this.playerState.y = nextY;
+      }
 
       // 向きの更新 (車両運転時は4方向、歩行時は8方向フル対応)
       if (this.playerState.isDriving) {
@@ -260,14 +388,14 @@ export class PixiWorldRenderer implements IRenderer {
       this.walkAnimTimer += dt * (isSprint ? 18 : 12);
 
       // 足音SE再生 (歩行時かつ接地中かつ非乗車時)
-      if (!this.playerState.isDriving && this.playerState.z <= 0) {
+      if (!this.playerState.isDriving && this.playerState.z <= floorZ + 2) {
         const stepInterval = isSprint ? 0.22 : 0.34;
         const prevStepCount = Math.floor(this.stepTimer / stepInterval);
         this.stepTimer += dt;
         const curStepCount = Math.floor(this.stepTimer / stepInterval);
         if (curStepCount > prevStepCount) {
           const surface = this.getSurfaceAt(this.playerState.x, this.playerState.y);
-          audioManager.playFootstep(surface);
+          audioManager.playFootstep(surface, isSprint);
         }
       } else {
         this.stepTimer = 0;
@@ -348,17 +476,29 @@ export class PixiWorldRenderer implements IRenderer {
           sprite.anchor.set(0.5, 0.85);
         }
       } else {
-        sprite.width = asset.sprite.width;
-        sprite.height = asset.sprite.height;
-        if (asset.sprite.width > 0 && asset.sprite.height > 0) {
-          sprite.anchor.set(asset.anchor.x / asset.sprite.width, asset.anchor.y / asset.sprite.height);
+        if (this.playerState.isSneaking) {
+          // 🏃 しゃがみ（愛らしく腰を落として低姿勢になる）
+          sprite.width = asset.sprite.width * 1.08;
+          sprite.height = asset.sprite.height * 0.76;
+          sprite.anchor.set(0.5, 0.92);
+        } else if (this.playerState.isSitting) {
+          // 🛋️ ベンチ着席（座面に自然に腰掛ける）
+          sprite.width = asset.sprite.width * 0.95;
+          sprite.height = asset.sprite.height * 0.82;
+          sprite.anchor.set(0.5, 0.84);
+        } else {
+          sprite.width = asset.sprite.width;
+          sprite.height = asset.sprite.height;
+          if (asset.sprite.width > 0 && asset.sprite.height > 0) {
+            sprite.anchor.set(asset.anchor.x / asset.sprite.width, asset.anchor.y / asset.sprite.height);
+          }
         }
       }
     }
 
-    // 歩行ボビング (車運転中はボビングさせずスムーズ走行)
+    // 歩行ボビング (車運転中または着席中はボビングさせず静止)
     let bobbingY = 0;
-    if (this.playerState.isMoving && !this.playerState.isDriving) {
+    if (this.playerState.isMoving && !this.playerState.isDriving && !this.playerState.isSitting) {
       bobbingY = Math.sin(this.walkAnimTimer) * 2;
     }
 
@@ -366,7 +506,7 @@ export class PixiWorldRenderer implements IRenderer {
     sprite.y = this.playerState.y - this.playerState.z + bobbingY;
     (sprite as any).worldFootY = this.playerState.y;
 
-    // 接地影の更新 (足元接地Yに固定、乗車時は大型シャドウ)
+    // 接地影の更新 (足元接地Yに固定、乗車時は大型シャドウ、しゃがみ時は低く広がる)
     this.shadowGraphics.clear();
     if (this.playerState.isDriving) {
       const isHorizontal = this.playerState.direction === 'left' || this.playerState.direction === 'right';
@@ -376,10 +516,16 @@ export class PixiWorldRenderer implements IRenderer {
         .ellipse(this.playerState.x, this.playerState.y, rx, ry)
         .fill({ color: 0x000000, alpha: 0.45 });
     } else {
-      const shadowScale = Math.max(0.35, 1 - this.playerState.z / 180);
+      const floorZ = this.getElevatedFloorZ(this.playerState.x, this.playerState.y);
+      const airHeight = Math.max(0, this.playerState.z - floorZ);
+      const shadowScale = Math.max(0.35, 1 - airHeight / 180);
+      const isCrouch = this.playerState.isSneaking;
+      const rx = (isCrouch ? 11 : 8) * shadowScale;
+      const ry = (isCrouch ? 4.5 : 3) * shadowScale;
+      const alpha = (isCrouch ? 0.45 : 0.35) * shadowScale;
       this.shadowGraphics
-        .ellipse(this.playerState.x, this.playerState.y, 8 * shadowScale, 3 * shadowScale)
-        .fill({ color: 0x000000, alpha: 0.35 * shadowScale });
+        .ellipse(this.playerState.x, this.playerState.y, rx, ry)
+        .fill({ color: 0x000000, alpha });
     }
   }
 

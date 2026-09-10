@@ -158,3 +158,71 @@ Solid pure white background (#FFFFFF), no shadows, isolated for sprite cropping.
    - **BFS外側洪水充填透過**: セーラー服の白い襟や自転車のスポーク内側を守りつつ、外周のJPEG圧縮白フチ（ハロー）を完全除去。
    - **水平自動反転（Mirroring）**: 右側面・斜め右向きから「左側面」「斜め左向き」を1ピクセルの狂いもなく自動生成。
    - **8方向コントローラー即時バインド**: 生成したその瞬間から、WASDで歩行・乗車して街中を駆け巡ることができます！
+
+---
+
+## 5. Airas公式 アンビエントBGM創出プロンプト集（第3版）
+
+マインクラフトの音楽（C418 / Lena Raine）のように、**「何時間聴いていても邪魔にならず、心が洗われるような静けさ、開放感、雨の日に寄り添う優しさ」** を兼ね備えたBGMを、Google MusicFX、Suno、Udio、Gemini等の音楽AIで創出するための公式プロンプト集です。
+
+### 音楽的特徴と設計パラメータ
+- **ジャンル**: Ambient, Cinematic Neo-Classical, Chill Lo-Fi, Minimalist Piano
+- **テンポ (BPM)**: 60 〜 72 BPM（心拍数と同期するゆったりしたリズム）
+- **調性（Key）**: ハ長調（C Major）または イ短調（A Minor）のペンタトニック／長七度（Maj7th）
+- **楽器構成**:
+  - **フェルト・アップライトピアノ**: 弦とハンマーの間にフェルトを挟んだ、まろやかで温かい生ピアノの音。
+  - **ローズ・エレクトリックピアノ (Rhodes)**: 鈴のような優しいベル成分とアコースティックな中音域。
+  - **ウォーム・アナログシンセパッド**: ゆっくりとフィルターが開閉する、夕霧や空気のような包み込むアンビエント。
+  - **雨と空気の質感 (Foley)**: 遠くの穏やかな雨音、テープの微かな揺らぎ（Wow/Flutter）。
+- **音響空間**: 3〜4秒の豊かなコンボリューション・リバーブ、ステレオに広がる開放的なパノラマ空間。**ドラムや激しいビートは完全排除（No drums）**。
+
+---
+
+### ① 【雨天・静寂】濡れたアスファルトに寄り添うアンビエント・ピアノ
+
+雨の街並み、傘を差して歩く女子高生、静まり返った駅前通りに最高の没入感をもたらす静穏なBGM。
+
+#### 日本語プロンプト:
+```text
+マインクラフト（C418）スタイルの静かで癒されるアンビエント・ミニマルピアノ音楽。
+62BPMの極めてゆったりしたテンポ。フェルトピアノの暖かく丸い打鍵音と、遠くで降り注ぐ穏やかな雨の環境音。
+哀愁とノスタルジーの中に希望が広がるペンタトニック旋律。一音一音の間に長めの静寂（ポーズ）があり、深く澄み渡るリバーブの余韻が部屋全体を満たす。
+ローズピアノと極めて静かなアナログシンセパッドが空間の開放感を演出。
+ドラムなし、ビートなし、ボーカルなし。静寂、瞑想、雨の日のやすらぎ、HD-2DゲームBGM。
+```
+
+#### 英語プロンプト（Google MusicFX / Suno / Udio 最高精度版）:
+```text
+Minecraft style peaceful ambient piano music inspired by C418 and Lena Raine.
+62 BPM, slow tempo. Warm felt acoustic upright piano notes played with generous breathing space between phrases.
+Soft Rhodes electric piano bell tones, lush atmospheric analog synth pads with long filter sweep.
+Subtle organic sound of gentle rain and gentle tape flutter in the background.
+Open spatial acoustics, 4-second natural concert hall convolution reverb, spacious stereo field.
+Nostalgic, meditative, melancholic yet uplifting, introspective.
+Strictly NO drums, NO beats, NO percussion, NO bass drops, NO vocals.
+```
+
+---
+
+### ② 【晴れ・開放感】どこまでも広がる空と世界を歩く旅の調べ
+
+広大なマップを探索したり、スーパーカーでゆったりドライブする時に心が洗われる開放的なアンビエント。
+
+#### 日本語プロンプト:
+```text
+広大なオープンワールドの開放感と自由を感じる、マインクラフト風の癒しアンビエントBGM。
+68BPM。澄み渡るアコースティックグランドピアノと、陽光のように包み込む暖かなアンビエントシンセパッド。
+心を解き放つメジャー7thコード進行。澄んだ青空、吹き抜ける風、緑の草原を思わせるアコースティックな響き。
+豊かなステレオステレオ空間リバーブ、心地よい静寂、澄み切ったハイレゾ音響。
+ドラムなし、パーカッションなし、エレクトロビートなし。癒し、探検、自由、HD-2Dオープンワールド。
+```
+
+#### 英語プロンプト:
+```text
+Expansive open-world ambient neoclassical soundtrack, C418 Minecraft Swedish style.
+68 BPM. Crystal-clear acoustic grand piano playing gentle, uplifting major 7th chords.
+Floating lush analog synthesizer drone, gentle wind chimes fading into deep stereo reverb.
+Airy, panoramic soundstage giving a sense of endless open sky and limitless exploration.
+Pure tranquility, warm sunshine, peaceful nostalgic adventure.
+Completely drumless, percussion-free, beat-free, instrumental only.
+```

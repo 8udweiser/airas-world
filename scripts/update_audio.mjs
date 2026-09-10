@@ -1,4 +1,6 @@
-/**
+import fs from 'fs';
+
+const content = `/**
  * Airas Audio Manager (Web Audio API & Realistic Foley Engine)
  * 
  * 1. 実録ハイファイ足音（Kenney Impact Sounds - CC0）:
@@ -184,13 +186,6 @@ class AudioManager {
       if (this.bgmGain && this.masterGain) {
         this.bgmGain.connect(this.masterGain);
       }
-    }
-  }
-
-  public setReverbWet(level: number) {
-    if (this.reverbWetGain && this.ctx) {
-      const clamped = Math.max(0, Math.min(1, level));
-      this.reverbWetGain.gain.setTargetAtTime(clamped, this.ctx.currentTime, 0.2);
     }
   }
 
@@ -764,3 +759,7 @@ class AudioManager {
 }
 
 export const audioManager = new AudioManager();
+`;
+
+fs.writeFileSync('src/audio/AudioManager.ts', content, 'utf8');
+console.log('src/audio/AudioManager.ts updated successfully');
