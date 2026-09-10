@@ -39,17 +39,16 @@ async function sliceSchoolgirl() {
       const imgData = mainCtx.getImageData(0, 0, W, H);
       const data = imgData.data;
 
-      // 領域定義 (グリッド線の内側を探索)
+      // 領域定義 (グリッド線の内側を正確に探索)
+      // 注意: 画像内の下段1列目は「左斜め前 (down-left)」、下段2列目は「左斜め後 (up-left)」
       const regions = {
         down: { x1: 0.02, y1: 0.03, x2: 0.23, y2: 0.47 },        // 上段1列目: 正面 (down)
         up: { x1: 0.27, y1: 0.03, x2: 0.48, y2: 0.47 },          // 上段2列目: 背面 (up)
         right: { x1: 0.52, y1: 0.03, x2: 0.73, y2: 0.47 },       // 上段3列目: 右側面 (right)
-        down_right: { x1: 0.02, y1: 0.53, x2: 0.23, y2: 0.97 },  // 下段1列目: 斜め前 (down-right)
-        up_right: { x1: 0.27, y1: 0.53, x2: 0.48, y2: 0.97 },    // 下段2列目: 斜め後 (up-right)
+        down_left: { x1: 0.02, y1: 0.53, x2: 0.23, y2: 0.97 },  // 下段1列目: 実質は左斜め前 (down-left)
+        up_left: { x1: 0.27, y1: 0.53, x2: 0.48, y2: 0.97 },    // 下段2列目: 実質は左斜め後 (up-left)
       };
 
-      const isBackground = (r, g, b) => r > 240 && g > 240 && b > 240;
-      const isGridLine = (r, g, b) => (Math.abs(r - g) < 5 && Math.abs(g - b) < 5 && r > 200 && r < 235);
       const results = {};
 
       for (const [dir, box] of Object.entries(regions)) {
@@ -58,15 +57,98 @@ async function sliceSchoolgirl() {
         const startY = Math.floor(box.y1 * H);
         const endY = Math.floor(box.y2 * H);
 
-        let minX = endX, minY = endY, maxX = startX, maxY = startY;
+        const subW = endX - startX;
+        const subH = endY - startY;
 
-        for (let y = startY; y < endY; y++) {
-          for (let x = startX; x < endX; x++) {
-            const idx = (y * W + x) * 4;
-            const r = data[idx];
-            const g = data[idx + 1];
-            const b = data[idx + 2];
-            if (!isBackground(r, g, b) && !isGridLine(r, g, b)) {
+        // サブ領域のRGBAデータを抽出
+        const subCanvas = document.createElement('canvas');
+        subCanvas.width = subW;
+        subCanvas.height = subH;
+        const subCtx = subCanvas.getContext('2d');
+        subCtx.drawImage(mainCanvas, startX, startY, subW, subH, 0, 0, subW, subH);
+        const subImgData = subCtx.getImageData(0, 0, subW, subH);
+        const subData = subImgData.data;
+
+        // BFS 外側洪水充填 (Flood Fill) アルゴリズム
+        // 外枠から接続する白〜淡色（JPEG圧縮ノイズ含む）をすべて背景としてマーク
+        // キャラクター内部の「セーラー服の白い襟」等は外側と遮断されているため100%保護される
+        const isBg = new Uint8Array(subW * subH);
+        const queue = [];
+
+        // 境界ピクセルをシードとして投入
+        for (let x = 0; x < subW; x++) {
+          queue.push(x, 0);
+          queue.push(x, subH - 1);
+        }
+        for (let y = 1; y < subH - 1; y++) {
+          queue.push(0, y);
+          queue.push(subW - 1, y);
+        }
+
+        const isLightPixel = (r, g, b) => {
+          // 明るい色（白・薄グレー・グリッド線）
+          const avg = (r + g + b) / 3;
+          if (avg > 185) return true;
+          // グリッド線（グレー調）
+          if (Math.abs(r - g) < 8 && Math.abs(g - b) < 8 && avg > 170) return true;
+          return false;
+        };
+
+        let head = 0;
+        while (head < queue.length) {
+          const qx = queue[head++];
+          const qy = queue[head++];
+          const idx = qy * subW + qx;
+          if (isBg[idx]) continue;
+
+          const pIdx = idx * 4;
+          const r = subData[pIdx];
+          const g = subData[pIdx + 1];
+          const b = subData[pIdx + 2];
+
+          if (isLightPixel(r, g, b)) {
+            isBg[idx] = 1;
+            // 4近傍探索
+            if (qx > 0 && !isBg[idx - 1]) queue.push(qx - 1, qy);
+            if (qx < subW - 1 && !isBg[idx + 1]) queue.push(qx + 1, qy);
+            if (qy > 0 && !isBg[idx - subW]) queue.push(qx, qy - 1);
+            if (qy < subH - 1 && !isBg[idx + subW]) queue.push(qx, qy + 1);
+          }
+        }
+
+        // デフリンジ（白フチ・色汚染の除去 pass）
+        // 外側背景に隣接する半白ピクセル（JPEG圧縮による輪郭ボケ）を綺麗に除去
+        for (let y = 0; y < subH; y++) {
+          for (let x = 0; x < subW; x++) {
+            const idx = y * subW + x;
+            if (isBg[idx]) continue;
+
+            const pIdx = idx * 4;
+            const r = subData[pIdx];
+            const g = subData[pIdx + 1];
+            const b = subData[pIdx + 2];
+            const avg = (r + g + b) / 3;
+
+            // 背景と接しているかチェック
+            const hasBgNeighbor = 
+              (x > 0 && isBg[idx - 1]) ||
+              (x < subW - 1 && isBg[idx + 1]) ||
+              (y > 0 && isBg[idx - subW]) ||
+              (y < subH - 1 && isBg[idx + subW]);
+
+            if (hasBgNeighbor && avg > 165) {
+              // 輪郭外側の圧縮フチと判定
+              isBg[idx] = 1;
+            }
+          }
+        }
+
+        // キャラクター実寸バウンディングボックスの計算
+        let minX = subW, minY = subH, maxX = 0, maxY = 0;
+        for (let y = 0; y < subH; y++) {
+          for (let x = 0; x < subW; x++) {
+            const idx = y * subW + x;
+            if (!isBg[idx]) {
               if (x < minX) minX = x;
               if (x > maxX) maxX = x;
               if (y < minY) minY = y;
@@ -86,19 +168,15 @@ async function sliceSchoolgirl() {
 
         for (let y = 0; y < cropH; y++) {
           for (let x = 0; x < cropW; x++) {
-            const srcIdx = ((minY + y) * W + (minX + x)) * 4;
+            const srcIdx = (minY + y) * subW + (minX + x);
             const destIdx = (y * cropW + x) * 4;
 
-            const r = data[srcIdx];
-            const g = data[srcIdx + 1];
-            const b = data[srcIdx + 2];
-
-            if (isBackground(r, g, b) || isGridLine(r, g, b)) {
-              cropImgData.data[destIdx + 3] = 0;
+            if (isBg[srcIdx]) {
+              cropImgData.data[destIdx + 3] = 0; // 完全透明
             } else {
-              cropImgData.data[destIdx] = r;
-              cropImgData.data[destIdx + 1] = g;
-              cropImgData.data[destIdx + 2] = b;
+              cropImgData.data[destIdx] = subData[srcIdx * 4];
+              cropImgData.data[destIdx + 1] = subData[srcIdx * 4 + 1];
+              cropImgData.data[destIdx + 2] = subData[srcIdx * 4 + 2];
               cropImgData.data[destIdx + 3] = 255;
             }
           }
@@ -112,7 +190,7 @@ async function sliceSchoolgirl() {
         };
       }
 
-      // 水平反転生成: left = right の反転
+      // 水平反転生成
       const flip = async (sourceDataUrl, w, h) => {
         const fc = document.createElement('canvas');
         fc.width = w;
@@ -130,47 +208,63 @@ async function sliceSchoolgirl() {
         return fc.toDataURL('image/png');
       };
 
-      // left
+      // 左右ペアの生成
+      // 1. right (東) ➜ 反転して left (西)
       results['left'] = {
         dataUrl: await flip(results['right'].dataUrl, results['right'].w, results['right'].h),
         w: results['right'].w,
         h: results['right'].h
       };
 
-      // down_left
-      results['down_left'] = {
-        dataUrl: await flip(results['down_right'].dataUrl, results['down_right'].w, results['down_right'].h),
-        w: results['down_right'].w,
-        h: results['down_right'].h
+      // 2. down_left (南西) ➜ 反転して down_right (南東)
+      results['down_right'] = {
+        dataUrl: await flip(results['down_left'].dataUrl, results['down_left'].w, results['down_left'].h),
+        w: results['down_left'].w,
+        h: results['down_left'].h
       };
 
-      // up_left
-      results['up_left'] = {
-        dataUrl: await flip(results['up_right'].dataUrl, results['up_right'].w, results['up_right'].h),
-        w: results['up_right'].w,
-        h: results['up_right'].h
+      // 3. up_left (北西) ➜ 反転して up_right (北東)
+      results['up_right'] = {
+        dataUrl: await flip(results['up_left'].dataUrl, results['up_left'].w, results['up_left'].h),
+        w: results['up_left'].w,
+        h: results['up_left'].h
       };
 
       return results;
-    })()
+    })();
   `;
 
-  console.log('Evaluating slice and transparency in browser...');
-  const res = await controller.evaluate(browserCode);
-  controller.close();
+  console.log('Extracting sprites with flood-fill & defringing in Thorium...');
+  const results = await controller.evaluate(browserCode);
+  controller.ws?.close();
 
   const outDir = path.resolve(rootDir, 'public/assets/characters');
-  if (!fs.existsSync(outDir)) {
-    fs.mkdirSync(outDir, { recursive: true });
+  fs.mkdirSync(outDir, { recursive: true });
+
+  const map = {
+    down: 'schoolgirl_down.png',
+    up: 'schoolgirl_up.png',
+    right: 'schoolgirl_right.png',
+    left: 'schoolgirl_left.png',
+    down_right: 'schoolgirl_down_right.png',
+    down_left: 'schoolgirl_down_left.png',
+    up_right: 'schoolgirl_up_right.png',
+    up_left: 'schoolgirl_up_left.png',
+  };
+
+  for (const [key, filename] of Object.entries(map)) {
+    const item = results[key];
+    if (item && item.dataUrl) {
+      const base64Data = item.dataUrl.replace(/^data:image\/png;base64,/, '');
+      const filePath = path.join(outDir, filename);
+      fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+      console.log(`Saved: ${filename} (${item.w}x${item.h})`);
+    } else {
+      console.warn(`Missing direction: ${key}`);
+    }
   }
 
-  for (const [dir, item] of Object.entries(res)) {
-    const pngPath = path.resolve(outDir, `schoolgirl_${dir}.png`);
-    const base64Png = item.dataUrl.replace(/^data:image\/png;base64,/, '');
-    fs.writeFileSync(pngPath, Buffer.from(base64Png, 'base64'));
-    console.log(`Saved: public/assets/characters/schoolgirl_${dir}.png (${item.w}x${item.h})`);
-  }
-  console.log('All 8 directions for Schoolgirl sliced & saved successfully!');
+  console.log('All 8 directions sliced, defringed, and saved successfully!');
 }
 
 sliceSchoolgirl().catch(console.error);

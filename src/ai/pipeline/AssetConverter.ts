@@ -4,8 +4,8 @@ export interface SpriteSheetConvertOptions {
   name: string;
   type: 'character' | 'vehicle' | 'object';
   promptUsed: string;
-  // 分割レイアウト ('horizontal_3': 正面/背面/右側面 -> 左側面自動反転, 'horizontal_4': 正面/背面/左/右, 'grid_2x2': 2x2)
-  layout?: 'horizontal_3' | 'horizontal_4' | 'grid_2x2';
+  // 分割レイアウト ('horizontal_5': 5方向->8方向自動補完, 'horizontal_3': 正面/背面/右側面 -> 左側面自動反転, 'horizontal_4': 正面/背面/左/右, 'grid_2x2': 2x2)
+  layout?: 'horizontal_5' | 'horizontal_3' | 'horizontal_4' | 'grid_2x2';
 }
 
 export class AssetConverter {
@@ -165,7 +165,30 @@ export class AssetConverter {
           const layout = options.layout || 'horizontal_3';
           const directionalUrls: Record<string, string> = {};
 
-          if (layout === 'horizontal_3') {
+          if (layout === 'horizontal_5') {
+            const slotW = Math.floor(rawCanvas.width / 5);
+            const slotH = rawCanvas.height;
+
+            // スロット0: 正面 (down)
+            const downDataUrl = this.cropSlot(rawCanvas, 0 * slotW, 0, slotW, slotH);
+            // スロット1: 背面 (up)
+            const upDataUrl = this.cropSlot(rawCanvas, 1 * slotW, 0, slotW, slotH);
+            // スロット2: 右側面 (right)
+            const rightDataUrl = this.cropSlot(rawCanvas, 2 * slotW, 0, slotW, slotH);
+            // スロット3: 斜め右前 (down-right)
+            const downRightDataUrl = this.cropSlot(rawCanvas, 3 * slotW, 0, slotW, slotH);
+            // スロット4: 斜め右後 (up-right)
+            const upRightDataUrl = this.cropSlot(rawCanvas, 4 * slotW, 0, slotW, slotH);
+
+            directionalUrls['down'] = downDataUrl;
+            directionalUrls['up'] = upDataUrl;
+            directionalUrls['right'] = rightDataUrl;
+            directionalUrls['left'] = this.flipDataUrlHorizontally(rightDataUrl);
+            directionalUrls['down-right'] = downRightDataUrl;
+            directionalUrls['down-left'] = this.flipDataUrlHorizontally(downRightDataUrl);
+            directionalUrls['up-right'] = upRightDataUrl;
+            directionalUrls['up-left'] = this.flipDataUrlHorizontally(upRightDataUrl);
+          } else if (layout === 'horizontal_3') {
             const slotW = Math.floor(rawCanvas.width / 3);
             const slotH = rawCanvas.height;
 
@@ -198,64 +221,67 @@ export class AssetConverter {
           let airasAsset: AirasAsset;
 
           if (options.type === 'vehicle') {
+            const isBike = Boolean((options.name || '').match(/自転車|バイク|チャリ|bike|bicycle/i));
+            const vWidth = isBike ? 48 : 64;
+            const vHeight = isBike ? 32 : 40;
             airasAsset = {
               id: assetId,
-              name: options.name || 'AIスーパーカー',
+              name: options.name || (isBike ? 'AI自転車' : 'AIスーパーカー'),
               type: 'object',
               category: 'vehicle',
               sprite: {
                 url: defaultUrl,
-                width: 64,
-                height: 40,
+                width: vWidth,
+                height: vHeight,
                 pixelArt: true,
                 directionalUrls,
               },
-              anchor: { x: 32, y: 34 },
+              anchor: { x: Math.round(vWidth / 2), y: vHeight - 2 },
               collision: {
                 enabled: true,
                 type: 'box',
-                offsetX: -26,
-                offsetY: -14,
-                width: 52,
-                height: 18,
+                offsetX: isBike ? -18 : -26,
+                offsetY: isBike ? -8 : -14,
+                width: isBike ? 36 : 52,
+                height: isBike ? 14 : 18,
               },
               depth: { enabled: true, offsetY: 0 },
               interactions: [
                 {
                   type: 'drive',
-                  label: '乗車する (Fキー / 右クリック)',
-                  dialogue: [`【${options.name}】AIが生み出したマシン。Fキーで乗車・降車できる。`],
+                  label: isBike ? '自転車に乗る (Fキー / 右クリック)' : '乗車する (Fキー / 右クリック)',
+                  dialogue: [`【${options.name}】Fキーで乗車・降車して快適に走ることができます。`],
                 },
               ],
               metadata: {
-                tags: ['乗り物', 'AI生成', '車両'],
+                tags: ['乗り物', isBike ? '自転車' : '車両', 'AI生成'],
                 createdAt: Date.now(),
                 source: 'ai_generated',
                 promptUsed: options.promptUsed,
-                description: `プロンプト「${options.promptUsed}」から自動生成された4方向対応乗り物。`,
+                description: `プロンプト「${options.promptUsed}」から自動生成された多方向対応乗り物。`,
               },
             };
           } else if (options.type === 'character') {
             airasAsset = {
               id: assetId,
-              name: options.name || 'AI女子高生',
+              name: options.name || 'AIキャラクター',
               type: 'character',
               category: 'npc',
               sprite: {
                 url: defaultUrl,
-                width: 32,
-                height: 48,
+                width: 20,
+                height: 50,
                 pixelArt: true,
                 directionalUrls,
               },
-              anchor: { x: 16, y: 44 },
+              anchor: { x: 10, y: 48 },
               collision: {
                 enabled: true,
-                type: 'circle',
-                offsetX: 0,
+                type: 'box',
+                offsetX: -5,
                 offsetY: -6,
-                width: 14,
-                height: 14,
+                width: 10,
+                height: 6,
               },
               depth: { enabled: true, offsetY: 0 },
               interactions: [
@@ -270,11 +296,11 @@ export class AssetConverter {
                 },
               ],
               metadata: {
-                tags: ['キャラクター', '女子高生', 'AI生成', 'NPC'],
+                tags: ['キャラクター', 'アバター', 'AI生成', 'NPC'],
                 createdAt: Date.now(),
                 source: 'ai_generated',
                 promptUsed: options.promptUsed,
-                description: `プロンプト「${options.promptUsed}」から自動生成された4方向対応キャラクター。`,
+                description: `プロンプト「${options.promptUsed}」から自動生成された多方向対応キャラクター。`,
               },
             };
           } else {
@@ -358,21 +384,78 @@ export class AssetConverter {
     bg: { r: number; g: number; b: number }
   ): { minX: number; minY: number; maxX: number; maxY: number } {
     let minX = width, minY = height, maxX = 0, maxY = 0;
-    const colorThreshold = 45;
 
+    // 1. BFS 外側洪水充填 (Flood Fill)
+    const isBg = new Uint8Array(width * height);
+    const queue: number[] = [];
+
+    // 外枠ピクセルをシードとして投入
+    for (let x = 0; x < width; x++) {
+      queue.push(x, 0);
+      queue.push(x, height - 1);
+    }
+    for (let y = 1; y < height - 1; y++) {
+      queue.push(0, y);
+      queue.push(width - 1, y);
+    }
+
+    const isLightPixel = (r: number, g: number, b: number) => {
+      const dist = Math.sqrt((r - bg.r) ** 2 + (g - bg.g) ** 2 + (b - bg.b) ** 2);
+      if (dist < 65) return true;
+      const avg = (r + g + b) / 3;
+      if (avg > 195) return true;
+      if (Math.abs(r - g) < 8 && Math.abs(g - b) < 8 && avg > 175) return true;
+      return false;
+    };
+
+    let head = 0;
+    while (head < queue.length) {
+      const qx = queue[head++];
+      const qy = queue[head++];
+      const idx = qy * width + qx;
+      if (isBg[idx]) continue;
+
+      const pIdx = idx * 4;
+      const r = data[pIdx];
+      const g = data[pIdx + 1];
+      const b = data[pIdx + 2];
+
+      if (isLightPixel(r, g, b)) {
+        isBg[idx] = 1;
+        if (qx > 0 && !isBg[idx - 1]) queue.push(qx - 1, qy);
+        if (qx < width - 1 && !isBg[idx + 1]) queue.push(qx + 1, qy);
+        if (qy > 0 && !isBg[idx - width]) queue.push(qx, qy - 1);
+        if (qy < height - 1 && !isBg[idx + width]) queue.push(qx, qy + 1);
+      }
+    }
+
+    // 2. デフリンジ（白フチ・色汚染の除去 pass）
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const idx = (y * width + x) * 4;
-        const r = data[idx];
-        const g = data[idx + 1];
-        const b = data[idx + 2];
-        const a = data[idx + 3];
+        const idx = y * width + x;
+        if (isBg[idx]) continue;
 
-        if (a === 0) continue;
+        const pIdx = idx * 4;
+        const avg = (data[pIdx] + data[pIdx + 1] + data[pIdx + 2]) / 3;
+        const hasBgNeighbor =
+          (x > 0 && isBg[idx - 1]) ||
+          (x < width - 1 && isBg[idx + 1]) ||
+          (y > 0 && isBg[idx - width]) ||
+          (y < height - 1 && isBg[idx + width]);
 
-        const dist = Math.sqrt((r - bg.r) ** 2 + (g - bg.g) ** 2 + (b - bg.b) ** 2);
-        if (dist < colorThreshold) {
-          data[idx + 3] = 0;
+        if (hasBgNeighbor && avg > 170) {
+          isBg[idx] = 1;
+        }
+      }
+    }
+
+    // 3. アルファ適用 & バウンディングボックス測定
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = y * width + x;
+        const pIdx = idx * 4;
+        if (isBg[idx]) {
+          data[pIdx + 3] = 0;
         } else {
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;

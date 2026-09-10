@@ -795,8 +795,8 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
     category: 'npc',
     sprite: {
       url: '/assets/characters/schoolgirl_down.png',
-      width: 26,
-      height: 64,
+      width: 20,
+      height: 50,
       pixelArt: true,
       directionalUrls: {
         down: '/assets/characters/schoolgirl_down.png',
@@ -809,8 +809,8 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
         'up-right': '/assets/characters/schoolgirl_up_right.png',
       },
     },
-    anchor: { x: 13, y: 62 },
-    collision: { enabled: true, type: 'box', offsetX: -7, offsetY: -8, width: 14, height: 8 },
+    anchor: { x: 10, y: 48 },
+    collision: { enabled: true, type: 'box', offsetX: -5, offsetY: -6, width: 10, height: 6 },
     depth: { enabled: true, offsetY: 0 },
     interactions: [
       {
