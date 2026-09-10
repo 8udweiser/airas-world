@@ -7,24 +7,25 @@ export class PixiWorldRenderer implements IRenderer {
   private app: Application | null = null;
   private container: HTMLElement | null = null;
   
-  // シーン構造
+  // シーン階層
   private stageContainer: Container = new Container();
   private tileContainer: Container = new Container();
-  private depthContainer: Container = new Container();
+  private shadowGraphics: Graphics = new Graphics();
   private selectionGraphics: Graphics = new Graphics();
+  private depthContainer: Container = new Container();
+  private particleGraphics: Graphics = new Graphics();
   private weatherGraphics: Graphics = new Graphics();
 
-  // スプライトキャッシュ (entityId -> Sprite)
+  // キャッシュ
   private entitySprites: Map<string, Sprite> = new Map();
-  // テクスチャキャッシュ (url -> Texture)
   private textureCache: Map<string, Texture> = new Map();
 
-  // カメラ状態
+  // カメラ状態 (広大な街が見渡せるよう初期ズームは 1.1x)
   private cameraX: number = 0;
   private cameraY: number = 0;
-  private zoom: number = 1.5;
-  private minZoom: number = 0.5;
-  private maxZoom: number = 4.0;
+  private zoom: number = 1.1;
+  private minZoom: number = 0.4;
+  private maxZoom: number = 3.0;
 
   // ドラッグ操作ステート
   private isDraggingCamera: boolean = false;
@@ -34,11 +35,13 @@ export class PixiWorldRenderer implements IRenderer {
 
   // コールバック
   public onEntityClick?: (entityId: string) => void;
+  public onEntityRightClick?: (entityId: string) => void;
   public onMapClick?: (worldX: number, worldY: number) => void;
   public onEntityDrag?: (entityId: string, newWorldX: number, newWorldY: number) => void;
 
-  // 天候パーティクル用
+  // パーティクル
   private weatherParticles: Array<{ x: number; y: number; speed: number; length: number }> = [];
+  private dustParticles: Array<{ x: number; y: number; vx: number; vy: number; life: number }> = [];
 
   async init(container: HTMLElement): Promise<void> {
     this.container = container;
@@ -46,7 +49,7 @@ export class PixiWorldRenderer implements IRenderer {
     
     await app.init({
       resizeTo: container,
-      backgroundColor: 0x0b0f19,
+      backgroundColor: 0x090d16,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
       antialias: false,
@@ -58,23 +61,22 @@ export class PixiWorldRenderer implements IRenderer {
     // シーン階層の構築
     this.app.stage.addChild(this.stageContainer);
     this.stageContainer.addChild(this.tileContainer);
+    this.stageContainer.addChild(this.shadowGraphics); // 足元影レイヤー
     this.stageContainer.addChild(this.selectionGraphics);
-    this.stageContainer.addChild(this.depthContainer);
+    this.stageContainer.addChild(this.depthContainer); // Yソート対象
+    this.stageContainer.addChild(this.particleGraphics); // ダッシュ土煙
     this.stageContainer.addChild(this.weatherGraphics);
 
-    // イベントリスナーの登録
     this.setupInteractions(app.canvas);
-
-    // カメラの初期位置を中央へ
     this.centerCamera();
 
-    // 天候パーティクル初期化
-    for (let i = 0; i < 150; i++) {
+    // 天候パーティクル
+    for (let i = 0; i < 200; i++) {
       this.weatherParticles.push({
-        x: Math.random() * 1000 - 200,
-        y: Math.random() * 800 - 200,
-        speed: 4 + Math.random() * 5,
-        length: 8 + Math.random() * 10,
+        x: Math.random() * 2000 - 300,
+        y: Math.random() * 1200 - 200,
+        speed: 5 + Math.random() * 6,
+        length: 10 + Math.random() * 12,
       });
     }
   }
@@ -83,8 +85,9 @@ export class PixiWorldRenderer implements IRenderer {
     if (!this.container) return;
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
-    this.cameraX = width / 2 - 240 * this.zoom;
-    this.cameraY = height / 2 - 250 * this.zoom;
+    // プレイヤー初期位置 (480, 480) を中心に配置
+    this.cameraX = width / 2 - 480 * this.zoom;
+    this.cameraY = height / 2 - 480 * this.zoom;
     this.updateCameraTransform();
   }
 
@@ -129,8 +132,21 @@ export class PixiWorldRenderer implements IRenderer {
   }
 
   public resetCamera(): void {
-    this.zoom = 1.5;
+    this.zoom = 1.1;
     this.centerCamera();
+  }
+
+  // 探索モード時のカメラ追従 (Lerp補間)
+  public followPlayer(playerX: number, playerY: number, lerp: number = 0.1) {
+    if (!this.container || this.isDraggingCamera) return;
+    const width = this.container.clientWidth;
+    const height = this.container.clientHeight;
+    const targetCamX = width / 2 - playerX * this.zoom;
+    const targetCamY = height / 2 - playerY * this.zoom;
+
+    this.cameraX += (targetCamX - this.cameraX) * lerp;
+    this.cameraY += (targetCamY - this.cameraY) * lerp;
+    this.updateCameraTransform();
   }
 
   private async getTexture(url: string): Promise<Texture> {
@@ -149,17 +165,25 @@ export class PixiWorldRenderer implements IRenderer {
     world: AirasWorldData,
     assets: Record<string, AirasAsset>,
     selectedEntityId?: string | null,
-    ghosts?: RendererGhostEntity[]
+    ghosts?: RendererGhostEntity[],
+    isPlayMode: boolean = false
   ): Promise<void> {
     if (!this.app) return;
 
-    // 1. マップタイル描画
+    // 探索モード時はプレイヤーへスムーズにカメラ追従
+    if (isPlayMode) {
+      this.followPlayer(world.player.position.x, world.player.position.y);
+    }
+
+    // 1. マップタイル
     await this.renderTiles(world, assets);
 
-    // 2. エンティティ描画
+    // 2. 影レイヤーのクリア
+    this.shadowGraphics.clear();
+
     const renderedIds = new Set<string>();
 
-    // プレイヤー
+    // プレイヤー描画
     const player = world.player;
     const playerAsset = assets[player.assetId];
     if (playerAsset) {
@@ -172,9 +196,29 @@ export class PixiWorldRenderer implements IRenderer {
         1.0
       );
       renderedIds.add(player.id);
+
+      // ジャンプ中の足元影の接地描画 (Z軸の高さに応じて影が縮小)
+      const shadowScale = Math.max(0.4, 1 - player.position.z / 150);
+      const shadowAlpha = Math.max(0.15, 0.35 * shadowScale);
+      this.shadowGraphics
+        .ellipse(player.position.x, player.position.y, 8 * shadowScale, 3 * shadowScale)
+        .fill({ color: 0x000000, alpha: shadowAlpha });
+
+      // ダッシュ時の土煙パーティクル発生
+      if (player.isSprinting && player.isMoving && player.position.z <= 0) {
+        if (Math.random() < 0.4) {
+          this.dustParticles.push({
+            x: player.position.x + (Math.random() * 8 - 4),
+            y: player.position.y + (Math.random() * 4 - 2),
+            vx: (Math.random() - 0.5) * 20,
+            vy: -10 - Math.random() * 15,
+            life: 0.4,
+          });
+        }
+      }
     }
 
-    // オブジェクト・NPC
+    // オブジェクト・NPC描画
     for (const entity of Object.values(world.entities)) {
       const asset = assets[entity.assetId];
       if (!asset) continue;
@@ -190,7 +234,7 @@ export class PixiWorldRenderer implements IRenderer {
       renderedIds.add(entity.id);
     }
 
-    // 3. ゴーストプレビュー
+    // ゴーストプレビュー
     if (ghosts && ghosts.length > 0) {
       for (let i = 0; i < ghosts.length; i++) {
         const g = ghosts[i];
@@ -202,7 +246,7 @@ export class PixiWorldRenderer implements IRenderer {
       }
     }
 
-    // 未使用スプライト削除
+    // 不要スプライト破棄
     for (const [id, sprite] of this.entitySprites.entries()) {
       if (!renderedIds.has(id)) {
         this.depthContainer.removeChild(sprite);
@@ -210,8 +254,12 @@ export class PixiWorldRenderer implements IRenderer {
       }
     }
 
-    // 4. 2.5D 深度ソート (Y-sort)
-    this.depthContainer.children.sort((a, b) => a.y - b.y);
+    // 3. 2.5D 深度ソート (足元接地位置 Y を基準にソート)
+    // 接地点のY座標が手前にあるものほど手前に描画
+    this.depthContainer.children.sort((a, b) => (a as any).worldFootY - (b as any).worldFootY);
+
+    // 4. ダッシュ土煙パーティクル描画
+    this.renderDustParticles();
 
     // 5. 選択ハイライト
     this.renderSelectionHighlight(world, assets, selectedEntityId);
@@ -269,12 +317,33 @@ export class PixiWorldRenderer implements IRenderer {
     sprite.anchor.set(ax, ay);
 
     sprite.x = x;
-    sprite.y = y - z;
+    sprite.y = y - z; // 2.5D空中浮上 (ジャンプ)
+    (sprite as any).worldFootY = y; // ソート用足元接地Y
+
     sprite.alpha = isGhost ? 0.65 : alpha;
     if (isGhost) {
       sprite.tint = 0x38bdf8;
     } else {
       sprite.tint = 0xffffff;
+    }
+  }
+
+  private renderDustParticles() {
+    this.particleGraphics.clear();
+    for (let i = this.dustParticles.length - 1; i >= 0; i--) {
+      const p = this.dustParticles[i];
+      p.x += p.vx * 0.016;
+      p.y += p.vy * 0.016;
+      p.life -= 0.016;
+
+      if (p.life <= 0) {
+        this.dustParticles.splice(i, 1);
+        continue;
+      }
+
+      this.particleGraphics
+        .circle(p.x, p.y, Math.max(1, p.life * 5))
+        .fill({ color: 0xe2e8f0, alpha: p.life * 0.8 });
     }
   }
 
@@ -310,28 +379,28 @@ export class PixiWorldRenderer implements IRenderer {
       for (const p of this.weatherParticles) {
         p.y += p.speed;
         p.x -= p.speed * 0.3;
-        if (p.y > 600) p.y = -50;
-        if (p.x < -100) p.x = 600;
+        if (p.y > 1100) p.y = -50;
+        if (p.x < -200) p.x = 1800;
 
         this.weatherGraphics
           .moveTo(p.x, p.y)
           .lineTo(p.x - 3, p.y + p.length)
-          .stroke({ color: 0x93c5fd, width: 1.5, alpha: 0.5 });
+          .stroke({ color: 0x93c5fd, width: 1.5, alpha: 0.55 });
       }
     } else if (weather === 'snow') {
       for (const p of this.weatherParticles) {
         p.y += p.speed * 0.4;
         p.x += Math.sin(p.y * 0.05) * 0.8;
-        if (p.y > 600) p.y = -50;
-        if (p.x < -100) p.x = 600;
+        if (p.y > 1100) p.y = -50;
+        if (p.x < -200) p.x = 1800;
 
         this.weatherGraphics
           .circle(p.x, p.y, 2)
-          .fill({ color: 0xffffff, alpha: 0.7 });
+          .fill({ color: 0xffffff, alpha: 0.75 });
       }
     } else if (weather === 'sunset') {
       this.weatherGraphics
-        .rect(-500, -500, 2000, 2000)
+        .rect(-500, -500, 2600, 2000)
         .fill({ color: 0xf97316, alpha: 0.18 });
     }
   }
@@ -344,17 +413,48 @@ export class PixiWorldRenderer implements IRenderer {
       pointerDownPos = { x: e.clientX, y: e.clientY };
       hasMovedSignificantly = false;
 
-      if (e.button === 2 || e.button === 1 || e.altKey) {
-        this.isDraggingCamera = true;
-        this.lastMousePos = { x: e.clientX, y: e.clientY };
-        return;
-      }
-
       const rect = canvas.getBoundingClientRect();
       const screenX = e.clientX - rect.left;
       const screenY = e.clientY - rect.top;
       const worldPos = this.screenToWorld(screenX, screenY);
 
+      // 右クリック: マインクラフト準拠のオブジェクト使用/インタラクション
+      if (e.button === 2) {
+        // オブジェクトのヒットテスト
+        let hitId: string | null = null;
+        for (const [id, sprite] of Array.from(this.entitySprites.entries()).reverse()) {
+          if (id.startsWith('__ghost_') || id === 'player_main') continue;
+          const bounds = sprite.getBounds();
+          if (
+            screenX >= bounds.x &&
+            screenX <= bounds.x + bounds.width &&
+            screenY >= bounds.y &&
+            screenY <= bounds.y + bounds.height
+          ) {
+            hitId = id;
+            break;
+          }
+        }
+
+        if (hitId) {
+          this.onEntityRightClick?.(hitId);
+          return;
+        }
+
+        // 何もない場所の右ドラッグはカメラパン
+        this.isDraggingCamera = true;
+        this.lastMousePos = { x: e.clientX, y: e.clientY };
+        return;
+      }
+
+      // 中ボタンまたはAltキー
+      if (e.button === 1 || e.altKey) {
+        this.isDraggingCamera = true;
+        this.lastMousePos = { x: e.clientX, y: e.clientY };
+        return;
+      }
+
+      // 左クリック: オブジェクト選択 / 移動開始
       let pickedId: string | null = null;
       for (const [id, sprite] of Array.from(this.entitySprites.entries()).reverse()) {
         if (id.startsWith('__ghost_') || id === 'player_main') continue;
@@ -408,7 +508,7 @@ export class PixiWorldRenderer implements IRenderer {
     });
 
     window.addEventListener('pointerup', (e: PointerEvent) => {
-      if (!hasMovedSignificantly) {
+      if (!hasMovedSignificantly && e.button === 0) {
         const rect = canvas.getBoundingClientRect();
         const screenX = e.clientX - rect.left;
         const screenY = e.clientY - rect.top;
@@ -432,7 +532,7 @@ export class PixiWorldRenderer implements IRenderer {
         const rect = canvas.getBoundingClientRect();
         const cx = e.clientX - rect.left;
         const cy = e.clientY - rect.top;
-        const delta = e.deltaY < 0 ? 0.15 : -0.15;
+        const delta = e.deltaY < 0 ? 0.12 : -0.12;
         this.zoomCamera(delta, cx, cy);
       },
       { passive: false }

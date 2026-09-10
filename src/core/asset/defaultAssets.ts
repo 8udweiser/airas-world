@@ -1,172 +1,327 @@
 import { AirasAsset } from '../types/asset';
 
-// SVGをDataURIに変換するヘルパー
 function svgToUri(svg: string): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
 }
 
-// 1. 昭和レトロ赤い自販機 (32x56)
+// 1. 高精細 昭和レトロ赤い自販機 (32x56)
 const vendingMachineSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 56" shape-rendering="crispEdges">
-  <!-- 自販機本体 -->
-  <rect x="2" y="2" width="28" height="50" fill="#b91c1c" />
-  <rect x="4" y="4" width="24" height="4" fill="#ef4444" />
-  <rect x="2" y="2" width="28" height="2" fill="#fca5a5" />
-  <rect x="2" y="2" width="2" height="50" fill="#f87171" />
-  <rect x="28" y="4" width="2" height="48" fill="#7f1d1d" />
+  <!-- 影 (足元) -->
+  <ellipse cx="16" cy="54" rx="14" ry="2" fill="rgba(0,0,0,0.35)" />
   
-  <!-- 上部看板 "COLD / HOT" -->
-  <rect x="6" y="8" width="20" height="6" fill="#1e293b" />
-  <rect x="8" y="10" width="7" height="2" fill="#38bdf8" />
-  <rect x="17" y="10" width="7" height="2" fill="#f97316" />
-  
-  <!-- ドリンク展示棚 -->
-  <rect x="6" y="16" width="20" height="18" fill="#0f172a" />
-  <rect x="7" y="17" width="18" height="16" fill="#1e293b" />
-  <!-- ボトル列 1段目 -->
-  <rect x="8" y="19" width="3" height="5" fill="#ef4444" />
-  <rect x="12" y="19" width="3" height="5" fill="#3b82f6" />
-  <rect x="16" y="19" width="3" height="5" fill="#10b981" />
-  <rect x="20" y="19" width="3" height="5" fill="#eab308" />
-  <!-- ボタン -->
-  <rect x="8" y="25" width="3" height="1" fill="#67e8f9" />
-  <rect x="12" y="25" width="3" height="1" fill="#67e8f9" />
-  <rect x="16" y="25" width="3" height="1" fill="#fca5a5" />
-  <rect x="20" y="25" width="3" height="1" fill="#fca5a5" />
+  <!-- 自販機本体外殻 -->
+  <rect x="2" y="2" width="28" height="50" fill="#991b1b" />
+  <rect x="3" y="3" width="26" height="48" fill="#dc2626" />
+  <rect x="3" y="3" width="26" height="2" fill="#fca5a5" />
+  <rect x="3" y="3" width="2" height="48" fill="#ef4444" />
+  <rect x="27" y="3" width="2" height="48" fill="#7f1d1d" />
 
-  <!-- ボトル列 2段目 -->
-  <rect x="8" y="27" width="3" height="4" fill="#a855f7" />
-  <rect x="12" y="27" width="3" height="4" fill="#f97316" />
-  <rect x="16" y="27" width="3" height="4" fill="#06b6d4" />
-  <rect x="20" y="27" width="3" height="4" fill="#ec4899" />
+  <!-- 上部発光ディスプレイ看板 -->
+  <rect x="5" y="6" width="22" height="7" fill="#0f172a" />
+  <rect x="6" y="7" width="20" height="5" fill="#1e293b" />
+  <rect x="8" y="8" width="6" height="3" fill="#38bdf8" />
+  <rect x="18" y="8" width="6" height="3" fill="#f97316" />
+  <rect x="15" y="8" width="2" height="3" fill="#ffffff" />
 
-  <!-- コイン投入口 & おつりレバー -->
-  <rect x="8" y="37" width="3" height="1" fill="#000" />
-  <rect x="8" y="39" width="2" height="3" fill="#cbd5e1" />
-  <rect x="14" y="37" width="8" height="4" fill="#0284c7" />
+  <!-- ドリンク展示棚 (ガラス窓) -->
+  <rect x="5" y="15" width="22" height="20" fill="#090d16" />
+  <rect x="6" y="16" width="20" height="18" fill="#1e293b" />
+  <!-- ガラスの斜め反射ハイライト -->
+  <line x1="8" y1="17" x2="18" y2="33" stroke="rgba(255,255,255,0.25)" stroke-width="1" />
+  <line x1="12" y1="17" x2="22" y2="33" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
 
-  <!-- 取り出し口 -->
-  <rect x="6" y="44" width="20" height="6" fill="#0f172a" />
-  <rect x="8" y="46" width="16" height="3" fill="#334155" />
+  <!-- ボトル列 1段目 (ジュース・お茶) -->
+  <rect x="7" y="18" width="3" height="6" fill="#ef4444" />
+  <rect x="11" y="18" width="3" height="6" fill="#10b981" />
+  <rect x="15" y="18" width="3" height="6" fill="#0284c7" />
+  <rect x="19" y="18" width="3" height="6" fill="#eab308" />
+  <rect x="23" y="18" width="2" height="6" fill="#8b5cf6" />
+  <!-- ボタン 1段目 -->
+  <rect x="7" y="25" width="3" height="1" fill="#38bdf8" />
+  <rect x="11" y="25" width="3" height="1" fill="#38bdf8" />
+  <rect x="15" y="25" width="3" height="1" fill="#38bdf8" />
+  <rect x="19" y="25" width="3" height="1" fill="#f87171" />
+  <rect x="23" y="25" width="2" height="1" fill="#f87171" />
 
-  <!-- 足元スタンド -->
-  <rect x="5" y="52" width="5" height="3" fill="#334155" />
-  <rect x="22" y="52" width="5" height="3" fill="#334155" />
+  <!-- ボトル列 2段目 (コーヒー・炭酸) -->
+  <rect x="7" y="27" width="3" height="5" fill="#78350f" />
+  <rect x="11" y="27" width="3" height="5" fill="#f97316" />
+  <rect x="15" y="27" width="3" height="5" fill="#06b6d4" />
+  <rect x="19" y="27" width="3" height="5" fill="#ec4899" />
+  <rect x="23" y="27" width="2" height="5" fill="#f43f5e" />
+  <!-- ボタン 2段目 -->
+  <rect x="7" y="33" width="3" height="1" fill="#f87171" />
+  <rect x="11" y="33" width="3" height="1" fill="#38bdf8" />
+  <rect x="15" y="33" width="3" height="1" fill="#38bdf8" />
+  <rect x="19" y="33" width="3" height="1" fill="#f87171" />
+  <rect x="23" y="33" width="2" height="1" fill="#f87171" />
+
+  <!-- コイン投入口 & 液晶金額パネル -->
+  <rect x="7" y="38" width="4" height="1" fill="#000000" />
+  <rect x="8" y="40" width="2" height="3" fill="#cbd5e1" />
+  <rect x="14" y="37" width="11" height="5" fill="#0284c7" />
+  <rect x="16" y="38" width="7" height="3" fill="#38bdf8" />
+
+  <!-- 商品取り出し口 (フラップ扉) -->
+  <rect x="5" y="44" width="22" height="7" fill="#090d16" />
+  <rect x="7" y="45" width="18" height="5" fill="#334155" />
+  <rect x="7" y="45" width="18" height="1" fill="#64748b" />
+  <rect x="14" y="47" width="4" height="2" fill="#1e293b" />
+
+  <!-- スタンド脚 (金属) -->
+  <rect x="5" y="52" width="6" height="3" fill="#1e293b" />
+  <rect x="21" y="52" width="6" height="3" fill="#1e293b" />
 </svg>
 `;
 
-// 2. 電柱 (24x80)
+// 2. 昭和レトロ純喫茶（カフェ） (64x64)
+const retroCafeSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <!-- 建物本体（レンガ外壁） -->
+  <rect x="4" y="16" width="56" height="46" fill="#7c2d12" />
+  <rect x="6" y="18" width="52" height="44" fill="#9a3412" />
+  <!-- レンガ目地パターン -->
+  <line x1="4" y1="26" x2="60" y2="26" stroke="#431407" stroke-width="1" />
+  <line x1="4" y1="36" x2="60" y2="36" stroke="#431407" stroke-width="1" />
+  <line x1="4" y1="46" x2="60" y2="46" stroke="#431407" stroke-width="1" />
+  <line x1="4" y1="56" x2="60" y2="56" stroke="#431407" stroke-width="1" />
+
+  <!-- 三角ひさし屋根 (ストライプ グリーン & ホワイト) -->
+  <polygon points="2,16 62,16 58,10 6,10" fill="#15803d" />
+  <!-- ストライプ -->
+  <polygon points="12,16 18,16 16,10 10,10" fill="#f8fafc" />
+  <polygon points="26,16 32,16 30,10 24,10" fill="#f8fafc" />
+  <polygon points="40,16 46,16 44,10 38,10" fill="#f8fafc" />
+  <polygon points="54,16 60,16 58,10 52,10" fill="#f8fafc" />
+
+  <!-- 看板「珈琲」 -->
+  <rect x="20" y="4" width="24" height="8" fill="#451a03" stroke="#d97706" stroke-width="1" />
+  <rect x="22" y="6" width="20" height="4" fill="#78350f" />
+  <!-- 文字風の金ドット -->
+  <rect x="25" y="7" width="5" height="2" fill="#fbbf24" />
+  <rect x="34" y="7" width="5" height="2" fill="#fbbf24" />
+
+  <!-- 喫茶店の木枠窓 (ステンドグラス・暖色発光) -->
+  <rect x="8" y="24" width="20" height="20" fill="#451a03" />
+  <rect x="10" y="26" width="16" height="16" fill="#fef08a" />
+  <rect x="12" y="28" width="6" height="6" fill="#fed7aa" />
+  <rect x="18" y="34" width="6" height="6" fill="#fdba74" />
+  <line x1="18" y1="26" x2="18" y2="42" stroke="#451a03" stroke-width="2" />
+  <line x1="10" y1="34" x2="26" y2="34" stroke="#451a03" stroke-width="2" />
+
+  <!-- 入口ドア (木製ガラス扉) -->
+  <rect x="36" y="24" width="20" height="38" fill="#451a03" />
+  <rect x="38" y="26" width="16" height="20" fill="#fef3c7" />
+  <rect x="40" y="28" width="12" height="16" fill="#fde68a" />
+  <line x1="46" y1="26" x2="46" y2="46" stroke="#451a03" stroke-width="1" />
+  <!-- 金色ドアノブ -->
+  <circle cx="39" cy="45" r="1.5" fill="#f59e0b" />
+
+  <!-- 外灯ランプ (玄関上) -->
+  <circle cx="32" cy="22" r="3" fill="#fef08a" />
+  <circle cx="32" cy="22" r="1.5" fill="#ffffff" />
+</svg>
+`;
+
+// 3. 国鉄風木造駅舎 (80x64)
+const retroStationSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 64" shape-rendering="crispEdges">
+  <!-- 大屋根 (瓦屋根ダークスレート) -->
+  <polygon points="4,20 76,20 70,8 10,8" fill="#334155" />
+  <polygon points="8,19 72,19 68,10 12,10" fill="#475569" />
+  <!-- 瓦のライン -->
+  <line x1="12" y1="13" x2="68" y2="13" stroke="#1e293b" stroke-width="1" />
+  <line x1="10" y1="16" x2="70" y2="16" stroke="#1e293b" stroke-width="1" />
+
+  <!-- 壁面 (下見板張り木造) -->
+  <rect x="8" y="20" width="64" height="42" fill="#78350f" />
+  <rect x="10" y="22" width="60" height="38" fill="#92400e" />
+  <line x1="8" y1="28" x2="72" y2="28" stroke="#451a03" stroke-width="1" />
+  <line x1="8" y1="36" x2="72" y2="36" stroke="#451a03" stroke-width="1" />
+  <line x1="8" y1="44" x2="72" y2="44" stroke="#451a03" stroke-width="1" />
+  <line x1="8" y1="52" x2="72" y2="52" stroke="#451a03" stroke-width="1" />
+
+  <!-- 駅名看板「あいらす駅」 -->
+  <rect x="28" y="14" width="24" height="8" fill="#f8fafc" stroke="#1e293b" stroke-width="1" />
+  <rect x="30" y="16" width="20" height="4" fill="#0284c7" />
+  <rect x="33" y="17" width="14" height="2" fill="#ffffff" />
+
+  <!-- 改札・エントランス大扉 -->
+  <rect x="26" y="32" width="28" height="30" fill="#1e293b" />
+  <rect x="28" y="34" width="24" height="28" fill="#0f172a" />
+  <!-- 木の改札柵ラッチ -->
+  <rect x="30" y="46" width="3" height="14" fill="#d97706" />
+  <rect x="47" y="46" width="3" height="14" fill="#d97706" />
+
+  <!-- 駅の窓 (左・右) -->
+  <rect x="14" y="30" width="8" height="12" fill="#fde68a" stroke="#451a03" stroke-width="1" />
+  <rect x="58" y="30" width="8" height="12" fill="#fde68a" stroke="#451a03" stroke-width="1" />
+</svg>
+`;
+
+// 4. 公園の噴水 (48x48)
+const parkFountainSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" shape-rendering="crispEdges">
+  <!-- 外側の石組みプール -->
+  <ellipse cx="24" cy="36" rx="22" ry="10" fill="#64748b" />
+  <ellipse cx="24" cy="35" rx="20" ry="8" fill="#94a3b8" />
+  <!-- 水面 -->
+  <ellipse cx="24" cy="35" rx="18" ry="7" fill="#0284c7" />
+  <ellipse cx="24" cy="34" rx="15" ry="5" fill="#38bdf8" />
+
+  <!-- 中央の噴水台座石柱 -->
+  <rect x="21" y="22" width="6" height="14" fill="#475569" />
+  <rect x="19" y="20" width="10" height="4" fill="#94a3b8" />
+  
+  <!-- 吹き上がる水流 -->
+  <rect x="23" y="10" width="2" height="12" fill="#e0f2fe" />
+  <rect x="22" y="8" width="4" height="4" fill="#ffffff" />
+  <!-- 落ちる水しぶき -->
+  <circle cx="16" cy="22" r="1.5" fill="#bae6fd" />
+  <circle cx="32" cy="22" r="1.5" fill="#bae6fd" />
+  <circle cx="13" cy="28" r="1" fill="#7dd3fc" />
+  <circle cx="35" cy="28" r="1" fill="#7dd3fc" />
+  <circle cx="20" cy="33" r="1.5" fill="#ffffff" />
+  <circle cx="28" cy="33" r="1.5" fill="#ffffff" />
+</svg>
+`;
+
+// 5. 三毛猫NPC (24x20)
+const catSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 20" shape-rendering="crispEdges">
+  <!-- 影 -->
+  <ellipse cx="12" cy="18" rx="8" ry="2" fill="rgba(0,0,0,0.3)" />
+
+  <!-- 胴体 (白・茶・黒の三毛) -->
+  <ellipse cx="12" cy="13" rx="7" ry="5" fill="#ffffff" />
+  <rect x="8" y="9" width="4" height="5" fill="#d97706" />
+  <rect x="14" y="11" width="3" height="4" fill="#1e293b" />
+
+  <!-- しっぽ -->
+  <path d="M19 13 Q22 10 21 7" stroke="#d97706" stroke-width="2" fill="none" />
+
+  <!-- 頭部 -->
+  <circle cx="7" cy="9" r="4.5" fill="#ffffff" />
+  <!-- 耳 (ピンと立った三角) -->
+  <polygon points="4,5 6,2 7,5" fill="#d97706" />
+  <polygon points="8,5 10,2 11,5" fill="#1e293b" />
+  <polygon points="5,5 6,3 7,5" fill="#fbcfe8" />
+
+  <!-- 目 (エメラルドグリーン) -->
+  <rect x="5" y="8" width="1" height="2" fill="#10b981" />
+  <rect x="8" y="8" width="1" height="2" fill="#10b981" />
+  <!-- 鼻とヒゲ -->
+  <rect x="6" y="10" width="2" height="1" fill="#f43f5e" />
+  <line x1="3" y1="10" x2="1" y2="9" stroke="#94a3b8" stroke-width="1" />
+  <line x1="10" y1="10" x2="12" y2="9" stroke="#94a3b8" stroke-width="1" />
+</svg>
+`;
+
+// 6. 木造・コンクリート電柱 (高精細 24x80)
 const telegraphPoleSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 80" shape-rendering="crispEdges">
-  <!-- 電柱本体（コンクリート柱） -->
-  <rect x="10" y="4" width="4" height="74" fill="#94a3b8" />
-  <rect x="10" y="4" width="1" height="74" fill="#cbd5e1" />
-  <rect x="13" y="4" width="1" height="74" fill="#64748b" />
+  <ellipse cx="12" cy="78" rx="5" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="10" y="4" width="4" height="74" fill="#64748b" />
+  <rect x="10" y="4" width="1.5" height="74" fill="#cbd5e1" />
+  <rect x="12.5" y="4" width="1.5" height="74" fill="#334155" />
   
-  <!-- 最上部アーム -->
-  <rect x="2" y="8" width="20" height="2" fill="#475569" />
-  <rect x="4" y="6" width="2" height="2" fill="#f8fafc" />
-  <rect x="18" y="6" width="2" height="2" fill="#f8fafc" />
+  <!-- 最上部ガイシアーム -->
+  <rect x="2" y="8" width="20" height="2" fill="#1e293b" />
+  <rect x="3" y="6" width="2" height="2" fill="#f8fafc" />
+  <rect x="19" y="6" width="2" height="2" fill="#f8fafc" />
   
-  <!-- トランス（変圧器・グレーの円筒） -->
-  <rect x="6" y="16" width="12" height="14" fill="#475569" />
-  <rect x="7" y="17" width="10" height="12" fill="#64748b" />
-  <rect x="8" y="16" width="4" height="1" fill="#94a3b8" />
+  <!-- トランス変圧器 (円筒) -->
+  <rect x="5" y="16" width="14" height="16" fill="#334155" />
+  <rect x="6" y="17" width="12" height="14" fill="#475569" />
+  <rect x="7" y="16" width="4" height="1" fill="#94a3b8" />
+  <rect x="6" y="17" width="2" height="14" fill="#94a3b8" />
   
   <!-- 2段目アーム -->
-  <rect x="4" y="34" width="16" height="2" fill="#475569" />
-  <rect x="5" y="32" width="2" height="2" fill="#f8fafc" />
-  <rect x="17" y="32" width="2" height="2" fill="#f8fafc" />
+  <rect x="4" y="36" width="16" height="2" fill="#1e293b" />
+  <rect x="5" y="34" width="2" height="2" fill="#f8fafc" />
+  <rect x="17" y="34" width="2" height="2" fill="#f8fafc" />
 
-  <!-- 街灯アーム (黄色い光) -->
-  <path d="M12 44 L18 44 L20 48" stroke="#334155" stroke-width="1" fill="none" />
-  <rect x="18" y="48" width="4" height="3" fill="#fef08a" />
+  <!-- 街灯アーム -->
+  <path d="M12 46 L19 46 L21 50" stroke="#1e293b" stroke-width="1.5" fill="none" />
+  <polygon points="18,50 24,50 22,48 20,48" fill="#0f172a" />
+  <rect x="19" y="50" width="4" height="3" fill="#fef08a" />
 
-  <!-- 足元根元 -->
-  <rect x="9" y="76" width="6" height="4" fill="#475569" />
+  <!-- 足元ベース -->
+  <rect x="9" y="75" width="6" height="3" fill="#334155" />
 </svg>
 `;
 
-// 3. レトロ街灯 (16x48)
+// 7. ノスタルジック街灯 (16x48)
 const streetLampSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 48" shape-rendering="crispEdges">
-  <!-- ポール -->
+  <ellipse cx="8" cy="46" rx="5" ry="2" fill="rgba(0,0,0,0.3)" />
   <rect x="7" y="12" width="2" height="34" fill="#1e293b" />
-  <rect x="7" y="12" width="1" height="34" fill="#334155" />
-  <!-- ランプ笠 -->
-  <polygon points="3,10 13,10 11,4 5,4" fill="#0f172a" />
-  <!-- ランタン部 -->
-  <rect x="5" y="8" width="6" height="5" fill="#fef08a" />
-  <rect x="6" y="9" width="4" height="3" fill="#ffffff" />
-  <!-- 土台 -->
-  <rect x="5" y="44" width="6" height="3" fill="#0f172a" />
+  <rect x="7" y="12" width="1" height="34" fill="#475569" />
+  <polygon points="2,10 14,10 11,4 5,4" fill="#0f172a" />
+  <polygon points="3,10 13,10 10,5 6,5" fill="#1e293b" />
+  <rect x="4" y="8" width="8" height="6" fill="#fef08a" />
+  <rect x="6" y="9" width="4" height="4" fill="#ffffff" />
+  <rect x="4" y="44" width="8" height="3" fill="#0f172a" />
 </svg>
 `;
 
-// 4. 木 (48x56)
+// 8. ケヤキの木 (48x56)
 const retroTreeSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 56" shape-rendering="crispEdges">
+  <ellipse cx="24" cy="53" rx="16" ry="3" fill="rgba(0,0,0,0.3)" />
   <!-- 幹 -->
-  <rect x="21" y="34" width="6" height="20" fill="#78350f" />
-  <rect x="21" y="34" width="2" height="20" fill="#92400e" />
-  <rect x="25" y="34" width="2" height="20" fill="#451a03" />
+  <rect x="21" y="32" width="6" height="22" fill="#78350f" />
+  <rect x="21" y="32" width="2" height="22" fill="#92400e" />
+  <rect x="25" y="32" width="2" height="22" fill="#451a03" />
   
-  <!-- 葉っぱ（レイヤー1: 暗い緑） -->
-  <circle cx="24" cy="22" r="20" fill="#14532d" />
-  <!-- 葉っぱ（レイヤー2: 中間緑） -->
-  <circle cx="22" cy="19" r="16" fill="#15803d" />
-  <!-- 葉っぱ（レイヤー3: 明るい緑） -->
-  <circle cx="19" cy="15" r="11" fill="#22c55e" />
-  <circle cx="27" cy="16" r="9" fill="#16a34a" />
-  <!-- ハイライト -->
-  <circle cx="17" cy="13" r="5" fill="#86efac" />
+  <!-- 葉レイヤー -->
+  <circle cx="24" cy="20" r="20" fill="#14532d" />
+  <circle cx="22" cy="18" r="17" fill="#15803d" />
+  <circle cx="18" cy="14" r="12" fill="#16a34a" />
+  <circle cx="28" cy="15" r="11" fill="#22c55e" />
+  <!-- 木漏れ日ハイライト -->
+  <circle cx="16" cy="11" r="5" fill="#86efac" />
+  <circle cx="27" cy="12" r="4" fill="#86efac" />
 </svg>
 `;
 
-// 5. 木製ベンチ (36x24)
+// 9. 木製ベンチ (36x24)
 const retroBenchSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 24" shape-rendering="crispEdges">
-  <!-- 背もたれ板 -->
+  <ellipse cx="18" cy="22" rx="16" ry="2" fill="rgba(0,0,0,0.3)" />
   <rect x="4" y="4" width="28" height="4" fill="#b45309" />
   <rect x="4" y="4" width="28" height="1" fill="#d97706" />
   <rect x="4" y="9" width="28" height="4" fill="#b45309" />
   <rect x="4" y="9" width="28" height="1" fill="#d97706" />
 
-  <!-- 座面 -->
   <polygon points="2,14 34,14 32,18 4,18" fill="#92400e" />
   <line x1="2" y1="14" x2="34" y2="14" stroke="#d97706" stroke-width="1" />
 
-  <!-- 脚 (アイアン) -->
-  <rect x="6" y="16" width="2" height="7" fill="#1e293b" />
-  <rect x="28" y="16" width="2" height="7" fill="#1e293b" />
+  <rect x="6" y="16" width="2" height="7" fill="#0f172a" />
+  <rect x="28" y="16" width="2" height="7" fill="#0f172a" />
 </svg>
 `;
 
-// 6. 昭和レトロ駅名標 (40x36)
+// 10. 国鉄風駅名標 (40x36)
 const stationSignSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 36" shape-rendering="crispEdges">
-  <!-- 支柱 -->
-  <rect x="8" y="18" width="2" height="17" fill="#64748b" />
-  <rect x="30" y="18" width="2" height="17" fill="#64748b" />
+  <ellipse cx="20" cy="34" rx="16" ry="2" fill="rgba(0,0,0,0.25)" />
+  <rect x="8" y="18" width="2" height="17" fill="#475569" />
+  <rect x="30" y="18" width="2" height="17" fill="#475569" />
   
-  <!-- 看板フレーム -->
-  <rect x="4" y="4" width="32" height="18" fill="#f8fafc" stroke="#334155" stroke-width="1" />
-  <!-- 青帯 -->
+  <rect x="4" y="4" width="32" height="18" fill="#f8fafc" stroke="#1e293b" stroke-width="1" />
   <rect x="5" y="17" width="30" height="3" fill="#0284c7" />
-  <!-- 駅名もじ風 -->
-  <rect x="12" y="8" width="16" height="5" fill="#0f172a" />
-  <!-- ひらがな風下部 -->
+  <rect x="10" y="7" width="20" height="6" fill="#0f172a" />
   <rect x="14" y="14" width="12" height="2" fill="#475569" />
 </svg>
 `;
 
-// 7. キャラクター: 高校生の女の子（制服・黒髪）(24x36)
+// 11. 高校生キャラクター（女の子） (24x36)
 const schoolgirlSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" shape-rendering="crispEdges">
-  <!-- 影 (足元) -->
-  <ellipse cx="12" cy="34" rx="7" ry="2" fill="rgba(0,0,0,0.3)" />
-
-  <!-- 脚・ソックス・ローファー -->
+  <ellipse cx="12" cy="34" rx="7" ry="2" fill="rgba(0,0,0,0.35)" />
+  <!-- 脚 -->
   <rect x="9" y="27" width="2" height="5" fill="#fed7aa" />
   <rect x="13" y="27" width="2" height="5" fill="#fed7aa" />
   <rect x="9" y="29" width="2" height="4" fill="#1e293b" />
@@ -174,14 +329,13 @@ const schoolgirlSvg = `
   <rect x="8" y="33" width="3" height="2" fill="#78350f" />
   <rect x="13" y="33" width="3" height="2" fill="#78350f" />
 
-  <!-- スカート (紺プリーツ) -->
+  <!-- スカート -->
   <polygon points="7,23 17,23 19,28 5,28" fill="#1e3a8a" />
   <rect x="9" y="23" width="1" height="5" fill="#172554" />
   <rect x="14" y="23" width="1" height="5" fill="#172554" />
 
-  <!-- 上着（セーラー服 / 白シャツ） -->
+  <!-- セーラー服 -->
   <rect x="8" y="16" width="8" height="7" fill="#ffffff" />
-  <!-- セーラー襟（紺） & 赤スカーフ -->
   <polygon points="7,16 17,16 14,20 10,20" fill="#1e3a8a" />
   <polygon points="11,18 13,18 12,22" fill="#dc2626" />
 
@@ -189,17 +343,15 @@ const schoolgirlSvg = `
   <rect x="6" y="17" width="2" height="7" fill="#fed7aa" />
   <rect x="16" y="17" width="2" height="7" fill="#fed7aa" />
 
-  <!-- 顔・首 -->
+  <!-- 顔 -->
   <rect x="11" y="14" width="2" height="2" fill="#fcd34d" />
   <rect x="8" y="8" width="8" height="7" fill="#fed7aa" />
-  <!-- 目 (黒) -->
   <rect x="9" y="11" width="1" height="2" fill="#1e293b" />
   <rect x="14" y="11" width="1" height="2" fill="#1e293b" />
-  <!-- ほっぺ (ピンク) -->
   <rect x="9" y="13" width="1" height="1" fill="#f43f5e" />
   <rect x="14" y="13" width="1" height="1" fill="#f43f5e" />
 
-  <!-- 髪（黒髪ボブ・ハイライト） -->
+  <!-- 髪 -->
   <rect x="7" y="5" width="10" height="4" fill="#0f172a" />
   <rect x="6" y="7" width="3" height="8" fill="#0f172a" />
   <rect x="15" y="7" width="3" height="8" fill="#0f172a" />
@@ -208,7 +360,29 @@ const schoolgirlSvg = `
 </svg>
 `;
 
-// 8. タイル: アスファルト道路 (32x32)
+// 12. タイル: 線路 (32x32)
+const railTrackTileSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+  <!-- 砂利道（バラスト） -->
+  <rect width="32" height="32" fill="#475569" />
+  <rect x="4" y="8" width="2" height="2" fill="#64748b" />
+  <rect x="22" y="24" width="2" height="2" fill="#334155" />
+  <rect x="14" y="16" width="2" height="2" fill="#64748b" />
+
+  <!-- 枕木 (木製) -->
+  <rect x="0" y="4" width="32" height="4" fill="#78350f" />
+  <rect x="0" y="14" width="32" height="4" fill="#78350f" />
+  <rect x="0" y="24" width="32" height="4" fill="#78350f" />
+
+  <!-- 鉄レール (2本) -->
+  <rect x="6" y="0" width="3" height="32" fill="#94a3b8" />
+  <rect x="7" y="0" width="1" height="32" fill="#f8fafc" />
+  <rect x="23" y="0" width="3" height="32" fill="#94a3b8" />
+  <rect x="24" y="0" width="1" height="32" fill="#f8fafc" />
+</svg>
+`;
+
+// 13. タイル: アスファルト道路 (32x32)
 const asphaltTileSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
   <rect width="32" height="32" fill="#334155" />
@@ -219,11 +393,10 @@ const asphaltTileSvg = `
 </svg>
 `;
 
-// 9. タイル: 歩道敷石 (32x32)
+// 14. タイル: 歩道敷石 (32x32)
 const sidewalkTileSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
   <rect width="32" height="32" fill="#94a3b8" />
-  <!-- タイル目地 -->
   <line x1="0" y1="16" x2="32" y2="16" stroke="#64748b" stroke-width="1" />
   <line x1="16" y1="0" x2="16" y2="16" stroke="#64748b" stroke-width="1" />
   <line x1="0" y1="32" x2="32" y2="32" stroke="#64748b" stroke-width="1" />
@@ -232,7 +405,7 @@ const sidewalkTileSvg = `
 </svg>
 `;
 
-// 10. タイル: 芝生 (32x32)
+// 15. タイル: 草地 (32x32)
 const grassTileSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
   <rect width="32" height="32" fill="#15803d" />
@@ -256,20 +429,13 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
       pixelArt: true,
     },
     anchor: { x: 16, y: 54 },
-    collision: {
-      enabled: true,
-      type: 'box',
-      offsetX: -14,
-      offsetY: -12,
-      width: 28,
-      height: 12,
-    },
+    collision: { enabled: true, type: 'box', offsetX: -14, offsetY: -12, width: 28, height: 12 },
     depth: { enabled: true, offsetY: 0 },
     interactions: [
       {
         type: 'buy',
-        label: 'ジュースを買う',
-        dialogue: ['ガコン！冷たい瓶コーラが出てきた！'],
+        label: 'ジュースを買う (右クリック)',
+        dialogue: ['ガコン！冷えた王冠ボトルのコーラが出てきた！喉が潤う。'],
       },
     ],
     metadata: {
@@ -277,6 +443,128 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
       createdAt: Date.now(),
       source: 'preset',
       description: 'ノスタルジックな赤の飲料自動販売機。',
+    },
+  },
+
+  retro_cafe: {
+    id: 'retro_cafe',
+    name: '昭和純喫茶「あいらす」',
+    type: 'building_part',
+    category: 'structure',
+    sprite: {
+      url: svgToUri(retroCafeSvg),
+      width: 64,
+      height: 64,
+      pixelArt: true,
+    },
+    anchor: { x: 32, y: 62 },
+    collision: { enabled: true, type: 'box', offsetX: -28, offsetY: -20, width: 56, height: 20 },
+    depth: { enabled: true, offsetY: 0 },
+    interactions: [
+      {
+        type: 'open_shop',
+        label: '喫茶店に入る (右クリック)',
+        dialogue: [
+          'カランコロン♪ 澄んだベルの音が鳴り響く。',
+          'マスター「いらっしゃい。ネルドリップの深煎りブレンド淹れたてだよ。」',
+        ],
+      },
+    ],
+    metadata: {
+      tags: ['喫茶店', '建物', 'カフェ', '昭和'],
+      createdAt: Date.now(),
+      source: 'preset',
+      description: 'レンガ造りと温かいステンドグラスが美しい純喫茶。',
+    },
+  },
+
+  retro_station: {
+    id: 'retro_station',
+    name: '国鉄風木造駅舎',
+    type: 'building_part',
+    category: 'structure',
+    sprite: {
+      url: svgToUri(retroStationSvg),
+      width: 80,
+      height: 64,
+      pixelArt: true,
+    },
+    anchor: { x: 40, y: 62 },
+    collision: { enabled: true, type: 'box', offsetX: -36, offsetY: -24, width: 72, height: 24 },
+    depth: { enabled: true, offsetY: 0 },
+    interactions: [
+      {
+        type: 'inspect',
+        label: '駅舎に入る (右クリック)',
+        dialogue: [
+          '木造駅舎の改札をくぐると、汽笛の音が遠くから聞こえてくる。',
+          '掲示板「次の上り列車は 17:15 発 みらい行き」',
+        ],
+      },
+    ],
+    metadata: {
+      tags: ['駅舎', '駅', '鉄道', '昭和'],
+      createdAt: Date.now(),
+      source: 'preset',
+      description: '瓦屋根と木の香りが漂うノスタルジックな駅舎。',
+    },
+  },
+
+  park_fountain: {
+    id: 'park_fountain',
+    name: '公園の石造り噴水',
+    type: 'object',
+    category: 'nature',
+    sprite: {
+      url: svgToUri(parkFountainSvg),
+      width: 48,
+      height: 48,
+      pixelArt: true,
+    },
+    anchor: { x: 24, y: 44 },
+    collision: { enabled: true, type: 'box', offsetX: -20, offsetY: -12, width: 40, height: 12 },
+    depth: { enabled: true, offsetY: 0 },
+    interactions: [
+      {
+        type: 'inspect',
+        label: '噴水を眺める (右クリック)',
+        dialogue: ['ザー…と清らかな水音が心地よく響く。水面にコインが沈んでいる。'],
+      },
+    ],
+    metadata: {
+      tags: ['噴水', '公園', '水'],
+      createdAt: Date.now(),
+      source: 'preset',
+      description: '清涼感あふれる公園の噴水。',
+    },
+  },
+
+  npc_cat: {
+    id: 'npc_cat',
+    name: '気ままな三毛猫',
+    type: 'character',
+    category: 'npc',
+    sprite: {
+      url: svgToUri(catSvg),
+      width: 24,
+      height: 20,
+      pixelArt: true,
+    },
+    anchor: { x: 12, y: 18 },
+    collision: { enabled: true, type: 'box', offsetX: -6, offsetY: -4, width: 12, height: 4 },
+    depth: { enabled: true, offsetY: 0 },
+    interactions: [
+      {
+        type: 'talk',
+        label: '猫をなでる (右クリック)',
+        dialogue: ['ニャ〜ン♪ 猫はゴロゴロ喉を鳴らしながら体をすり寄せてきた。'],
+      },
+    ],
+    metadata: {
+      tags: ['猫', '動物', 'NPC'],
+      createdAt: Date.now(),
+      source: 'preset',
+      description: '陽だまりでお昼寝している可愛い三毛猫。',
     },
   },
 
@@ -292,21 +580,9 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
       pixelArt: true,
     },
     anchor: { x: 12, y: 78 },
-    collision: {
-      enabled: true,
-      type: 'box',
-      offsetX: -6,
-      offsetY: -8,
-      width: 12,
-      height: 8,
-    },
+    collision: { enabled: true, type: 'box', offsetX: -6, offsetY: -8, width: 12, height: 8 },
     depth: { enabled: true, offsetY: 0 },
-    metadata: {
-      tags: ['電柱', 'インフラ', '昭和', 'レトロ'],
-      createdAt: Date.now(),
-      source: 'preset',
-      description: '変圧器と碍子がついた電柱。',
-    },
+    metadata: { tags: ['電柱', 'インフラ', '昭和'], createdAt: Date.now(), source: 'preset' },
   },
 
   street_lamp_warm: {
@@ -321,26 +597,14 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
       pixelArt: true,
     },
     anchor: { x: 8, y: 46 },
-    collision: {
-      enabled: true,
-      type: 'box',
-      offsetX: -4,
-      offsetY: -4,
-      width: 8,
-      height: 4,
-    },
+    collision: { enabled: true, type: 'box', offsetX: -4, offsetY: -4, width: 8, height: 4 },
     depth: { enabled: true, offsetY: 0 },
-    metadata: {
-      tags: ['街灯', '夜景', '明かり'],
-      createdAt: Date.now(),
-      source: 'preset',
-      description: '夜になると暖色の光を灯す街灯。',
-    },
+    metadata: { tags: ['街灯', '夜景', '明かり'], createdAt: Date.now(), source: 'preset' },
   },
 
   retro_tree: {
     id: 'retro_tree',
-    name: '街路樹（ケヤキ）',
+    name: 'ケヤキの大木',
     type: 'object',
     category: 'nature',
     sprite: {
@@ -350,21 +614,9 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
       pixelArt: true,
     },
     anchor: { x: 24, y: 54 },
-    collision: {
-      enabled: true,
-      type: 'box',
-      offsetX: -6,
-      offsetY: -8,
-      width: 12,
-      height: 8,
-    },
+    collision: { enabled: true, type: 'box', offsetX: -6, offsetY: -8, width: 12, height: 8 },
     depth: { enabled: true, offsetY: 0 },
-    metadata: {
-      tags: ['木', '自然', '公園', '街路樹'],
-      createdAt: Date.now(),
-      source: 'preset',
-      description: '温かい緑の木。',
-    },
+    metadata: { tags: ['木', '自然', '公園'], createdAt: Date.now(), source: 'preset' },
   },
 
   retro_bench: {
@@ -379,28 +631,16 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
       pixelArt: true,
     },
     anchor: { x: 18, y: 22 },
-    collision: {
-      enabled: true,
-      type: 'box',
-      offsetX: -16,
-      offsetY: -10,
-      width: 32,
-      height: 10,
-    },
+    collision: { enabled: true, type: 'box', offsetX: -16, offsetY: -10, width: 32, height: 10 },
     depth: { enabled: true, offsetY: 0 },
     interactions: [
       {
         type: 'sit',
-        label: '座ってひと休み',
-        dialogue: ['ベンチに座って心地よい風を感じた。'],
+        label: '座ってひと休み (右クリック)',
+        dialogue: ['ベンチに腰掛けると、心地よい風が吹き抜けた。HPが全快した！'],
       },
     ],
-    metadata: {
-      tags: ['ベンチ', '公園', '休憩'],
-      createdAt: Date.now(),
-      source: 'preset',
-      description: '駅前や商店街にぴったりの木製ベンチ。',
-    },
+    metadata: { tags: ['ベンチ', '公園', '休憩'], createdAt: Date.now(), source: 'preset' },
   },
 
   station_sign: {
@@ -415,33 +655,21 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
       pixelArt: true,
     },
     anchor: { x: 20, y: 34 },
-    collision: {
-      enabled: true,
-      type: 'box',
-      offsetX: -16,
-      offsetY: -6,
-      width: 32,
-      height: 6,
-    },
+    collision: { enabled: true, type: 'box', offsetX: -16, offsetY: -6, width: 32, height: 6 },
     depth: { enabled: true, offsetY: 0 },
     interactions: [
       {
         type: 'inspect',
-        label: '駅名標を読む',
-        dialogue: ['「あいらす」駅。次の駅は「みらい」。'],
+        label: '駅名標を読む (右クリック)',
+        dialogue: ['「あいらす」駅。次の駅は「みらい」。前の駅は「しょうわ」。'],
       },
     ],
-    metadata: {
-      tags: ['駅', '看板', '鉄道'],
-      createdAt: Date.now(),
-      source: 'preset',
-      description: '「あいらす」と書かれた昭和レトロな駅看板。',
-    },
+    metadata: { tags: ['駅', '看板', '鉄道'], createdAt: Date.now(), source: 'preset' },
   },
 
   character_schoolgirl: {
     id: 'character_schoolgirl',
-    name: '女子高校生',
+    name: '女子高校生（あおい）',
     type: 'character',
     category: 'npc',
     sprite: {
@@ -451,31 +679,38 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
       pixelArt: true,
     },
     anchor: { x: 12, y: 34 },
-    collision: {
-      enabled: true,
-      type: 'box',
-      offsetX: -6,
-      offsetY: -6,
-      width: 12,
-      height: 6,
-    },
+    collision: { enabled: true, type: 'box', offsetX: -6, offsetY: -6, width: 12, height: 6 },
     depth: { enabled: true, offsetY: 0 },
     interactions: [
       {
         type: 'talk',
-        label: '話しかける',
-        dialogue: ['こんにちは！この街、なんだか懐かしい香りがするね。'],
+        label: '話しかける (右クリック)',
+        dialogue: [
+          'あおい「こんにちは！駅前の喫茶店、オムライスとプリンが絶品だよ。」',
+          'あおい「Spaceキーでジャンプ、Ctrlキーでダッシュできるの知ってた？」',
+        ],
       },
     ],
-    metadata: {
-      tags: ['NPC', '高校生', 'キャラクター'],
-      createdAt: Date.now(),
-      source: 'preset',
-      description: '黒髪セーラー服の高校生NPC。',
-    },
+    metadata: { tags: ['NPC', '高校生', 'キャラクター'], createdAt: Date.now(), source: 'preset' },
   },
 
-  // タイル類
+  tile_rail: {
+    id: 'tile_rail',
+    name: '線路レール',
+    type: 'tile',
+    category: 'tile',
+    sprite: {
+      url: svgToUri(railTrackTileSvg),
+      width: 32,
+      height: 32,
+      pixelArt: true,
+    },
+    anchor: { x: 0, y: 0 },
+    collision: { enabled: false, type: 'none', offsetX: 0, offsetY: 0, width: 0, height: 0 },
+    depth: { enabled: false, offsetY: 0 },
+    metadata: { tags: ['線路', '鉄道'], createdAt: Date.now(), source: 'preset' },
+  },
+
   tile_asphalt: {
     id: 'tile_asphalt',
     name: 'アスファルト道路',
@@ -512,7 +747,7 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
 
   tile_grass: {
     id: 'tile_grass',
-    name: '草地',
+    name: '草地・公園',
     type: 'tile',
     category: 'tile',
     sprite: {

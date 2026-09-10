@@ -1,15 +1,24 @@
 import React from 'react';
 import { useWorldStore } from '../../store/useWorldStore';
 import { useUIStore } from '../../store/useUIStore';
-import { Undo2, Redo2, Sun, CloudRain, Snowflake, Sunset, Clock, Sparkles, HelpCircle, Compass, Wrench } from 'lucide-react';
+import { Undo2, Redo2, Sun, CloudRain, Snowflake, Sunset, Clock, Sparkles, HelpCircle, Compass, Wrench, Terminal, Key } from 'lucide-react';
 import { WeatherType } from '../../core/types/world';
 
 interface TopHUDProps {
   onResetCamera: () => void;
   onOpenHelp: () => void;
+  onOpenSettings: () => void;
+  onToggleF3: () => void;
+  isF3Open: boolean;
 }
 
-export const TopHUD: React.FC<TopHUDProps> = ({ onResetCamera, onOpenHelp }) => {
+export const TopHUD: React.FC<TopHUDProps> = ({
+  onResetCamera,
+  onOpenHelp,
+  onOpenSettings,
+  onToggleF3,
+  isF3Open,
+}) => {
   const { world, canUndo, canRedo, undo, redo, setWeather, setTime } = useWorldStore();
   const { isAIPanelOpen, setAIPanelOpen, activeMode, setActiveMode } = useUIStore();
 
@@ -29,7 +38,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({ onResetCamera, onOpenHelp }) => 
 
   return (
     <header className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-30">
-      {/* 左上: タイトル & モード切替 & Undo/Redo */}
+      {/* 左上: タイトル & モード切替 & Undo/Redo & F3 */}
       <div className="flex items-center gap-2 pointer-events-auto">
         <div className="glass-panel px-3.5 py-2 rounded-2xl flex items-center gap-3">
           <div className="flex items-center gap-2">
@@ -38,7 +47,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({ onResetCamera, onOpenHelp }) => 
               Airas
             </h1>
             <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-500/30">
-              Prototype
+              HD-2D
             </span>
           </div>
 
@@ -53,7 +62,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({ onResetCamera, onOpenHelp }) => 
                   ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-400/40 shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
-              title="探索モード (WASDでキャラクター移動)"
+              title="探索モード (WASD移動・Spaceジャンプ・Ctrlダッシュ)"
             >
               <Compass className="w-3.5 h-3.5" />
               <span>探索</span>
@@ -65,7 +74,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({ onResetCamera, onOpenHelp }) => 
                   ? 'bg-amber-500/30 text-amber-200 border border-amber-400/40 shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
-              title="編集モード (クリックで選択・ドラッグ移動)"
+              title="編集モード (クリック選択・ドラッグ移動・パレット配置)"
             >
               <Wrench className="w-3.5 h-3.5" />
               <span>編集</span>
@@ -101,6 +110,22 @@ export const TopHUD: React.FC<TopHUDProps> = ({ onResetCamera, onOpenHelp }) => 
               <Redo2 className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          <div className="w-[1px] h-4 bg-white/10" />
+
+          {/* F3 デバッグ画面トグル */}
+          <button
+            onClick={onToggleF3}
+            className={`px-2 py-1 rounded-lg border text-[11px] font-mono flex items-center gap-1 transition-all ${
+              isF3Open
+                ? 'bg-amber-500/30 text-amber-300 border-amber-400/40'
+                : 'text-slate-400 hover:text-white border-transparent hover:bg-white/10'
+            }`}
+            title="Minecraft風 F3 デバッグ情報 (F3キー)"
+          >
+            <Terminal className="w-3.5 h-3.5" />
+            <span>F3</span>
+          </button>
         </div>
       </div>
 
@@ -115,18 +140,16 @@ export const TopHUD: React.FC<TopHUDProps> = ({ onResetCamera, onOpenHelp }) => 
           }`}
         >
           <Sparkles className="w-4 h-4 text-cyan-400 animate-spin" style={{ animationDuration: '6s' }} />
-          <span>AIに世界を作らせる</span>
+          <span>AI世界生成 & 画像創出</span>
           <span className="text-[10px] bg-cyan-900/80 px-1.5 py-0.5 rounded text-cyan-300 font-mono">
             ⌘K
           </span>
         </button>
       </div>
 
-      {/* 右上: 環境操作 (時間・天候) & カメラリセット & ヘルプ */}
+      {/* 右上: 時間・天候 & 設定 & カメラリセット & ヘルプ */}
       <div className="flex items-center gap-2 pointer-events-auto">
-        {/* 時間・天候パネル */}
         <div className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-3">
-          {/* 天候セレクタ */}
           <div className="flex items-center gap-1">
             {(['clear', 'sunset', 'rain', 'snow'] as WeatherType[]).map((w) => (
               <button
@@ -146,7 +169,6 @@ export const TopHUD: React.FC<TopHUDProps> = ({ onResetCamera, onOpenHelp }) => 
 
           <div className="w-[1px] h-4 bg-white/10" />
 
-          {/* 時刻コントロール */}
           <div className="flex items-center gap-2 text-xs font-mono text-slate-300">
             <Clock className="w-3.5 h-3.5 text-amber-300" />
             <span>{formatTime(world.environment.time)}</span>
@@ -163,12 +185,18 @@ export const TopHUD: React.FC<TopHUDProps> = ({ onResetCamera, onOpenHelp }) => 
           </div>
         </div>
 
-        {/* ヘルプ & カメラリセット */}
         <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-1">
           <button
+            onClick={onOpenSettings}
+            className="p-1.5 rounded-xl hover:bg-white/10 text-amber-300 hover:text-white transition-all"
+            title="Gemini API 設定"
+          >
+            <Key className="w-4 h-4" />
+          </button>
+          <button
             onClick={onResetCamera}
-            className="p-1.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs"
-            title="カメラを初期位置・拡大率にリセット"
+            className="p-1.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs font-mono"
+            title="カメラリセット"
           >
             100%
           </button>

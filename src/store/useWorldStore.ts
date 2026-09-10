@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AirasWorldData, WeatherType, WorldEntity } from '../core/types/world';
+import { AirasWorldData, WeatherType, WorldEntity, PlayerState } from '../core/types/world';
 import { AirasAsset } from '../core/types/asset';
 import { DEFAULT_ASSETS } from '../core/asset/defaultAssets';
 import { createInitialWorld } from '../core/world/initialWorld';
@@ -32,6 +32,7 @@ interface WorldStoreState {
   
   // プレイヤー移動（ゲームループ用）
   updatePlayerPosition: (x: number, y: number, direction: 'down' | 'up' | 'left' | 'right', isMoving: boolean) => void;
+  updatePlayerState: (updates: Partial<PlayerState>) => void;
   
   // アセット登録
   registerAsset: (asset: AirasAsset) => void;
@@ -172,9 +173,24 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
           ...state.world,
           player: {
             ...state.world.player,
-            position: { x, y, z: 0 },
+            position: { ...state.world.player.position, x, y },
             direction,
             isMoving,
+          },
+        },
+      }));
+    },
+
+    updatePlayerState: (updates: Partial<PlayerState>) => {
+      set((state) => ({
+        world: {
+          ...state.world,
+          player: {
+            ...state.world.player,
+            ...updates,
+            position: updates.position
+              ? { ...state.world.player.position, ...updates.position }
+              : state.world.player.position,
           },
         },
       }));

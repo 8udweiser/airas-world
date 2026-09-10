@@ -9,14 +9,14 @@ export interface WorldEnvironment {
 }
 
 export interface WorldTile {
-  tileId: string;        // 'road', 'sidewalk', 'grass', 'crosswalk', 'tatami', etc.
+  tileId: string;        // 'road', 'sidewalk', 'grass', 'crosswalk', 'rail', etc.
   elevation: number;     // 高さ
 }
 
 export interface WorldChunk {
   cx: number;
   cy: number;
-  tiles: WorldTile[][];  // CHUNK_SIZE x CHUNK_SIZE (例: 16x16)
+  tiles: WorldTile[][];  // 16x16
 }
 
 export interface WorldEntity {
@@ -40,9 +40,13 @@ export interface PlayerState {
   name: string;
   assetId: string;
   position: { x: number; y: number; z: number };
+  vz: number;            // 垂直速度 (ジャンプ用)
   direction: 'down' | 'up' | 'left' | 'right';
   isMoving: boolean;
-  speed: number;
+  isJumping: boolean;
+  isSprinting: boolean;  // ダッシュ中
+  isSneaking: boolean;   // スニーク中 (しゃがみ)
+  speed: number;         // 基本速度
 }
 
 export interface AirasWorldData {
