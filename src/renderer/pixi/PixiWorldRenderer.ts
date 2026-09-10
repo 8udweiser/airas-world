@@ -9,6 +9,7 @@ export class PixiWorldRenderer implements IRenderer {
   
   // シーン階層
   private stageContainer: Container = new Container();
+  private groundBgGraphics: Graphics = new Graphics();
   private tileContainer: Container = new Container();
   private shadowGraphics: Graphics = new Graphics();
   private selectionGraphics: Graphics = new Graphics();
@@ -20,12 +21,32 @@ export class PixiWorldRenderer implements IRenderer {
   private entitySprites: Map<string, Sprite> = new Map();
   private textureCache: Map<string, Texture> = new Map();
 
-  // カメラ状態 (広大な街が見渡せるよう初期ズームは 1.1x)
+  // カメラ状態 (広大な街が見渡せるよう初期ズームは 1.05x)
   private cameraX: number = 0;
   private cameraY: number = 0;
-  private zoom: number = 1.1;
+  private zoom: number = 1.05;
   private minZoom: number = 0.4;
-  private maxZoom: number = 3.0;
+  private maxZoom: number = 2.8;
+
+  // プレイヤーの物理・移動状態 (Pixi内部で直接駆動)
+  public playerState = {
+    x: 480,
+    y: 480,
+    z: 0,
+    vz: 0,
+    direction: 'down' as 'down' | 'up' | 'left' | 'right',
+    isMoving: false,
+    isJumping: false,
+    isSprinting: false,
+    isSneaking: false,
+    assetId: 'character_schoolgirl',
+  };
+
+  // 入力キー状態
+  public keys: { [key: string]: boolean } = {};
+
+  // 操作モード
+  public isPlayMode: boolean = true; // デフォルトは快適な探索モード
 
   // ドラッグ操作ステート
   private isDraggingCamera: boolean = false;
@@ -38,10 +59,13 @@ export class PixiWorldRenderer implements IRenderer {
   public onEntityRightClick?: (entityId: string) => void;
   public onMapClick?: (worldX: number, worldY: number) => void;
   public onEntityDrag?: (entityId: string, newWorldX: number, newWorldY: number) => void;
+  public onPlayerMoveTick?: (x: number, y: number, z: number, dir: string, fps: number) => void;
 
-  // パーティクル
+  // パーティクル & アニメーション
   private weatherParticles: Array<{ x: number; y: number; speed: number; length: number }> = [];
   private dustParticles: Array<{ x: number; y: number; vx: number; vy: number; life: number }> = [];
+  private walkAnimTimer: number = 0;
+  private currentWeather: WeatherType = 'sunset';
 
   async init(container: HTMLElement): Promise<void> {
     this.container = container;
@@ -49,8 +73,8 @@ export class PixiWorldRenderer implements IRenderer {
     
     await app.init({
       resizeTo: container,
-      backgroundColor: 0x090d16,
-      resolution: window.devicePixelRatio || 1,
+      backgroundColor: 0x0f172a, // 深いレトロナイトブルー
+      resolution: Math.min(window.devicePixelRatio || 1, 2),
       autoDensity: true,
       antialias: false,
     });
@@ -60,34 +84,202 @@ export class PixiWorldRenderer implements IRenderer {
 
     // シーン階層の構築
     this.app.stage.addChild(this.stageContainer);
+    this.stageContainer.addChild(this.groundBgGraphics); // 広大な背景
     this.stageContainer.addChild(this.tileContainer);
-    this.stageContainer.addChild(this.shadowGraphics); // 足元影レイヤー
+    this.stageContainer.addChild(this.shadowGraphics); // 接地影
     this.stageContainer.addChild(this.selectionGraphics);
-    this.stageContainer.addChild(this.depthContainer); // Yソート対象
+    this.stageContainer.addChild(this.depthContainer); // Yソート
     this.stageContainer.addChild(this.particleGraphics); // ダッシュ土煙
     this.stageContainer.addChild(this.weatherGraphics);
 
     this.setupInteractions(app.canvas);
     this.centerCamera();
 
-    // 天候パーティクル
-    for (let i = 0; i < 200; i++) {
+    // 天候パーティクル初期化 (100個に抑えて低スペックでも爆速)
+    for (let i = 0; i < 90; i++) {
       this.weatherParticles.push({
-        x: Math.random() * 2000 - 300,
-        y: Math.random() * 1200 - 200,
-        speed: 5 + Math.random() * 6,
-        length: 10 + Math.random() * 12,
+        x: Math.random() * 2400 - 400,
+        y: Math.random() * 1400 - 200,
+        speed: 6 + Math.random() * 6,
+        length: 12 + Math.random() * 10,
       });
     }
+
+    // 広大な背景グラウンドを描画 (画面外が黒宇宙にならないように)
+    this.groundBgGraphics
+      .rect(-2000, -2000, 6000, 6000)
+      .fill({ color: 0x14532d }); // 豊かな濃い芝生グリーン
+
+    // 🚀 超高速ゲームループ (PixiネイティブTicker)
+    this.startEngineLoop();
+  }
+
+  private startEngineLoop() {
+    if (!this.app) return;
+
+    let fpsTimer = 0;
+    let frameCount = 0;
+    let currentFps = 60;
+
+    this.app.ticker.add((ticker) => {
+      const dt = Math.min(ticker.deltaTime / 60, 0.05);
+
+      // FPS計測
+      frameCount++;
+      fpsTimer += dt;
+      if (fpsTimer >= 0.5) {
+        currentFps = Math.round(frameCount / fpsTimer);
+        frameCount = 0;
+        fpsTimer = 0;
+      }
+
+      // 1. プレイヤー物理 & 移動演算 (探索モード時)
+      if (this.isPlayMode) {
+        this.updatePlayerPhysics(dt);
+      }
+
+      // 2. カメラ追従
+      if (this.isPlayMode && !this.isDraggingCamera) {
+        this.followPlayer(this.playerState.x, this.playerState.y, 0.12);
+      }
+
+      // 3. 2.5D 深度ソート
+      this.depthContainer.children.sort((a, b) => (a as any).worldFootY - (b as any).worldFootY);
+
+      // 4. パーティクル & 天候アニメーション
+      this.updateDustParticles(dt);
+      this.renderWeather(this.currentWeather);
+
+      // 5. 低頻度でReactへ座標通知 (毎フレーム再レンダリングさせない)
+      this.onPlayerMoveTick?.(
+        this.playerState.x,
+        this.playerState.y,
+        this.playerState.z,
+        this.playerState.direction,
+        currentFps
+      );
+    });
+  }
+
+  // キー入力に応じたプレイヤー物理演算
+  private updatePlayerPhysics(dt: number) {
+    const k = this.keys;
+    // WASD と 矢印キー
+    const isUp = Boolean(k['KeyW'] || k['ArrowUp'] || k['w'] || k['W']);
+    const isDown = Boolean(k['KeyS'] || k['ArrowDown'] || k['s'] || k['S']);
+    const isLeft = Boolean(k['KeyA'] || k['ArrowLeft'] || k['a'] || k['A']);
+    const isRight = Boolean(k['KeyD'] || k['ArrowRight'] || k['d'] || k['D']);
+    const isSprint = Boolean(k['ControlLeft'] || k['ControlRight'] || k['Control']);
+    const isSneak = Boolean(k['ShiftLeft'] || k['ShiftRight'] || k['Shift']);
+    const isJump = Boolean(k['Space'] || k[' ']);
+
+    // 方向ベクトル
+    let dx = 0;
+    let dy = 0;
+    if (isUp) dy -= 1;
+    if (isDown) dy += 1;
+    if (isLeft) dx -= 1;
+    if (isRight) dx += 1;
+
+    const isMoving = dx !== 0 || dy !== 0;
+    this.playerState.isMoving = isMoving;
+    this.playerState.isSprinting = isSprint && isMoving;
+    this.playerState.isSneaking = isSneak;
+
+    // キビキビ動く快適な速度設定
+    let speed = 230; // 通常歩行
+    if (isSprint) speed = 400; // ダッシュ (約1.75倍)
+    else if (isSneak) speed = 90; // スニーク
+
+    // ジャンプ物理
+    const gravity = 800; // px/s^2
+    if (isJump && this.playerState.z <= 0) {
+      this.playerState.vz = 300; // 上向き初速
+      this.playerState.isJumping = true;
+    }
+
+    if (this.playerState.isJumping || this.playerState.z > 0) {
+      this.playerState.z += this.playerState.vz * dt;
+      this.playerState.vz -= gravity * dt;
+      if (this.playerState.z <= 0) {
+        this.playerState.z = 0;
+        this.playerState.vz = 0;
+        this.playerState.isJumping = false;
+      }
+    }
+
+    // 移動の適用
+    if (isMoving) {
+      const len = Math.sqrt(dx * dx + dy * dy);
+      this.playerState.x += (dx / len) * speed * dt;
+      this.playerState.y += (dy / len) * speed * dt;
+
+      // 向きの更新
+      if (Math.abs(dx) > Math.abs(dy)) {
+        this.playerState.direction = dx > 0 ? 'right' : 'left';
+      } else {
+        this.playerState.direction = dy > 0 ? 'down' : 'up';
+      }
+
+      // 歩行アニメーションタイマー
+      this.walkAnimTimer += dt * (isSprint ? 18 : 12);
+
+      // ダッシュ時の土煙
+      if (isSprint && this.playerState.z <= 0 && Math.random() < 0.4) {
+        this.dustParticles.push({
+          x: this.playerState.x + (Math.random() * 8 - 4),
+          y: this.playerState.y + (Math.random() * 4 - 2),
+          vx: (Math.random() - 0.5) * 30,
+          vy: -15 - Math.random() * 20,
+          life: 0.35,
+        });
+      }
+    } else {
+      this.walkAnimTimer = 0;
+    }
+
+    // プレイヤーのスプライト位置を直接更新 (Reactを介さず爆速)
+    this.updatePlayerSpriteVisual();
+  }
+
+  // プレイヤーのスプライト描画更新 (4方向・ボビング・影)
+  private updatePlayerSpriteVisual() {
+    const sprite = this.entitySprites.get('player_main');
+    if (!sprite) return;
+
+    // 4方向スプライトテクスチャの切り替え
+    const asset = this.currentAssets?.[this.playerState.assetId];
+    if (asset?.sprite.directionalUrls) {
+      const dirUrl = asset.sprite.directionalUrls[this.playerState.direction] || asset.sprite.url;
+      if (this.textureCache.has(dirUrl)) {
+        sprite.texture = this.textureCache.get(dirUrl)!;
+      }
+    }
+
+    // 歩行ボビング (歩行中は上下2px揺れ、待機中はゆっくり呼吸)
+    let bobbingY = 0;
+    if (this.playerState.isMoving) {
+      bobbingY = Math.sin(this.walkAnimTimer) * 2;
+    }
+
+    sprite.x = this.playerState.x;
+    sprite.y = this.playerState.y - this.playerState.z + bobbingY;
+    (sprite as any).worldFootY = this.playerState.y;
+
+    // 接地影の更新 (足元接地Yに固定、ジャンプで縮小)
+    this.shadowGraphics.clear();
+    const shadowScale = Math.max(0.35, 1 - this.playerState.z / 180);
+    this.shadowGraphics
+      .ellipse(this.playerState.x, this.playerState.y, 8 * shadowScale, 3 * shadowScale)
+      .fill({ color: 0x000000, alpha: 0.35 * shadowScale });
   }
 
   private centerCamera() {
     if (!this.container) return;
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
-    // プレイヤー初期位置 (480, 480) を中心に配置
-    this.cameraX = width / 2 - 480 * this.zoom;
-    this.cameraY = height / 2 - 480 * this.zoom;
+    this.cameraX = width / 2 - this.playerState.x * this.zoom;
+    this.cameraY = height / 2 - this.playerState.y * this.zoom;
     this.updateCameraTransform();
   }
 
@@ -132,12 +324,11 @@ export class PixiWorldRenderer implements IRenderer {
   }
 
   public resetCamera(): void {
-    this.zoom = 1.1;
+    this.zoom = 1.05;
     this.centerCamera();
   }
 
-  // 探索モード時のカメラ追従 (Lerp補間)
-  public followPlayer(playerX: number, playerY: number, lerp: number = 0.1) {
+  public followPlayer(playerX: number, playerY: number, lerp: number = 0.12) {
     if (!this.container || this.isDraggingCamera) return;
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
@@ -147,6 +338,22 @@ export class PixiWorldRenderer implements IRenderer {
     this.cameraX += (targetCamX - this.cameraX) * lerp;
     this.cameraY += (targetCamY - this.cameraY) * lerp;
     this.updateCameraTransform();
+  }
+
+  private currentAssets: Record<string, AirasAsset> | null = null;
+
+  public async setPlayerAvatar(assetId: string) {
+    this.playerState.assetId = assetId;
+    if (this.currentAssets?.[assetId]) {
+      const asset = this.currentAssets[assetId];
+      // 4方向テクスチャのプリロード
+      if (asset.sprite.directionalUrls) {
+        for (const url of Object.values(asset.sprite.directionalUrls)) {
+          if (url) await this.getTexture(url);
+        }
+      }
+      this.updatePlayerSpriteVisual();
+    }
   }
 
   private async getTexture(url: string): Promise<Texture> {
@@ -161,64 +368,43 @@ export class PixiWorldRenderer implements IRenderer {
     return texture;
   }
 
+  // ワールド同期 (マップタイル・エンティティ配置)
   public async render(
     world: AirasWorldData,
     assets: Record<string, AirasAsset>,
     selectedEntityId?: string | null,
-    ghosts?: RendererGhostEntity[],
-    isPlayMode: boolean = false
+    ghosts?: RendererGhostEntity[]
   ): Promise<void> {
     if (!this.app) return;
+    this.currentAssets = assets;
+    this.currentWeather = world.environment.weather;
 
-    // 探索モード時はプレイヤーへスムーズにカメラ追従
-    if (isPlayMode) {
-      this.followPlayer(world.player.position.x, world.player.position.y);
+    // 1. 静的マップタイルの初期化（一度だけ実行）
+    if (this.tileContainer.children.length === 0) {
+      await this.renderTiles(world, assets);
     }
 
-    // 1. マップタイル
-    await this.renderTiles(world, assets);
-
-    // 2. 影レイヤーのクリア
-    this.shadowGraphics.clear();
-
-    const renderedIds = new Set<string>();
-
-    // プレイヤー描画
-    const player = world.player;
-    const playerAsset = assets[player.assetId];
+    // 2. プレイヤーの登録・テクスチャプリロード
+    const playerAsset = assets[this.playerState.assetId] || assets[world.player.assetId];
     if (playerAsset) {
-      await this.updateEntitySprite(
-        player.id,
-        playerAsset,
-        player.position.x,
-        player.position.y,
-        player.position.z,
-        1.0
-      );
-      renderedIds.add(player.id);
-
-      // ジャンプ中の足元影の接地描画 (Z軸の高さに応じて影が縮小)
-      const shadowScale = Math.max(0.4, 1 - player.position.z / 150);
-      const shadowAlpha = Math.max(0.15, 0.35 * shadowScale);
-      this.shadowGraphics
-        .ellipse(player.position.x, player.position.y, 8 * shadowScale, 3 * shadowScale)
-        .fill({ color: 0x000000, alpha: shadowAlpha });
-
-      // ダッシュ時の土煙パーティクル発生
-      if (player.isSprinting && player.isMoving && player.position.z <= 0) {
-        if (Math.random() < 0.4) {
-          this.dustParticles.push({
-            x: player.position.x + (Math.random() * 8 - 4),
-            y: player.position.y + (Math.random() * 4 - 2),
-            vx: (Math.random() - 0.5) * 20,
-            vy: -10 - Math.random() * 15,
-            life: 0.4,
-          });
+      if (playerAsset.sprite.directionalUrls) {
+        for (const url of Object.values(playerAsset.sprite.directionalUrls)) {
+          if (url) await this.getTexture(url);
         }
       }
+      await this.updateEntitySprite(
+        'player_main',
+        playerAsset,
+        this.playerState.x,
+        this.playerState.y,
+        this.playerState.z,
+        1.0
+      );
     }
 
-    // オブジェクト・NPC描画
+    // 3. ワールドオブジェクト・NPC描画
+    const renderedIds = new Set<string>(['player_main']);
+
     for (const entity of Object.values(world.entities)) {
       const asset = assets[entity.assetId];
       if (!asset) continue;
@@ -234,7 +420,7 @@ export class PixiWorldRenderer implements IRenderer {
       renderedIds.add(entity.id);
     }
 
-    // ゴーストプレビュー
+    // 4. ゴーストプレビュー
     if (ghosts && ghosts.length > 0) {
       for (let i = 0; i < ghosts.length; i++) {
         const g = ghosts[i];
@@ -246,7 +432,7 @@ export class PixiWorldRenderer implements IRenderer {
       }
     }
 
-    // 不要スプライト破棄
+    // 不要スプライト削除
     for (const [id, sprite] of this.entitySprites.entries()) {
       if (!renderedIds.has(id)) {
         this.depthContainer.removeChild(sprite);
@@ -254,23 +440,11 @@ export class PixiWorldRenderer implements IRenderer {
       }
     }
 
-    // 3. 2.5D 深度ソート (足元接地位置 Y を基準にソート)
-    // 接地点のY座標が手前にあるものほど手前に描画
-    this.depthContainer.children.sort((a, b) => (a as any).worldFootY - (b as any).worldFootY);
-
-    // 4. ダッシュ土煙パーティクル描画
-    this.renderDustParticles();
-
     // 5. 選択ハイライト
     this.renderSelectionHighlight(world, assets, selectedEntityId);
-
-    // 6. 天候
-    this.renderWeather(world.environment.weather);
   }
 
   private async renderTiles(world: AirasWorldData, assets: Record<string, AirasAsset>) {
-    if (this.tileContainer.children.length > 0) return;
-
     const tileSize = world.map.tileSize;
     for (const chunk of Object.values(world.map.chunks)) {
       const offsetX = chunk.cx * world.map.chunkSize * tileSize;
@@ -317,8 +491,8 @@ export class PixiWorldRenderer implements IRenderer {
     sprite.anchor.set(ax, ay);
 
     sprite.x = x;
-    sprite.y = y - z; // 2.5D空中浮上 (ジャンプ)
-    (sprite as any).worldFootY = y; // ソート用足元接地Y
+    sprite.y = y - z;
+    (sprite as any).worldFootY = y;
 
     sprite.alpha = isGhost ? 0.65 : alpha;
     if (isGhost) {
@@ -328,13 +502,13 @@ export class PixiWorldRenderer implements IRenderer {
     }
   }
 
-  private renderDustParticles() {
+  private updateDustParticles(dt: number) {
     this.particleGraphics.clear();
     for (let i = this.dustParticles.length - 1; i >= 0; i--) {
       const p = this.dustParticles[i];
-      p.x += p.vx * 0.016;
-      p.y += p.vy * 0.016;
-      p.life -= 0.016;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
 
       if (p.life <= 0) {
         this.dustParticles.splice(i, 1);
@@ -342,8 +516,8 @@ export class PixiWorldRenderer implements IRenderer {
       }
 
       this.particleGraphics
-        .circle(p.x, p.y, Math.max(1, p.life * 5))
-        .fill({ color: 0xe2e8f0, alpha: p.life * 0.8 });
+        .circle(p.x, p.y, Math.max(1, p.life * 6))
+        .fill({ color: 0xe2e8f0, alpha: p.life * 0.75 });
     }
   }
 
@@ -380,7 +554,7 @@ export class PixiWorldRenderer implements IRenderer {
         p.y += p.speed;
         p.x -= p.speed * 0.3;
         if (p.y > 1100) p.y = -50;
-        if (p.x < -200) p.x = 1800;
+        if (p.x < -200) p.x = 2200;
 
         this.weatherGraphics
           .moveTo(p.x, p.y)
@@ -392,7 +566,7 @@ export class PixiWorldRenderer implements IRenderer {
         p.y += p.speed * 0.4;
         p.x += Math.sin(p.y * 0.05) * 0.8;
         if (p.y > 1100) p.y = -50;
-        if (p.x < -200) p.x = 1800;
+        if (p.x < -200) p.x = 2200;
 
         this.weatherGraphics
           .circle(p.x, p.y, 2)
@@ -400,8 +574,8 @@ export class PixiWorldRenderer implements IRenderer {
       }
     } else if (weather === 'sunset') {
       this.weatherGraphics
-        .rect(-500, -500, 2600, 2000)
-        .fill({ color: 0xf97316, alpha: 0.18 });
+        .rect(-1000, -1000, 4000, 3000)
+        .fill({ color: 0xf97316, alpha: 0.16 });
     }
   }
 
@@ -418,9 +592,8 @@ export class PixiWorldRenderer implements IRenderer {
       const screenY = e.clientY - rect.top;
       const worldPos = this.screenToWorld(screenX, screenY);
 
-      // 右クリック: マインクラフト準拠のオブジェクト使用/インタラクション
+      // 右クリック: マインクラフト準拠インタラクション
       if (e.button === 2) {
-        // オブジェクトのヒットテスト
         let hitId: string | null = null;
         for (const [id, sprite] of Array.from(this.entitySprites.entries()).reverse()) {
           if (id.startsWith('__ghost_') || id === 'player_main') continue;
@@ -441,20 +614,18 @@ export class PixiWorldRenderer implements IRenderer {
           return;
         }
 
-        // 何もない場所の右ドラッグはカメラパン
         this.isDraggingCamera = true;
         this.lastMousePos = { x: e.clientX, y: e.clientY };
         return;
       }
 
-      // 中ボタンまたはAltキー
       if (e.button === 1 || e.altKey) {
         this.isDraggingCamera = true;
         this.lastMousePos = { x: e.clientX, y: e.clientY };
         return;
       }
 
-      // 左クリック: オブジェクト選択 / 移動開始
+      // 左クリック: オブジェクト選択 / 移動
       let pickedId: string | null = null;
       for (const [id, sprite] of Array.from(this.entitySprites.entries()).reverse()) {
         if (id.startsWith('__ghost_') || id === 'player_main') continue;

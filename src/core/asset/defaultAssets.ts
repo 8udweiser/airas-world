@@ -7,252 +7,172 @@ function svgToUri(svg: string): string {
 // 1. 高精細 昭和レトロ赤い自販機 (32x56)
 const vendingMachineSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 56" shape-rendering="crispEdges">
-  <!-- 影 (足元) -->
   <ellipse cx="16" cy="54" rx="14" ry="2" fill="rgba(0,0,0,0.35)" />
-  
-  <!-- 自販機本体外殻 -->
   <rect x="2" y="2" width="28" height="50" fill="#991b1b" />
   <rect x="3" y="3" width="26" height="48" fill="#dc2626" />
   <rect x="3" y="3" width="26" height="2" fill="#fca5a5" />
   <rect x="3" y="3" width="2" height="48" fill="#ef4444" />
   <rect x="27" y="3" width="2" height="48" fill="#7f1d1d" />
-
-  <!-- 上部発光ディスプレイ看板 -->
   <rect x="5" y="6" width="22" height="7" fill="#0f172a" />
   <rect x="6" y="7" width="20" height="5" fill="#1e293b" />
   <rect x="8" y="8" width="6" height="3" fill="#38bdf8" />
   <rect x="18" y="8" width="6" height="3" fill="#f97316" />
   <rect x="15" y="8" width="2" height="3" fill="#ffffff" />
-
-  <!-- ドリンク展示棚 (ガラス窓) -->
   <rect x="5" y="15" width="22" height="20" fill="#090d16" />
   <rect x="6" y="16" width="20" height="18" fill="#1e293b" />
-  <!-- ガラスの斜め反射ハイライト -->
   <line x1="8" y1="17" x2="18" y2="33" stroke="rgba(255,255,255,0.25)" stroke-width="1" />
   <line x1="12" y1="17" x2="22" y2="33" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
-
-  <!-- ボトル列 1段目 (ジュース・お茶) -->
   <rect x="7" y="18" width="3" height="6" fill="#ef4444" />
   <rect x="11" y="18" width="3" height="6" fill="#10b981" />
   <rect x="15" y="18" width="3" height="6" fill="#0284c7" />
   <rect x="19" y="18" width="3" height="6" fill="#eab308" />
   <rect x="23" y="18" width="2" height="6" fill="#8b5cf6" />
-  <!-- ボタン 1段目 -->
   <rect x="7" y="25" width="3" height="1" fill="#38bdf8" />
   <rect x="11" y="25" width="3" height="1" fill="#38bdf8" />
   <rect x="15" y="25" width="3" height="1" fill="#38bdf8" />
   <rect x="19" y="25" width="3" height="1" fill="#f87171" />
   <rect x="23" y="25" width="2" height="1" fill="#f87171" />
-
-  <!-- ボトル列 2段目 (コーヒー・炭酸) -->
   <rect x="7" y="27" width="3" height="5" fill="#78350f" />
   <rect x="11" y="27" width="3" height="5" fill="#f97316" />
   <rect x="15" y="27" width="3" height="5" fill="#06b6d4" />
   <rect x="19" y="27" width="3" height="5" fill="#ec4899" />
   <rect x="23" y="27" width="2" height="5" fill="#f43f5e" />
-  <!-- ボタン 2段目 -->
   <rect x="7" y="33" width="3" height="1" fill="#f87171" />
   <rect x="11" y="33" width="3" height="1" fill="#38bdf8" />
   <rect x="15" y="33" width="3" height="1" fill="#38bdf8" />
   <rect x="19" y="33" width="3" height="1" fill="#f87171" />
   <rect x="23" y="33" width="2" height="1" fill="#f87171" />
-
-  <!-- コイン投入口 & 液晶金額パネル -->
   <rect x="7" y="38" width="4" height="1" fill="#000000" />
   <rect x="8" y="40" width="2" height="3" fill="#cbd5e1" />
   <rect x="14" y="37" width="11" height="5" fill="#0284c7" />
   <rect x="16" y="38" width="7" height="3" fill="#38bdf8" />
-
-  <!-- 商品取り出し口 (フラップ扉) -->
   <rect x="5" y="44" width="22" height="7" fill="#090d16" />
   <rect x="7" y="45" width="18" height="5" fill="#334155" />
   <rect x="7" y="45" width="18" height="1" fill="#64748b" />
   <rect x="14" y="47" width="4" height="2" fill="#1e293b" />
-
-  <!-- スタンド脚 (金属) -->
   <rect x="5" y="52" width="6" height="3" fill="#1e293b" />
   <rect x="21" y="52" width="6" height="3" fill="#1e293b" />
-</svg>
-`;
+</svg>`;
 
 // 2. 昭和レトロ純喫茶（カフェ） (64x64)
 const retroCafeSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">
-  <!-- 建物本体（レンガ外壁） -->
   <rect x="4" y="16" width="56" height="46" fill="#7c2d12" />
   <rect x="6" y="18" width="52" height="44" fill="#9a3412" />
-  <!-- レンガ目地パターン -->
   <line x1="4" y1="26" x2="60" y2="26" stroke="#431407" stroke-width="1" />
   <line x1="4" y1="36" x2="60" y2="36" stroke="#431407" stroke-width="1" />
   <line x1="4" y1="46" x2="60" y2="46" stroke="#431407" stroke-width="1" />
   <line x1="4" y1="56" x2="60" y2="56" stroke="#431407" stroke-width="1" />
-
-  <!-- 三角ひさし屋根 (ストライプ グリーン & ホワイト) -->
   <polygon points="2,16 62,16 58,10 6,10" fill="#15803d" />
-  <!-- ストライプ -->
   <polygon points="12,16 18,16 16,10 10,10" fill="#f8fafc" />
   <polygon points="26,16 32,16 30,10 24,10" fill="#f8fafc" />
   <polygon points="40,16 46,16 44,10 38,10" fill="#f8fafc" />
   <polygon points="54,16 60,16 58,10 52,10" fill="#f8fafc" />
-
-  <!-- 看板「珈琲」 -->
   <rect x="20" y="4" width="24" height="8" fill="#451a03" stroke="#d97706" stroke-width="1" />
   <rect x="22" y="6" width="20" height="4" fill="#78350f" />
-  <!-- 文字風の金ドット -->
   <rect x="25" y="7" width="5" height="2" fill="#fbbf24" />
   <rect x="34" y="7" width="5" height="2" fill="#fbbf24" />
-
-  <!-- 喫茶店の木枠窓 (ステンドグラス・暖色発光) -->
   <rect x="8" y="24" width="20" height="20" fill="#451a03" />
   <rect x="10" y="26" width="16" height="16" fill="#fef08a" />
   <rect x="12" y="28" width="6" height="6" fill="#fed7aa" />
   <rect x="18" y="34" width="6" height="6" fill="#fdba74" />
   <line x1="18" y1="26" x2="18" y2="42" stroke="#451a03" stroke-width="2" />
   <line x1="10" y1="34" x2="26" y2="34" stroke="#451a03" stroke-width="2" />
-
-  <!-- 入口ドア (木製ガラス扉) -->
   <rect x="36" y="24" width="20" height="38" fill="#451a03" />
   <rect x="38" y="26" width="16" height="20" fill="#fef3c7" />
   <rect x="40" y="28" width="12" height="16" fill="#fde68a" />
   <line x1="46" y1="26" x2="46" y2="46" stroke="#451a03" stroke-width="1" />
-  <!-- 金色ドアノブ -->
   <circle cx="39" cy="45" r="1.5" fill="#f59e0b" />
-
-  <!-- 外灯ランプ (玄関上) -->
   <circle cx="32" cy="22" r="3" fill="#fef08a" />
   <circle cx="32" cy="22" r="1.5" fill="#ffffff" />
-</svg>
-`;
+</svg>`;
 
 // 3. 国鉄風木造駅舎 (80x64)
 const retroStationSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 64" shape-rendering="crispEdges">
-  <!-- 大屋根 (瓦屋根ダークスレート) -->
   <polygon points="4,20 76,20 70,8 10,8" fill="#334155" />
   <polygon points="8,19 72,19 68,10 12,10" fill="#475569" />
-  <!-- 瓦のライン -->
   <line x1="12" y1="13" x2="68" y2="13" stroke="#1e293b" stroke-width="1" />
   <line x1="10" y1="16" x2="70" y2="16" stroke="#1e293b" stroke-width="1" />
-
-  <!-- 壁面 (下見板張り木造) -->
   <rect x="8" y="20" width="64" height="42" fill="#78350f" />
   <rect x="10" y="22" width="60" height="38" fill="#92400e" />
   <line x1="8" y1="28" x2="72" y2="28" stroke="#451a03" stroke-width="1" />
   <line x1="8" y1="36" x2="72" y2="36" stroke="#451a03" stroke-width="1" />
   <line x1="8" y1="44" x2="72" y2="44" stroke="#451a03" stroke-width="1" />
   <line x1="8" y1="52" x2="72" y2="52" stroke="#451a03" stroke-width="1" />
-
-  <!-- 駅名看板「あいらす駅」 -->
   <rect x="28" y="14" width="24" height="8" fill="#f8fafc" stroke="#1e293b" stroke-width="1" />
   <rect x="30" y="16" width="20" height="4" fill="#0284c7" />
   <rect x="33" y="17" width="14" height="2" fill="#ffffff" />
-
-  <!-- 改札・エントランス大扉 -->
   <rect x="26" y="32" width="28" height="30" fill="#1e293b" />
   <rect x="28" y="34" width="24" height="28" fill="#0f172a" />
-  <!-- 木の改札柵ラッチ -->
   <rect x="30" y="46" width="3" height="14" fill="#d97706" />
   <rect x="47" y="46" width="3" height="14" fill="#d97706" />
-
-  <!-- 駅の窓 (左・右) -->
   <rect x="14" y="30" width="8" height="12" fill="#fde68a" stroke="#451a03" stroke-width="1" />
   <rect x="58" y="30" width="8" height="12" fill="#fde68a" stroke="#451a03" stroke-width="1" />
-</svg>
-`;
+</svg>`;
 
 // 4. 公園の噴水 (48x48)
 const parkFountainSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" shape-rendering="crispEdges">
-  <!-- 外側の石組みプール -->
   <ellipse cx="24" cy="36" rx="22" ry="10" fill="#64748b" />
   <ellipse cx="24" cy="35" rx="20" ry="8" fill="#94a3b8" />
-  <!-- 水面 -->
   <ellipse cx="24" cy="35" rx="18" ry="7" fill="#0284c7" />
   <ellipse cx="24" cy="34" rx="15" ry="5" fill="#38bdf8" />
-
-  <!-- 中央の噴水台座石柱 -->
   <rect x="21" y="22" width="6" height="14" fill="#475569" />
   <rect x="19" y="20" width="10" height="4" fill="#94a3b8" />
-  
-  <!-- 吹き上がる水流 -->
   <rect x="23" y="10" width="2" height="12" fill="#e0f2fe" />
   <rect x="22" y="8" width="4" height="4" fill="#ffffff" />
-  <!-- 落ちる水しぶき -->
   <circle cx="16" cy="22" r="1.5" fill="#bae6fd" />
   <circle cx="32" cy="22" r="1.5" fill="#bae6fd" />
   <circle cx="13" cy="28" r="1" fill="#7dd3fc" />
   <circle cx="35" cy="28" r="1" fill="#7dd3fc" />
   <circle cx="20" cy="33" r="1.5" fill="#ffffff" />
   <circle cx="28" cy="33" r="1.5" fill="#ffffff" />
-</svg>
-`;
+</svg>`;
 
 // 5. 三毛猫NPC (24x20)
 const catSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 20" shape-rendering="crispEdges">
-  <!-- 影 -->
   <ellipse cx="12" cy="18" rx="8" ry="2" fill="rgba(0,0,0,0.3)" />
-
-  <!-- 胴体 (白・茶・黒の三毛) -->
   <ellipse cx="12" cy="13" rx="7" ry="5" fill="#ffffff" />
   <rect x="8" y="9" width="4" height="5" fill="#d97706" />
   <rect x="14" y="11" width="3" height="4" fill="#1e293b" />
-
-  <!-- しっぽ -->
   <path d="M19 13 Q22 10 21 7" stroke="#d97706" stroke-width="2" fill="none" />
-
-  <!-- 頭部 -->
   <circle cx="7" cy="9" r="4.5" fill="#ffffff" />
-  <!-- 耳 (ピンと立った三角) -->
   <polygon points="4,5 6,2 7,5" fill="#d97706" />
   <polygon points="8,5 10,2 11,5" fill="#1e293b" />
   <polygon points="5,5 6,3 7,5" fill="#fbcfe8" />
-
-  <!-- 目 (エメラルドグリーン) -->
   <rect x="5" y="8" width="1" height="2" fill="#10b981" />
   <rect x="8" y="8" width="1" height="2" fill="#10b981" />
-  <!-- 鼻とヒゲ -->
   <rect x="6" y="10" width="2" height="1" fill="#f43f5e" />
   <line x1="3" y1="10" x2="1" y2="9" stroke="#94a3b8" stroke-width="1" />
   <line x1="10" y1="10" x2="12" y2="9" stroke="#94a3b8" stroke-width="1" />
-</svg>
-`;
+</svg>`;
 
-// 6. 木造・コンクリート電柱 (高精細 24x80)
+// 6. 電柱
 const telegraphPoleSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 80" shape-rendering="crispEdges">
   <ellipse cx="12" cy="78" rx="5" ry="2" fill="rgba(0,0,0,0.35)" />
   <rect x="10" y="4" width="4" height="74" fill="#64748b" />
   <rect x="10" y="4" width="1.5" height="74" fill="#cbd5e1" />
   <rect x="12.5" y="4" width="1.5" height="74" fill="#334155" />
-  
-  <!-- 最上部ガイシアーム -->
   <rect x="2" y="8" width="20" height="2" fill="#1e293b" />
   <rect x="3" y="6" width="2" height="2" fill="#f8fafc" />
   <rect x="19" y="6" width="2" height="2" fill="#f8fafc" />
-  
-  <!-- トランス変圧器 (円筒) -->
   <rect x="5" y="16" width="14" height="16" fill="#334155" />
   <rect x="6" y="17" width="12" height="14" fill="#475569" />
   <rect x="7" y="16" width="4" height="1" fill="#94a3b8" />
   <rect x="6" y="17" width="2" height="14" fill="#94a3b8" />
-  
-  <!-- 2段目アーム -->
   <rect x="4" y="36" width="16" height="2" fill="#1e293b" />
   <rect x="5" y="34" width="2" height="2" fill="#f8fafc" />
   <rect x="17" y="34" width="2" height="2" fill="#f8fafc" />
-
-  <!-- 街灯アーム -->
   <path d="M12 46 L19 46 L21 50" stroke="#1e293b" stroke-width="1.5" fill="none" />
   <polygon points="18,50 24,50 22,48 20,48" fill="#0f172a" />
   <rect x="19" y="50" width="4" height="3" fill="#fef08a" />
-
-  <!-- 足元ベース -->
   <rect x="9" y="75" width="6" height="3" fill="#334155" />
-</svg>
-`;
+</svg>`;
 
-// 7. ノスタルジック街灯 (16x48)
+// 7. 街灯
 const streetLampSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 48" shape-rendering="crispEdges">
   <ellipse cx="8" cy="46" rx="5" ry="2" fill="rgba(0,0,0,0.3)" />
@@ -263,30 +183,24 @@ const streetLampSvg = `
   <rect x="4" y="8" width="8" height="6" fill="#fef08a" />
   <rect x="6" y="9" width="4" height="4" fill="#ffffff" />
   <rect x="4" y="44" width="8" height="3" fill="#0f172a" />
-</svg>
-`;
+</svg>`;
 
-// 8. ケヤキの木 (48x56)
+// 8. ケヤキの木
 const retroTreeSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 56" shape-rendering="crispEdges">
   <ellipse cx="24" cy="53" rx="16" ry="3" fill="rgba(0,0,0,0.3)" />
-  <!-- 幹 -->
   <rect x="21" y="32" width="6" height="22" fill="#78350f" />
   <rect x="21" y="32" width="2" height="22" fill="#92400e" />
   <rect x="25" y="32" width="2" height="22" fill="#451a03" />
-  
-  <!-- 葉レイヤー -->
   <circle cx="24" cy="20" r="20" fill="#14532d" />
   <circle cx="22" cy="18" r="17" fill="#15803d" />
   <circle cx="18" cy="14" r="12" fill="#16a34a" />
   <circle cx="28" cy="15" r="11" fill="#22c55e" />
-  <!-- 木漏れ日ハイライト -->
   <circle cx="16" cy="11" r="5" fill="#86efac" />
   <circle cx="27" cy="12" r="4" fill="#86efac" />
-</svg>
-`;
+</svg>`;
 
-// 9. 木製ベンチ (36x24)
+// 9. ベンチ
 const retroBenchSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 24" shape-rendering="crispEdges">
   <ellipse cx="18" cy="22" rx="16" ry="2" fill="rgba(0,0,0,0.3)" />
@@ -294,95 +208,185 @@ const retroBenchSvg = `
   <rect x="4" y="4" width="28" height="1" fill="#d97706" />
   <rect x="4" y="9" width="28" height="4" fill="#b45309" />
   <rect x="4" y="9" width="28" height="1" fill="#d97706" />
-
   <polygon points="2,14 34,14 32,18 4,18" fill="#92400e" />
   <line x1="2" y1="14" x2="34" y2="14" stroke="#d97706" stroke-width="1" />
-
   <rect x="6" y="16" width="2" height="7" fill="#0f172a" />
   <rect x="28" y="16" width="2" height="7" fill="#0f172a" />
-</svg>
-`;
+</svg>`;
 
-// 10. 国鉄風駅名標 (40x36)
+// 10. 駅名標
 const stationSignSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 36" shape-rendering="crispEdges">
   <ellipse cx="20" cy="34" rx="16" ry="2" fill="rgba(0,0,0,0.25)" />
   <rect x="8" y="18" width="2" height="17" fill="#475569" />
   <rect x="30" y="18" width="2" height="17" fill="#475569" />
-  
   <rect x="4" y="4" width="32" height="18" fill="#f8fafc" stroke="#1e293b" stroke-width="1" />
   <rect x="5" y="17" width="30" height="3" fill="#0284c7" />
   <rect x="10" y="7" width="20" height="6" fill="#0f172a" />
   <rect x="14" y="14" width="12" height="2" fill="#475569" />
-</svg>
-`;
+</svg>`;
 
-// 11. 高校生キャラクター（女の子） (24x36)
-const schoolgirlSvg = `
+// 11. 女子生徒 4方向
+const schoolgirlDownSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" shape-rendering="crispEdges">
   <ellipse cx="12" cy="34" rx="7" ry="2" fill="rgba(0,0,0,0.35)" />
-  <!-- 脚 -->
   <rect x="9" y="27" width="2" height="5" fill="#fed7aa" />
   <rect x="13" y="27" width="2" height="5" fill="#fed7aa" />
   <rect x="9" y="29" width="2" height="4" fill="#1e293b" />
   <rect x="13" y="29" width="2" height="4" fill="#1e293b" />
   <rect x="8" y="33" width="3" height="2" fill="#78350f" />
   <rect x="13" y="33" width="3" height="2" fill="#78350f" />
-
-  <!-- スカート -->
   <polygon points="7,23 17,23 19,28 5,28" fill="#1e3a8a" />
-  <rect x="9" y="23" width="1" height="5" fill="#172554" />
-  <rect x="14" y="23" width="1" height="5" fill="#172554" />
-
-  <!-- セーラー服 -->
   <rect x="8" y="16" width="8" height="7" fill="#ffffff" />
   <polygon points="7,16 17,16 14,20 10,20" fill="#1e3a8a" />
   <polygon points="11,18 13,18 12,22" fill="#dc2626" />
-
-  <!-- 腕 -->
   <rect x="6" y="17" width="2" height="7" fill="#fed7aa" />
   <rect x="16" y="17" width="2" height="7" fill="#fed7aa" />
-
-  <!-- 顔 -->
   <rect x="11" y="14" width="2" height="2" fill="#fcd34d" />
   <rect x="8" y="8" width="8" height="7" fill="#fed7aa" />
   <rect x="9" y="11" width="1" height="2" fill="#1e293b" />
   <rect x="14" y="11" width="1" height="2" fill="#1e293b" />
   <rect x="9" y="13" width="1" height="1" fill="#f43f5e" />
   <rect x="14" y="13" width="1" height="1" fill="#f43f5e" />
-
-  <!-- 髪 -->
   <rect x="7" y="5" width="10" height="4" fill="#0f172a" />
   <rect x="6" y="7" width="3" height="8" fill="#0f172a" />
   <rect x="15" y="7" width="3" height="8" fill="#0f172a" />
   <rect x="8" y="7" width="8" height="3" fill="#0f172a" />
   <rect x="9" y="6" width="6" height="1" fill="#334155" />
-</svg>
-`;
+</svg>`;
 
-// 12. タイル: 線路 (32x32)
+const schoolgirlUpSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" shape-rendering="crispEdges">
+  <ellipse cx="12" cy="34" rx="7" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="9" y="27" width="2" height="5" fill="#fed7aa" />
+  <rect x="13" y="27" width="2" height="5" fill="#fed7aa" />
+  <rect x="9" y="29" width="2" height="4" fill="#1e293b" />
+  <rect x="13" y="29" width="2" height="4" fill="#1e293b" />
+  <rect x="8" y="33" width="3" height="2" fill="#78350f" />
+  <rect x="13" y="33" width="3" height="2" fill="#78350f" />
+  <polygon points="7,23 17,23 19,28 5,28" fill="#1e3a8a" />
+  <rect x="8" y="16" width="8" height="7" fill="#ffffff" />
+  <rect x="8" y="16" width="8" height="4" fill="#1e3a8a" />
+  <line x1="9" y1="19" x2="15" y2="19" stroke="#ffffff" stroke-width="1" />
+  <rect x="6" y="17" width="2" height="7" fill="#fed7aa" />
+  <rect x="16" y="17" width="2" height="7" fill="#fed7aa" />
+  <rect x="7" y="5" width="10" height="11" fill="#0f172a" />
+  <rect x="6" y="7" width="12" height="9" fill="#0f172a" />
+  <rect x="9" y="6" width="6" height="2" fill="#334155" />
+</svg>`;
+
+const schoolgirlLeftSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" shape-rendering="crispEdges">
+  <ellipse cx="12" cy="34" rx="6" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="10" y="27" width="3" height="5" fill="#fed7aa" />
+  <rect x="10" y="29" width="3" height="4" fill="#1e293b" />
+  <rect x="8" y="33" width="4" height="2" fill="#78350f" />
+  <polygon points="9,23 15,23 17,28 7,28" fill="#1e3a8a" />
+  <rect x="9" y="16" width="6" height="7" fill="#ffffff" />
+  <polygon points="8,16 13,16 11,20 7,19" fill="#1e3a8a" />
+  <rect x="10" y="17" width="2" height="7" fill="#fed7aa" />
+  <rect x="7" y="8" width="7" height="7" fill="#fed7aa" />
+  <rect x="6" y="11" width="1" height="2" fill="#1e293b" />
+  <rect x="6" y="13" width="1" height="1" fill="#f43f5e" />
+  <rect x="8" y="5" width="8" height="4" fill="#0f172a" />
+  <rect x="9" y="7" width="6" height="8" fill="#0f172a" />
+  <rect x="7" y="7" width="2" height="4" fill="#0f172a" />
+</svg>`;
+
+const schoolgirlRightSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" shape-rendering="crispEdges">
+  <ellipse cx="12" cy="34" rx="6" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="11" y="27" width="3" height="5" fill="#fed7aa" />
+  <rect x="11" y="29" width="3" height="4" fill="#1e293b" />
+  <rect x="12" y="33" width="4" height="2" fill="#78350f" />
+  <polygon points="9,23 15,23 17,28 7,28" fill="#1e3a8a" />
+  <rect x="9" y="16" width="6" height="7" fill="#ffffff" />
+  <polygon points="11,16 16,16 17,19 13,20" fill="#1e3a8a" />
+  <rect x="12" y="17" width="2" height="7" fill="#fed7aa" />
+  <rect x="10" y="8" width="7" height="7" fill="#fed7aa" />
+  <rect x="17" y="11" width="1" height="2" fill="#1e293b" />
+  <rect x="17" y="13" width="1" height="1" fill="#f43f5e" />
+  <rect x="8" y="5" width="8" height="4" fill="#0f172a" />
+  <rect x="9" y="7" width="6" height="8" fill="#0f172a" />
+  <rect x="15" y="7" width="2" height="4" fill="#0f172a" />
+</svg>`;
+
+// 12. 少年（ケンタ）
+const boyDownSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" shape-rendering="crispEdges">
+  <ellipse cx="12" cy="34" rx="7" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="8" y="26" width="3" height="7" fill="#fed7aa" />
+  <rect x="13" y="26" width="3" height="7" fill="#fed7aa" />
+  <rect x="7" y="32" width="4" height="3" fill="#3b82f6" />
+  <rect x="13" y="32" width="4" height="3" fill="#3b82f6" />
+  <rect x="7" y="20" width="10" height="6" fill="#1d4ed8" />
+  <rect x="7" y="14" width="10" height="7" fill="#facc15" />
+  <rect x="5" y="15" width="2" height="6" fill="#fed7aa" />
+  <rect x="17" y="15" width="2" height="6" fill="#fed7aa" />
+  <rect x="8" y="8" width="8" height="6" fill="#fed7aa" />
+  <rect x="9" y="10" width="1" height="1" fill="#000" />
+  <rect x="14" y="10" width="1" height="1" fill="#000" />
+  <rect x="11" y="12" width="2" height="1" fill="#ea580c" />
+  <rect x="7" y="4" width="10" height="5" fill="#dc2626" />
+  <rect x="6" y="8" width="12" height="2" fill="#b91c1c" />
+  <rect x="15" y="8" width="3" height="1" fill="#ef4444" />
+</svg>`;
+
+const boyUpSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" shape-rendering="crispEdges">
+  <ellipse cx="12" cy="34" rx="7" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="8" y="26" width="3" height="7" fill="#fed7aa" />
+  <rect x="13" y="26" width="3" height="7" fill="#fed7aa" />
+  <rect x="7" y="32" width="4" height="3" fill="#3b82f6" />
+  <rect x="13" y="32" width="4" height="3" fill="#3b82f6" />
+  <rect x="7" y="20" width="10" height="6" fill="#1d4ed8" />
+  <rect x="7" y="14" width="10" height="7" fill="#facc15" />
+  <rect x="5" y="15" width="2" height="6" fill="#fed7aa" />
+  <rect x="17" y="15" width="2" height="6" fill="#fed7aa" />
+  <rect x="7" y="4" width="10" height="7" fill="#dc2626" />
+  <rect x="10" y="9" width="4" height="2" fill="#7f1d1d" />
+  <rect x="7" y="10" width="10" height="3" fill="#451a03" />
+</svg>`;
+
+// 13. サラリーマン（たなか）
+const salarymanDownSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 38" shape-rendering="crispEdges">
+  <ellipse cx="12" cy="36" rx="7" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="8" y="25" width="3" height="9" fill="#334155" />
+  <rect x="13" y="25" width="3" height="9" fill="#334155" />
+  <rect x="7" y="34" width="4" height="3" fill="#0f172a" />
+  <rect x="13" y="34" width="4" height="3" fill="#0f172a" />
+  <rect x="7" y="14" width="10" height="11" fill="#475569" />
+  <polygon points="10,14 14,14 12,19" fill="#ffffff" />
+  <rect x="11.5" y="16" width="1" height="5" fill="#dc2626" />
+  <rect x="5" y="15" width="2" height="8" fill="#475569" />
+  <rect x="17" y="15" width="2" height="8" fill="#475569" />
+  <rect x="18" y="22" width="4" height="5" fill="#78350f" />
+  <rect x="8" y="7" width="8" height="7" fill="#fed7aa" />
+  <rect x="8" y="9" width="3" height="2" fill="#0f172a" stroke="#000" stroke-width="0.5" />
+  <rect x="13" y="9" width="3" height="2" fill="#0f172a" stroke="#000" stroke-width="0.5" />
+  <line x1="11" y1="10" x2="13" y2="10" stroke="#000" stroke-width="0.5" />
+  <rect x="7" y="4" width="10" height="4" fill="#0f172a" />
+  <rect x="7" y="6" width="2" height="4" fill="#0f172a" />
+  <rect x="15" y="6" width="2" height="4" fill="#0f172a" />
+</svg>`;
+
+// 14. タイル
 const railTrackTileSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
-  <!-- 砂利道（バラスト） -->
   <rect width="32" height="32" fill="#475569" />
   <rect x="4" y="8" width="2" height="2" fill="#64748b" />
   <rect x="22" y="24" width="2" height="2" fill="#334155" />
   <rect x="14" y="16" width="2" height="2" fill="#64748b" />
-
-  <!-- 枕木 (木製) -->
   <rect x="0" y="4" width="32" height="4" fill="#78350f" />
   <rect x="0" y="14" width="32" height="4" fill="#78350f" />
   <rect x="0" y="24" width="32" height="4" fill="#78350f" />
-
-  <!-- 鉄レール (2本) -->
   <rect x="6" y="0" width="3" height="32" fill="#94a3b8" />
   <rect x="7" y="0" width="1" height="32" fill="#f8fafc" />
   <rect x="23" y="0" width="3" height="32" fill="#94a3b8" />
   <rect x="24" y="0" width="1" height="32" fill="#f8fafc" />
-</svg>
-`;
+</svg>`;
 
-// 13. タイル: アスファルト道路 (32x32)
 const asphaltTileSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
   <rect width="32" height="32" fill="#334155" />
@@ -390,10 +394,8 @@ const asphaltTileSvg = `
   <rect x="18" y="14" width="2" height="2" fill="#1e293b" />
   <rect x="26" y="24" width="2" height="2" fill="#475569" />
   <rect x="8" y="22" width="2" height="2" fill="#1e293b" />
-</svg>
-`;
+</svg>`;
 
-// 14. タイル: 歩道敷石 (32x32)
 const sidewalkTileSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
   <rect width="32" height="32" fill="#94a3b8" />
@@ -402,10 +404,8 @@ const sidewalkTileSvg = `
   <line x1="0" y1="32" x2="32" y2="32" stroke="#64748b" stroke-width="1" />
   <line x1="8" y1="16" x2="8" y2="32" stroke="#64748b" stroke-width="1" />
   <line x1="24" y1="16" x2="24" y2="32" stroke="#64748b" stroke-width="1" />
-</svg>
-`;
+</svg>`;
 
-// 15. タイル: 草地 (32x32)
 const grassTileSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
   <rect width="32" height="32" fill="#15803d" />
@@ -413,8 +413,7 @@ const grassTileSvg = `
   <rect x="20" y="18" width="2" height="3" fill="#22c55e" />
   <rect x="12" y="24" width="2" height="2" fill="#166534" />
   <rect x="24" y="6" width="2" height="2" fill="#166534" />
-</svg>
-`;
+</svg>`;
 
 export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
   vending_machine_retro: {
@@ -667,16 +666,23 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
     metadata: { tags: ['駅', '看板', '鉄道'], createdAt: Date.now(), source: 'preset' },
   },
 
+  // 11. 女子生徒（4方向スプライト対応）
   character_schoolgirl: {
     id: 'character_schoolgirl',
     name: '女子高校生（あおい）',
     type: 'character',
     category: 'npc',
     sprite: {
-      url: svgToUri(schoolgirlSvg),
+      url: svgToUri(schoolgirlDownSvg),
       width: 24,
       height: 36,
       pixelArt: true,
+      directionalUrls: {
+        down: svgToUri(schoolgirlDownSvg),
+        up: svgToUri(schoolgirlUpSvg),
+        left: svgToUri(schoolgirlLeftSvg),
+        right: svgToUri(schoolgirlRightSvg),
+      },
     },
     anchor: { x: 12, y: 34 },
     collision: { enabled: true, type: 'box', offsetX: -6, offsetY: -6, width: 12, height: 6 },
@@ -691,7 +697,75 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
         ],
       },
     ],
-    metadata: { tags: ['NPC', '高校生', 'キャラクター'], createdAt: Date.now(), source: 'preset' },
+    metadata: { tags: ['NPC', '高校生', 'アバター'], createdAt: Date.now(), source: 'preset' },
+  },
+
+  // 12. 昭和少年（ケンタ）
+  character_boy: {
+    id: 'character_boy',
+    name: '昭和少年（ケンタ）',
+    type: 'character',
+    category: 'npc',
+    sprite: {
+      url: svgToUri(boyDownSvg),
+      width: 24,
+      height: 36,
+      pixelArt: true,
+      directionalUrls: {
+        down: svgToUri(boyDownSvg),
+        up: svgToUri(boyUpSvg),
+        left: svgToUri(boyDownSvg),
+        right: svgToUri(boyDownSvg),
+      },
+    },
+    anchor: { x: 12, y: 34 },
+    collision: { enabled: true, type: 'box', offsetX: -6, offsetY: -6, width: 12, height: 6 },
+    depth: { enabled: true, offsetY: 0 },
+    interactions: [
+      {
+        type: 'talk',
+        label: '話しかける (右クリック)',
+        dialogue: [
+          'ケンタ「公園の噴水の横で、たまにすっごい綺麗なアゲハチョウが飛んでるんだぜ！」',
+          'ケンタ「走る時はCtrlキー長押しだぞ！」',
+        ],
+      },
+    ],
+    metadata: { tags: ['少年', 'アバター', 'NPC'], createdAt: Date.now(), source: 'preset' },
+  },
+
+  // 13. サラリーマン（たなか）
+  character_salaryman: {
+    id: 'character_salaryman',
+    name: '会社員（たなか）',
+    type: 'character',
+    category: 'npc',
+    sprite: {
+      url: svgToUri(salarymanDownSvg),
+      width: 24,
+      height: 38,
+      pixelArt: true,
+      directionalUrls: {
+        down: svgToUri(salarymanDownSvg),
+        up: svgToUri(salarymanDownSvg),
+        left: svgToUri(salarymanDownSvg),
+        right: svgToUri(salarymanDownSvg),
+      },
+    },
+    anchor: { x: 12, y: 36 },
+    collision: { enabled: true, type: 'box', offsetX: -6, offsetY: -6, width: 12, height: 6 },
+    depth: { enabled: true, offsetY: 0 },
+    interactions: [
+      {
+        type: 'talk',
+        label: '話しかける (右クリック)',
+        dialogue: [
+          'たなか「ふう、外回り営業の合間の自販機のコーラは最高ですな。」',
+          'たなか「喫茶店のマスターとはもう20年の付き合いなんですよ。」',
+        ],
+      },
+    ],
+    metadata: { tags: ['会社員', '大人', 'アバター', 'NPC'], createdAt: Date.now(), source: 'preset' },
   },
 
   tile_rail: {

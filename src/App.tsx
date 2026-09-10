@@ -11,17 +11,18 @@ import { HelpModal } from './ui/components/HelpModal';
 import { SettingsModal } from './ui/components/SettingsModal';
 import { DebugOverlayF3 } from './ui/hud/DebugOverlayF3';
 import { RendererGhostEntity } from './renderer/IRenderer';
-import { Bell } from 'lucide-react';
+import { Bell, Users } from 'lucide-react';
 
 export const App: React.FC = () => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<PixiWorldRenderer | null>(null);
 
-  const { world, assets, createObject, moveObject, undo, redo, updatePlayerState } = useWorldStore();
+  const { world, assets, createObject, moveObject, undo, redo, updatePlayerPosition } = useWorldStore();
   const {
     selectedEntityId,
     setSelectedEntityId,
     activeMode,
+    setActiveMode,
     placingAssetId,
     setPlacingAssetId,
     isAIPanelOpen,
@@ -35,33 +36,29 @@ export const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isF3Open, setIsF3Open] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(true);
+  const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
+  const [currentAvatarId, setCurrentAvatarId] = useState('character_schoolgirl');
   const [fps, setFps] = useState(60);
   const [ghostEntities, setGhostEntities] = useState<RendererGhostEntity[]>([]);
 
-  // 移動・アクション用キー管理
-  const keysPressed = useRef<{ [key: string]: boolean }>({});
-
-  // プレイヤーのジャンプ物理ステート
-  const playerPhysics = useRef({
-    z: 0,
-    vz: 0,
-    isJumping: false,
-  });
-
-  // レンダラー初期化
+  // 1. レンダラー初期化 (1回のみ実行)
   useEffect(() => {
     if (!canvasContainerRef.current) return;
 
     const renderer = new PixiWorldRenderer();
     rendererRef.current = renderer;
+    renderer.isPlayMode = activeMode === 'play';
 
     renderer.init(canvasContainerRef.current).then(() => {
+      // 初期描画
+      renderer.render(world, assets, selectedEntityId, ghostEntities);
+
       // 左クリック (選択)
       renderer.onEntityClick = (entityId: string) => {
         setSelectedEntityId(entityId);
       };
 
-      // 右クリック (Minecraft風 オブジェクト使用/インタラクション)
+      // 右クリック (マインクラフト風インタラクション)
       renderer.onEntityRightClick = (entityId: string) => {
         const ent = useWorldStore.getState().world.entities[entityId];
         if (!ent) return;
@@ -101,6 +98,11 @@ export const App: React.FC = () => {
       renderer.onEntityDrag = (entityId: string, newX: number, newY: number) => {
         moveObject(entityId, newX, newY);
       };
+
+      // プレイヤー移動時の低頻度通知 (FPS更新用)
+      renderer.onPlayerMoveTick = (_x, _y, _z, _dir, liveFps) => {
+        setFps(liveFps);
+      };
     });
 
     return () => {
@@ -109,131 +111,32 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // ゲームループ & プレイヤー物理演算 (60fps)
+  // 2. モード変更の同期
   useEffect(() => {
-    let animId: number;
-    let lastTime = performance.now();
-    let frameCount = 0;
-    let fpsTimer = 0;
+    if (rendererRef.current) {
+      rendererRef.current.isPlayMode = activeMode === 'play';
+    }
+  }, [activeMode]);
 
-    const loop = (currentTime: number) => {
-      const dt = Math.min(0.1, (currentTime - lastTime) / 1000);
-      lastTime = currentTime;
+  // 3. ワールドデータ変更時のみ再描画（エンティティ追加・天候変更時）
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.render(world, assets, selectedEntityId, ghostEntities);
+    }
+  }, [world, assets, selectedEntityId, ghostEntities]);
 
-      // FPS計測
-      frameCount++;
-      fpsTimer += dt;
-      if (fpsTimer >= 0.5) {
-        setFps((frameCount / fpsTimer));
-        frameCount = 0;
-        fpsTimer = 0;
-      }
-
-      // --- プレイヤー移動 & マイクラ操作処理 ---
-      const keys = keysPressed.current;
-      const isUp = keys['KeyW'] || keys['ArrowUp'] || keys['w'] || keys['W'];
-      const isDown = keys['KeyS'] || keys['ArrowDown'] || keys['s'] || keys['S'];
-      const isLeft = keys['KeyA'] || keys['ArrowLeft'] || keys['a'] || keys['A'];
-      const isRight = keys['KeyD'] || keys['ArrowRight'] || keys['d'] || keys['D'];
-      const isSprintKey = keys['ControlLeft'] || keys['ControlRight'] || keys['Control'];
-      const isSneakKey = keys['ShiftLeft'] || keys['ShiftRight'] || keys['Shift'];
-      const isJumpKey = keys['Space'] || keys[' '];
-
-      let dx = 0;
-      let dy = 0;
-      if (isUp) dy -= 1;
-      if (isDown) dy += 1;
-      if (isLeft) dx -= 1;
-      if (isRight) dx += 1;
-
-      // 速度計算 (基本130、ダッシュ時240、スニーク時65)
-      let baseSpeed = 130;
-      if (isSprintKey) baseSpeed *= 1.85;
-      else if (isSneakKey) baseSpeed *= 0.5;
-
-      const isMoving = dx !== 0 || dy !== 0;
-
-      // ジャンプ物理 (重力と放物線運動)
-      const phys = playerPhysics.current;
-      const gravity = 700; // px/s^2
-
-      // 空中でないときにスペースキーでジャンプ開始
-      if (isJumpKey && phys.z <= 0) {
-        phys.vz = 260; // 上向き初速
-        phys.isJumping = true;
-      }
-
-      // 垂直移動の積分
-      if (phys.isJumping || phys.z > 0) {
-        phys.z += phys.vz * dt;
-        phys.vz -= gravity * dt;
-
-        if (phys.z <= 0) {
-          phys.z = 0;
-          phys.vz = 0;
-          phys.isJumping = false;
-        }
-      }
-
-      // 水平移動の積分
-      let newX = world.player.position.x;
-      let newY = world.player.position.y;
-      let dir = world.player.direction;
-
-      if (isMoving) {
-        const len = Math.sqrt(dx * dx + dy * dy);
-        const nx = (dx / len) * baseSpeed * dt;
-        const ny = (dy / len) * baseSpeed * dt;
-
-        newX = Math.round(world.player.position.x + nx);
-        newY = Math.round(world.player.position.y + ny);
-
-        if (Math.abs(dx) > Math.abs(dy)) {
-          dir = dx > 0 ? 'right' : 'left';
-        } else {
-          dir = dy > 0 ? 'down' : 'up';
-        }
-      }
-
-      // プレイヤー状態の更新
-      updatePlayerState({
-        position: { x: newX, y: newY, z: Math.round(phys.z) },
-        vz: Math.round(phys.vz),
-        direction: dir,
-        isMoving,
-        isJumping: phys.isJumping,
-        isSprinting: isSprintKey && isMoving,
-        isSneaking: isSneakKey,
-      });
-
-      // レンダリング実行
-      if (rendererRef.current) {
-        rendererRef.current.render(
-          world,
-          assets,
-          selectedEntityId,
-          ghostEntities,
-          activeMode === 'play'
-        );
-      }
-
-      animId = requestAnimationFrame(loop);
-    };
-
-    animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
-  }, [world, assets, selectedEntityId, ghostEntities, activeMode]);
-
-  // マインクラフトPC版キーボードショートカット
+  // 4. マインクラフトPC版キーボード入力 (レンダラーへ直接入力伝播)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
         return;
       }
 
-      // キー押下を記録 (codeとkey両方)
-      keysPressed.current[e.code] = true;
-      keysPressed.current[e.key] = true;
+      // レンダラーへキー押下を直接伝播 (0ms遅延)
+      if (rendererRef.current) {
+        rendererRef.current.keys[e.code] = true;
+        rendererRef.current.keys[e.key] = true;
+      }
 
       // F3: デバッグ画面トグル
       if (e.code === 'F3' || e.key === 'F3') {
@@ -242,13 +145,13 @@ export const App: React.FC = () => {
         return;
       }
 
-      // E: インベントリ / パレット開閉トグル
+      // E: パレット開閉トグル
       if ((e.code === 'KeyE' || e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey) {
         setIsPaletteOpen((prev) => !prev);
         return;
       }
 
-      // 1 〜 9: パレットアイテムクイック選択
+      // 1 〜 9: パレットアイテム選択
       if (['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9'].includes(e.code)) {
         const slotIdx = parseInt(e.code.replace('Digit', ''), 10) - 1;
         const placeableAssets = Object.values(assets).filter((a) => a.type !== 'tile');
@@ -260,7 +163,7 @@ export const App: React.FC = () => {
         return;
       }
 
-      // Q: 選択解除 / ドロップ
+      // Q: 選択解除
       if ((e.code === 'KeyQ' || e.key === 'q' || e.key === 'Q') && !e.ctrlKey && !e.metaKey) {
         setSelectedEntityId(null);
         setPlacingAssetId(null);
@@ -295,12 +198,15 @@ export const App: React.FC = () => {
       if (e.key === 'Escape') {
         setSelectedEntityId(null);
         setPlacingAssetId(null);
+        setIsAvatarPickerOpen(false);
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      keysPressed.current[e.code] = false;
-      keysPressed.current[e.key] = false;
+      if (rendererRef.current) {
+        rendererRef.current.keys[e.code] = false;
+        rendererRef.current.keys[e.key] = false;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -310,6 +216,17 @@ export const App: React.FC = () => {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [undo, redo, isAIPanelOpen, assets]);
+
+  // アバター変更ハンドラー
+  const handleSelectAvatar = (assetId: string) => {
+    setCurrentAvatarId(assetId);
+    rendererRef.current?.setPlayerAvatar(assetId);
+    const asset = assets[assetId];
+    if (asset) {
+      showNotification(`アバターを「${asset.name}」に変更しました`);
+    }
+    setIsAvatarPickerOpen(false);
+  };
 
   const handleResetCamera = useCallback(() => {
     rendererRef.current?.resetCamera();
@@ -322,7 +239,6 @@ export const App: React.FC = () => {
         ref={canvasContainerRef}
         className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing focus:outline-none"
         tabIndex={0}
-        onClick={(e) => (e.currentTarget as HTMLElement).focus()}
       />
 
       {/* トップHUD */}
@@ -333,6 +249,48 @@ export const App: React.FC = () => {
         onToggleF3={() => setIsF3Open((prev) => !prev)}
         isF3Open={isF3Open}
       />
+
+      {/* アバター切り替えボタン (右上HUD下) */}
+      <div className="absolute top-16 right-4 z-30">
+        <button
+          onClick={() => setIsAvatarPickerOpen((prev) => !prev)}
+          className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-2 border border-white/15 text-xs text-slate-200 hover:text-white hover:border-cyan-400/50 shadow-lg transition-all cursor-pointer"
+          title="アバター変更"
+        >
+          <Users className="w-3.5 h-3.5 text-cyan-400" />
+          <span>キャラ変更</span>
+        </button>
+
+        {/* アバター選択ポップオーバー */}
+        {isAvatarPickerOpen && (
+          <div className="mt-2 w-56 glass-panel rounded-2xl border border-cyan-400/40 p-2 space-y-1 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="text-[10px] text-slate-400 px-2 py-1 font-semibold uppercase tracking-wider">
+              操作キャラクター選択
+            </div>
+            {[
+              { id: 'character_schoolgirl', name: '女子高校生（あおい）', desc: '黒髪セーラー服' },
+              { id: 'character_boy', name: '昭和少年（ケンタ）', desc: '赤いキャップ＆短パン' },
+              { id: 'character_salaryman', name: '会社員（たなか）', desc: 'グレースーツ＆メガネ' },
+            ].map((av) => (
+              <button
+                key={av.id}
+                onClick={() => handleSelectAvatar(av.id)}
+                className={`w-full px-2.5 py-1.5 rounded-xl flex items-center justify-between text-left transition-all ${
+                  currentAvatarId === av.id
+                    ? 'bg-cyan-500/30 border border-cyan-400/50 text-white font-bold'
+                    : 'hover:bg-white/10 text-slate-300'
+                }`}
+              >
+                <div>
+                  <div className="text-xs">{av.name}</div>
+                  <div className="text-[10px] text-slate-400">{av.desc}</div>
+                </div>
+                {currentAvatarId === av.id && <span className="text-xs text-cyan-300">✓</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Minecraft風 F3 デバッグ情報画面 */}
       <DebugOverlayF3 isOpen={isF3Open} fps={fps} />
@@ -349,10 +307,10 @@ export const App: React.FC = () => {
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
-      {/* ダイアログモーダル (NPC会話・オブジェクト調査) */}
+      {/* ダイアログモーダル */}
       <DialogueModal />
 
-      {/* 操作ヘルプモーダル (Minecraft操作系) */}
+      {/* 操作ヘルプモーダル */}
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
       {/* Gemini API Key 設定モーダル */}

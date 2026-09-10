@@ -10,8 +10,8 @@ export type AssetCategory =
 export interface CollisionBox {
   enabled: boolean;
   type: 'box' | 'circle' | 'none';
-  offsetX: number; // アンカーからの相対Xオフセット
-  offsetY: number; // アンカーからの相対Yオフセット
+  offsetX: number;
+  offsetY: number;
   width: number;
   height: number;
 }
@@ -31,13 +31,20 @@ export interface AirasAsset {
   
   // スプライト情報
   sprite: {
-    url: string;           // 画像URL または Data URI (SVG/PNG)
-    width: number;         // 幅 (px)
-    height: number;        // 高さ (px)
-    pixelArt: boolean;     // ピクセルアート補間
+    url: string;           // デフォルト画像URL
+    width: number;
+    height: number;
+    pixelArt: boolean;
+    // 4方向スプライト (キャラクター等用)
+    directionalUrls?: {
+      down?: string;
+      up?: string;
+      left?: string;
+      right?: string;
+    };
   };
 
-  // 描画基準点 (アンカー: 通常は足元の接地点 (width/2, height))
+  // 描画基準点 (アンカー)
   anchor: {
     x: number;
     y: number;
@@ -46,7 +53,7 @@ export interface AirasAsset {
   // 2.5D 足元当たり判定
   collision: CollisionBox;
 
-  // 深度描画制御 (Yソート補正)
+  // 深度描画制御
   depth: {
     enabled: boolean;
     offsetY: number;
