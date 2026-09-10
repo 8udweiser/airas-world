@@ -1,13 +1,15 @@
 import React from 'react';
 import { useWorldStore } from '../../store/useWorldStore';
+import { useUIStore } from '../../store/useUIStore';
 
 interface DebugOverlayF3Props {
   isOpen: boolean;
-  fps: number;
+  fps?: number;
 }
 
-export const DebugOverlayF3: React.FC<DebugOverlayF3Props> = ({ isOpen, fps }) => {
+export const DebugOverlayF3: React.FC<DebugOverlayF3Props> = ({ isOpen }) => {
   const { world } = useWorldStore();
+  const fps = useUIStore((s) => s.fps);
   if (!isOpen) return null;
 
   const player = world.player;

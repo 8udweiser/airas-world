@@ -140,13 +140,15 @@ export class PixiWorldRenderer implements IRenderer {
       // 1. プレイヤー物理 & 移動演算 (常時キビキビ動けるように実行)
       this.updatePlayerPhysics(dt);
 
-      // 2. カメラ追従 (マウス手動ドラッグ中でない限り追従)
+      // 2. カメラ追従 (マウス手動ドラッグ中でない限り、dt指数平滑化追従)
       if (!this.isDraggingCamera) {
-        this.followPlayer(this.playerState.x, this.playerState.y, 0.12);
+        this.followPlayer(this.playerState.x, this.playerState.y, dt);
       }
 
-      // 3. 2.5D 深度ソート
-      this.depthContainer.children.sort((a, b) => (a as any).worldFootY - (b as any).worldFootY);
+      // 3. 2.5D 深度ソート (移動中またはジャンプ中のみソートしてCPU負荷激減)
+      if (this.playerState.isMoving || this.playerState.isJumping) {
+        this.depthContainer.children.sort((a, b) => (a as any).worldFootY - (b as any).worldFootY);
+      }
 
       // 4. パーティクル & 天候アニメーション
       this.updateDustParticles(dt);
@@ -376,15 +378,20 @@ export class PixiWorldRenderer implements IRenderer {
     this.centerCamera();
   }
 
-  public followPlayer(playerX: number, playerY: number, lerp: number = 0.12) {
+  public followPlayer(playerX: number, playerY: number, dt: number = 0.016) {
     if (!this.container || this.isDraggingCamera) return;
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     const targetCamX = width / 2 - playerX * this.zoom;
     const targetCamY = height / 2 - playerY * this.zoom;
 
-    this.cameraX += (targetCamX - this.cameraX) * lerp;
-    this.cameraY += (targetCamY - this.cameraY) * lerp;
+    // dt を考慮した指数平滑化 (フレームレート非依存の超滑らかなカメラワーク)
+    // 乗車爆走中はカメラ遅延ジッターを防ぐため追従係数を高める
+    const decay = this.playerState.isDriving ? 22 : 12;
+    const t = 1 - Math.exp(-decay * dt);
+
+    this.cameraX += (targetCamX - this.cameraX) * t;
+    this.cameraY += (targetCamY - this.cameraY) * t;
     this.updateCameraTransform();
   }
 

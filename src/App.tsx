@@ -38,7 +38,6 @@ export const App: React.FC = () => {
   const [isPaletteOpen, setIsPaletteOpen] = useState(true);
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
   const [currentAvatarId, setCurrentAvatarId] = useState('character_schoolgirl');
-  const [fps, setFps] = useState(60);
   const [ghostEntities, setGhostEntities] = useState<RendererGhostEntity[]>([]);
   const [isDriving, setIsDriving] = useState(false);
   const [nearbyVehicle, setNearbyVehicle] = useState<{ id: string; name: string; assetId: string } | null>(null);
@@ -113,14 +112,15 @@ export const App: React.FC = () => {
         moveObject(entityId, newX, newY);
       };
 
-      // プレイヤー移動時の低頻度通知 (FPS更新 & 周囲の乗り物検知)
+      // プレイヤー移動時の低頻度通知 (周囲の乗り物検知 & F3用FPS通知)
       let lastTickTime = 0;
       renderer.onPlayerMoveTick = (px, py, _z, _dir, liveFps) => {
         const now = performance.now();
-        if (now - lastTickTime < 180) return;
+        if (now - lastTickTime < 200) return;
         lastTickTime = now;
 
-        setFps(liveFps);
+        // F3デバッグ用FPS更新 (Zustand経由で直接更新し、App全体の再レンダリングを完全防止)
+        useUIStore.getState().setFps(liveFps);
 
         const driving = renderer.playerState.isDriving;
         setIsDriving((prev) => (prev !== driving ? driving : prev));
@@ -410,7 +410,7 @@ export const App: React.FC = () => {
       </div>
 
       {/* Minecraft風 F3 デバッグ情報画面 */}
-      <DebugOverlayF3 isOpen={isF3Open} fps={fps} />
+      <DebugOverlayF3 isOpen={isF3Open} />
 
       {/* コンテキストUI (オブジェクト選択時) */}
       <ObjectContextMenu />
@@ -439,15 +439,15 @@ export const App: React.FC = () => {
 
       {/* 通知トースト */}
       {notification && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-2xl glass-panel border border-cyan-400/40 text-cyan-200 text-xs font-medium flex items-center gap-2 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-2xl glass-panel border border-cyan-400/40 text-cyan-200 text-xs font-medium flex items-center gap-2 shadow-xl transition-all duration-200">
           <Bell className="w-3.5 h-3.5 text-cyan-400" />
           <span>{notification}</span>
         </div>
       )}
 
-      {/* 🏎️ 乗り物運転中 HUD */}
+      {/* 🏎️ 乗り物運転中 HUD (チカチカしない安定表示) */}
       {isDriving && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-2xl glass-panel border border-amber-400/50 text-amber-200 shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-2xl glass-panel border border-amber-400/50 text-amber-200 shadow-2xl flex items-center gap-4 transition-all duration-200">
           <div className="flex items-center gap-2.5">
             <span className="text-2xl">🏎️</span>
             <div>
@@ -477,7 +477,7 @@ export const App: React.FC = () => {
 
       {/* 🚗 周囲に乗り物がある時の乗車プロンプト */}
       {nearbyVehicle && !isDriving && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-cyan-400/50 text-cyan-100 shadow-2xl flex items-center gap-3.5 animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-cyan-400/50 text-cyan-100 shadow-2xl flex items-center gap-3.5 transition-all duration-200">
           <span className="text-2xl">🏎️</span>
           <div>
             <div className="text-xs font-bold text-white">

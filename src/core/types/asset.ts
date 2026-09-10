@@ -35,12 +35,17 @@ export interface AirasAsset {
     width: number;
     height: number;
     pixelArt: boolean;
-    // 4方向スプライト (キャラクター等用)
+    // 4方向 / 8方向スプライト (キャラクター・乗り物用)
     directionalUrls?: {
       down?: string;
       up?: string;
       left?: string;
       right?: string;
+      // 将来の8方向(斜め)対応
+      'down-left'?: string;
+      'down-right'?: string;
+      'up-left'?: string;
+      'up-right'?: string;
     };
   };
 
