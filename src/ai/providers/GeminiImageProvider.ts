@@ -110,51 +110,62 @@ export class GeminiImageProvider {
     throw new Error('Nano Banana did not return inlineData image');
   }
 
-  // 2. Gemini 2.0 Flash を用いたドット絵SVG直接生成
+  // 2. Gemini Flash を用いた高精度ドット絵SVG直接生成 (タイムアウト付きで俊敏に応答)
   private static async generateViaGeminiFlashSVG(apiKey: string, prompt: string): Promise<string> {
-    const systemPrompt = `You are a legendary 16-bit pixel art designer for a retro Japanese HD-2D game.
-Create a beautiful, detailed, nostalgic pixel art sprite for: "${prompt}".
-Requirements:
-1. Return ONLY pure SVG code starting with <svg and ending with </svg>.
-2. Do NOT use markdown code blocks or explanations.
-3. viewBox must be appropriate (e.g. "0 0 32 48" or "0 0 48 48").
-4. Use shape-rendering="crispEdges" and pixelated <rect>, <polygon>, <line> elements.
-5. Must have a transparent background with no background canvas/fill rect.
-6. If the user asks for a telephone booth (電話ボックス), draw the glass panels, green telephone machine inside, red/dark roof, folding door, and metal frame! Do NOT draw a simple mailbox!
-7. Must have warm retro colors, clear outlines, highlights, and shadow.`;
+    const promptText = `Generate a 16-bit retro pixel art game sprite SVG for: "${prompt}".
+CRITICAL:
+1. Output ONLY valid SVG code. Start directly with <svg and end with </svg>.
+2. No explanations, no markdown backticks, no introduction.
+3. Transparent background. shape-rendering="crispEdges".
+4. Authentic pixel art using <rect> and geometric elements with retro shading.`;
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: systemPrompt }] }],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 2048,
-          },
-        }),
+    const candidateModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
+
+    for (const model of candidateModels) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6500); // 6.5秒タイムアウト
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+              generationConfig: {
+                temperature: 0.2,
+                maxOutputTokens: 2048,
+              },
+            }),
+          }
+        );
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          console.warn(`Gemini SVG (${model}) returned HTTP ${res.status}`);
+          continue;
+        }
+
+        const json = await res.json();
+        const parts = json.candidates?.[0]?.content?.parts || [];
+        let fullText = parts.map((p: any) => p.text || '').join('').trim();
+        fullText = fullText.replace(/```xml/g, '').replace(/```svg/g, '').replace(/```/g, '').trim();
+
+        const svgStart = fullText.indexOf('<svg');
+        const svgEnd = fullText.lastIndexOf('</svg>');
+
+        if (svgStart !== -1 && svgEnd !== -1) {
+          const cleanSvg = fullText.substring(svgStart, svgEnd + 6);
+          return `data:image/svg+xml;utf8,${encodeURIComponent(cleanSvg)}`;
+        }
+      } catch (err) {
+        console.warn(`Gemini model ${model} skipped:`, err);
       }
-    );
-
-    if (!res.ok) {
-      throw new Error(`Gemini generateContent error: ${res.status}`);
     }
 
-    const json = await res.json();
-    let text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    text = text.replace(/```xml/g, '').replace(/```svg/g, '').replace(/```/g, '').trim();
-
-    const svgStart = text.indexOf('<svg');
-    const svgEnd = text.lastIndexOf('</svg>');
-
-    if (svgStart !== -1 && svgEnd !== -1) {
-      const cleanSvg = text.substring(svgStart, svgEnd + 6);
-      return `data:image/svg+xml;utf8,${encodeURIComponent(cleanSvg)}`;
-    }
-
-    throw new Error('Valid SVG not found in Gemini response');
+    throw new Error('Valid SVG not generated from Gemini Flash within time limit');
   }
 
   // 3. OpenAI互換 Imagen エンドポイント
@@ -192,147 +203,237 @@ Requirements:
     throw new Error('No b64 image data');
   }
 
-  // 4. 精巧なローカルプロシージャルフォールバック（オブジェクト種別ごとに完全に専用設計）
+  // 4. 精巧なローカルプロシージャルPNGジェネレーター (ブラウザ＆Pixiで100%確実に表示されるPNG DataURL)
   public static generateProceduralFallback(prompt: string): string {
     const p = prompt.toLowerCase();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '';
+    ctx.imageSmoothingEnabled = false;
 
-    // 昭和レトロな電話ボックス（専用設計：ガラス張り、緑の公衆電話、受話器、赤い屋根、折りたたみ扉）
+    // 1. 和箪笥・桐タンス
+    if (p.includes('タンス') || p.includes('箪笥') || p.includes('たんす') || p.includes('chest') || p.includes('wardrobe') || p.includes('closet')) {
+      canvas.width = 36;
+      canvas.height = 44;
+      // 影
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(4, 40, 28, 3);
+      // 外枠木目
+      ctx.fillStyle = '#451a03';
+      ctx.fillRect(5, 6, 26, 34);
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(6, 7, 24, 32);
+      // 天板
+      ctx.fillStyle = '#92400e';
+      ctx.fillRect(4, 5, 28, 2);
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(5, 5, 26, 1);
+      // 3段引き出し
+      const drawerY = [9, 17, 25];
+      for (const y of drawerY) {
+        ctx.fillStyle = '#854d0e';
+        ctx.fillRect(7, y, 22, 7);
+        ctx.fillStyle = '#a16207';
+        ctx.fillRect(8, y + 1, 20, 5);
+        ctx.fillStyle = '#451a03';
+        ctx.fillRect(7, y + 7, 22, 1);
+        // 金色取っ手
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(15, y + 3, 6, 2);
+        ctx.fillStyle = '#713f12';
+        ctx.fillRect(16, y + 4, 4, 1);
+      }
+      // 脚
+      ctx.fillStyle = '#291102';
+      ctx.fillRect(6, 37, 5, 3);
+      ctx.fillRect(25, 37, 5, 3);
+      return canvas.toDataURL('image/png');
+    }
+
+    // 2. 昭和レトロな電話ボックス
     if (p.includes('電話') || p.includes('公衆電話') || p.includes('phone') || p.includes('booth')) {
-      const phoneBoothSvg = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 56" shape-rendering="crispEdges">
-  <!-- 影 -->
-  <ellipse cx="18" cy="53" rx="14" ry="2.5" fill="rgba(0,0,0,0.3)" />
-  <!-- 屋根 (昭和の赤/白アルミ屋根) -->
-  <rect x="4" y="4" width="28" height="4" fill="#dc2626" />
-  <rect x="6" y="2" width="24" height="2" fill="#ef4444" />
-  <rect x="5" y="8" width="26" height="2" fill="#991b1b" />
-  <!-- メイン支柱 (アルミシルバーフレーム) -->
-  <rect x="5" y="10" width="2" height="42" fill="#94a3b8" />
-  <rect x="29" y="10" width="2" height="42" fill="#64748b" />
-  <rect x="17" y="10" width="2" height="42" fill="#cbd5e1" />
-  <!-- 上部「公衆電話」行灯看板 -->
-  <rect x="7" y="10" width="22" height="6" fill="#f8fafc" />
-  <rect x="8" y="11" width="20" height="4" fill="#15803d" />
-  <text x="18" y="14.5" font-size="3" fill="#ffffff" font-weight="bold" text-anchor="middle" font-family="monospace">公衆電話</text>
-  <!-- ガラス窓背景 (薄い水色透過) -->
-  <rect x="7" y="16" width="10" height="34" fill="#38bdf8" opacity="0.35" />
-  <rect x="19" y="16" width="10" height="34" fill="#38bdf8" opacity="0.35" />
-  <!-- ガラス格子枠 -->
-  <line x1="7" y1="27" x2="17" y2="27" stroke="#94a3b8" stroke-width="1" />
-  <line x1="19" y1="27" x2="29" y2="27" stroke="#64748b" stroke-width="1" />
-  <line x1="7" y1="38" x2="17" y2="38" stroke="#94a3b8" stroke-width="1" />
-  <line x1="19" y1="38" x2="29" y2="38" stroke="#64748b" stroke-width="1" />
-  <!-- ガラスハイライト (斜め光沢) -->
-  <line x1="9" y1="18" x2="15" y2="24" stroke="#ffffff" stroke-width="1" opacity="0.6" />
-  <line x1="21" y1="18" x2="27" y2="24" stroke="#ffffff" stroke-width="1" opacity="0.6" />
-  <!-- 内部の電話台 (木目調テーブル) -->
-  <rect x="9" y="36" width="18" height="3" fill="#78350f" />
-  <!-- 緑の公衆電話機本体 (NTT MC-3P型) -->
-  <rect x="11" y="25" width="14" height="11" fill="#16a34a" />
-  <rect x="12" y="24" width="12" height="1" fill="#22c55e" />
-  <rect x="12" y="26" width="7" height="3" fill="#0f172a" /> <!-- 液晶/度数表示 -->
-  <rect x="13" y="27" width="5" height="1" fill="#4ade80" />
-  <rect x="20" y="26" width="3" height="1" fill="#facc15" /> <!-- コイン投入口 -->
-  <rect x="13" y="30" width="5" height="4" fill="#15803d" /> <!-- プッシュボタン -->
-  <!-- 左側の受話器 (黒/緑) -->
-  <rect x="8" y="26" width="3" height="9" fill="#14532d" />
-  <rect x="7" y="25" width="5" height="2" fill="#0f172a" />
-  <rect x="7" y="34" width="5" height="2" fill="#0f172a" />
-  <!-- 台座 / ステップ -->
-  <rect x="4" y="51" width="28" height="3" fill="#475569" />
-</svg>`.trim();
-      return `data:image/svg+xml;utf8,${encodeURIComponent(phoneBoothSvg)}`;
+      canvas.width = 36;
+      canvas.height = 56;
+      // 影
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(4, 52, 28, 3);
+      // 屋根
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(4, 4, 28, 4);
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(6, 2, 24, 2);
+      // 支柱
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(5, 8, 2, 44);
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(29, 8, 2, 44);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(17, 8, 2, 44);
+      // 看板「公衆電話」
+      ctx.fillStyle = '#15803d';
+      ctx.fillRect(7, 9, 22, 5);
+      // ガラス
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+      ctx.fillRect(7, 14, 10, 36);
+      ctx.fillRect(19, 14, 10, 36);
+      // ガラス格子
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(7, 26, 22, 1);
+      ctx.fillRect(7, 38, 22, 1);
+      // 内部の緑の電話機
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(9, 36, 18, 3); // 台
+      ctx.fillStyle = '#16a34a';
+      ctx.fillRect(11, 25, 14, 11);
+      ctx.fillStyle = '#22c55e';
+      ctx.fillRect(12, 24, 12, 1);
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(20, 26, 3, 1); // コイン
+      ctx.fillStyle = '#14532d';
+      ctx.fillRect(8, 26, 3, 9); // 受話器
+      // 台座
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(4, 50, 28, 3);
+      return canvas.toDataURL('image/png');
     }
 
-    // 丸型赤い郵便ポスト（専用設計：円筒形、庇、白文字POST、収集口、黒台座）
+    // 3. 丸型郵便ポスト
     if (p.includes('ポスト') || p.includes('郵便') || p.includes('post')) {
-      const postSvg = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 48" shape-rendering="crispEdges">
-  <ellipse cx="16" cy="45" rx="12" ry="2.5" fill="rgba(0,0,0,0.3)" />
-  <circle cx="16" cy="10" r="10" fill="#dc2626" />
-  <rect x="6" y="8" width="20" height="4" fill="#ef4444" />
-  <rect x="7" y="12" width="18" height="28" fill="#b91c1c" />
-  <rect x="9" y="14" width="14" height="24" fill="#dc2626" />
-  <!-- 投函口庇 -->
-  <rect x="8" y="16" width="16" height="4" fill="#991b1b" />
-  <rect x="9" y="18" width="14" height="2" fill="#0f172a" />
-  <!-- 白帯 & 〒マーク / POST -->
-  <rect x="8" y="24" width="16" height="6" fill="#f8fafc" />
-  <text x="16" y="28.5" font-size="3.5" fill="#b91c1c" font-weight="bold" text-anchor="middle" font-family="monospace">POST</text>
-  <!-- 取集口の鍵扉 -->
-  <rect x="11" y="32" width="10" height="7" fill="#991b1b" />
-  <circle cx="19" cy="35" r="1" fill="#facc15" />
-  <!-- 黒色円形台座 -->
-  <rect x="9" y="40" width="14" height="4" fill="#1e293b" />
-  <rect x="7" y="43" width="18" height="2" fill="#0f172a" />
-</svg>`.trim();
-      return `data:image/svg+xml;utf8,${encodeURIComponent(postSvg)}`;
+      canvas.width = 32;
+      canvas.height = 48;
+      // 影
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(4, 44, 24, 3);
+      // 丸屋根
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(6, 6, 20, 6);
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(8, 4, 16, 2);
+      // 胴体
+      ctx.fillStyle = '#b91c1c';
+      ctx.fillRect(7, 12, 18, 28);
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(9, 14, 14, 24);
+      // 投函口
+      ctx.fillStyle = '#991b1b';
+      ctx.fillRect(8, 16, 16, 4);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(9, 18, 14, 2);
+      // 白帯 & POST
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(8, 24, 16, 6);
+      ctx.fillStyle = '#b91c1c';
+      ctx.fillRect(10, 26, 12, 2);
+      // 台座
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(9, 40, 14, 4);
+      ctx.fillRect(7, 43, 18, 2);
+      return canvas.toDataURL('image/png');
     }
 
-    // ラーメン屋の赤提灯・のれん
-    if (p.includes('提灯') || p.includes('ちょうちん') || p.includes('ラーメン') || p.includes('屋台')) {
-      const lanternSvg = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 48" shape-rendering="crispEdges">
-  <ellipse cx="16" cy="45" rx="9" ry="2" fill="rgba(0,0,0,0.25)" />
-  <!-- 吊り金具 -->
-  <line x1="16" y1="4" x2="16" y2="10" stroke="#0f172a" stroke-width="1.5" />
-  <rect x="12" y="10" width="8" height="2" fill="#0f172a" />
-  <!-- 提灯本体 -->
-  <rect x="8" y="12" width="16" height="22" fill="#dc2626" rx="4" />
-  <rect x="10" y="14" width="12" height="18" fill="#ef4444" />
-  <!-- 黒い竹ひごライン -->
-  <line x1="8" y1="16" x2="24" y2="16" stroke="#7f1d1d" stroke-width="1" />
-  <line x1="8" y1="21" x2="24" y2="21" stroke="#7f1d1d" stroke-width="1" />
-  <line x1="8" y1="26" x2="24" y2="26" stroke="#7f1d1d" stroke-width="1" />
-  <line x1="8" y1="31" x2="24" y2="31" stroke="#7f1d1d" stroke-width="1" />
-  <!-- 白文字「らーめん」 -->
-  <rect x="11" y="17" width="10" height="10" fill="#fef08a" opacity="0.9" />
-  <text x="16" y="24" font-size="5" fill="#991b1b" font-weight="bold" text-anchor="middle" font-family="sans-serif">拉</text>
-  <!-- 下部飾り -->
-  <rect x="12" y="34" width="8" height="2" fill="#0f172a" />
-  <line x1="16" y1="36" x2="16" y2="42" stroke="#dc2626" stroke-width="2" />
-</svg>`.trim();
-      return `data:image/svg+xml;utf8,${encodeURIComponent(lanternSvg)}`;
+    // 4. 昭和レトロ赤自販機
+    if (p.includes('自販機') || p.includes('自動販売機') || p.includes('vending')) {
+      canvas.width = 32;
+      canvas.height = 48;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(4, 44, 24, 3);
+      ctx.fillStyle = '#b91c1c';
+      ctx.fillRect(6, 6, 20, 38);
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(7, 7, 18, 2);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(8, 11, 16, 15);
+      // ドリンク
+      ctx.fillStyle = '#dc2626'; ctx.fillRect(9, 13, 3, 6);
+      ctx.fillStyle = '#2563eb'; ctx.fillRect(13, 13, 3, 6);
+      ctx.fillStyle = '#16a34a'; ctx.fillRect(17, 13, 3, 6);
+      ctx.fillStyle = '#eab308'; ctx.fillRect(21, 13, 3, 6);
+      // ボタン
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(9, 21, 15, 2);
+      // 取り出し口
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(8, 33, 16, 8);
+      return canvas.toDataURL('image/png');
     }
 
-    // 駄菓子屋の10円ゲーム機
-    if (p.includes('ゲーム') || p.includes('駄菓子') || p.includes('game')) {
-      const gameSvg = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 48" shape-rendering="crispEdges">
-  <ellipse cx="16" cy="45" rx="11" ry="2.5" fill="rgba(0,0,0,0.3)" />
-  <!-- ゲーム筐体 (青/木目) -->
-  <rect x="6" y="8" width="20" height="34" fill="#0284c7" />
-  <rect x="7" y="9" width="18" height="3" fill="#38bdf8" />
-  <!-- タイトルガラス板 -->
-  <rect x="8" y="13" width="16" height="5" fill="#facc15" />
-  <text x="16" y="17" font-size="3" fill="#000" font-weight="bold" text-anchor="middle" font-family="monospace">10YEN</text>
-  <!-- 盤面 (釘とスロープ) -->
-  <rect x="8" y="19" width="16" height="14" fill="#f8fafc" />
-  <circle cx="11" cy="22" r="0.75" fill="#475569" />
-  <circle cx="15" cy="22" r="0.75" fill="#475569" />
-  <circle cx="19" cy="22" r="0.75" fill="#475569" />
-  <circle cx="13" cy="26" r="0.75" fill="#475569" />
-  <circle cx="17" cy="26" r="0.75" fill="#475569" />
-  <rect x="13" y="30" width="6" height="2" fill="#dc2626" />
-  <!-- レバー & コイン返却口 -->
-  <rect x="7" y="34" width="18" height="8" fill="#0369a1" />
-  <circle cx="21" cy="37" r="2" fill="#ef4444" /> <!-- 赤ノブ -->
-  <rect x="11" y="37" width="4" height="3" fill="#1e293b" />
-</svg>`.trim();
-      return `data:image/svg+xml;utf8,${encodeURIComponent(gameSvg)}`;
+    // 5. 昭和のちゃぶ台
+    if (p.includes('ちゃぶ台') || p.includes('テーブル') || p.includes('机') || p.includes('table') || p.includes('desk')) {
+      canvas.width = 40;
+      canvas.height = 32;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(4, 26, 32, 4);
+      // 天板
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(4, 11, 32, 7);
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(6, 9, 28, 4);
+      ctx.fillStyle = '#d97706';
+      ctx.fillRect(8, 8, 24, 2);
+      // 脚
+      ctx.fillStyle = '#451a03';
+      ctx.fillRect(8, 18, 3, 9);
+      ctx.fillRect(29, 18, 3, 9);
+      return canvas.toDataURL('image/png');
     }
 
-    // デフォルトのレトロアイテム
-    const defaultSvg = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 44" shape-rendering="crispEdges">
-  <ellipse cx="16" cy="42" rx="12" ry="2" fill="rgba(0,0,0,0.3)" />
-  <rect x="6" y="8" width="20" height="32" fill="#6366f1" />
-  <rect x="8" y="10" width="16" height="4" fill="#a5b4fc" />
-  <rect x="8" y="18" width="16" height="10" fill="#1e1b4b" />
-  <text x="16" y="25" font-size="4" fill="#ffffff" font-weight="bold" text-anchor="middle" font-family="monospace">ITEM</text>
-  <rect x="10" y="36" width="12" height="4" fill="#312e81" />
-</svg>`.trim();
+    // 6. 昭和のブラウン管テレビ
+    if (p.includes('テレビ') || p.includes('tv')) {
+      canvas.width = 36;
+      canvas.height = 40;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(4, 36, 28, 3);
+      // アンテナ
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(17, 4, 2, 4);
+      ctx.fillRect(14, 2, 2, 3);
+      ctx.fillRect(20, 2, 2, 3);
+      // 本体
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(5, 8, 26, 24);
+      ctx.fillStyle = '#92400e';
+      ctx.fillRect(6, 9, 24, 2);
+      // 画面
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(7, 12, 17, 17);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(8, 13, 15, 15);
+      // ダイヤル
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(26, 14, 3, 3);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(26, 20, 3, 3);
+      // 脚
+      ctx.fillStyle = '#291102';
+      ctx.fillRect(7, 32, 3, 5);
+      ctx.fillRect(26, 32, 3, 5);
+      return canvas.toDataURL('image/png');
+    }
 
-    return `data:image/svg+xml;utf8,${encodeURIComponent(defaultSvg)}`;
+    // 7. デフォルト: アンティーク宝箱・木製道具箱
+    canvas.width = 36;
+    canvas.height = 36;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(4, 32, 28, 3);
+    // 本体
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(5, 10, 26, 22);
+    ctx.fillStyle = '#92400e';
+    ctx.fillRect(4, 8, 28, 4);
+    ctx.fillStyle = '#b45309';
+    ctx.fillRect(5, 7, 26, 2);
+    // 金具バンド
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(9, 7, 3, 25);
+    ctx.fillRect(24, 7, 3, 25);
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(10, 7, 1, 25);
+    ctx.fillRect(25, 7, 1, 25);
+    // 南京錠
+    ctx.fillStyle = '#ca8a04';
+    ctx.fillRect(16, 14, 4, 6);
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(17, 12, 2, 3);
+    return canvas.toDataURL('image/png');
   }
 }

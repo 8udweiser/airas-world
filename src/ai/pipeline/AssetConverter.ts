@@ -11,7 +11,9 @@ export class AssetConverter {
   ): Promise<AirasAsset> {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      if (!imageUrl.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
 
       img.onload = () => {
         try {

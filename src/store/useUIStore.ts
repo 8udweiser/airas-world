@@ -25,7 +25,7 @@ interface UIStoreState {
 
 export const useUIStore = create<UIStoreState>((set) => ({
   selectedEntityId: null,
-  activeMode: 'edit', // プロトタイプ初期状態はエディットしやすいモード
+  activeMode: 'play', // 起動直後から快適に歩き回れるようデフォルトは play
   activeTool: 'select',
   placingAssetId: null,
   isAIPanelOpen: false,

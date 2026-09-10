@@ -211,13 +211,31 @@ export const App: React.FC = () => {
       }
     };
 
+    // フォーカス外れ時のキー状態全クリア (押しっぱなし状態防止)
+    const handleBlur = () => {
+      if (rendererRef.current) {
+        rendererRef.current.keys = {};
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
     };
   }, [undo, redo, isAIPanelOpen, assets]);
+
+  // モーダル表示時に移動を安全に停止
+  useEffect(() => {
+    if (isAIPanelOpen || isHelpOpen || isSettingsOpen || isAvatarPickerOpen) {
+      if (rendererRef.current) {
+        rendererRef.current.keys = {};
+      }
+    }
+  }, [isAIPanelOpen, isHelpOpen, isSettingsOpen, isAvatarPickerOpen]);
 
   // アバター変更ハンドラー
   const handleSelectAvatar = (assetId: string) => {

@@ -133,13 +133,11 @@ export class PixiWorldRenderer implements IRenderer {
         fpsTimer = 0;
       }
 
-      // 1. プレイヤー物理 & 移動演算 (探索モード時)
-      if (this.isPlayMode) {
-        this.updatePlayerPhysics(dt);
-      }
+      // 1. プレイヤー物理 & 移動演算 (常時キビキビ動けるように実行)
+      this.updatePlayerPhysics(dt);
 
-      // 2. カメラ追従
-      if (this.isPlayMode && !this.isDraggingCamera) {
+      // 2. カメラ追従 (マウス手動ドラッグ中でない限り追従)
+      if (!this.isDraggingCamera) {
         this.followPlayer(this.playerState.x, this.playerState.y, 0.12);
       }
 
