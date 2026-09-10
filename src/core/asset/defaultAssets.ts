@@ -787,26 +787,30 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
     metadata: { tags: ['駅', '看板', '鉄道'], createdAt: Date.now(), source: 'preset' },
   },
 
-  // 11. 女子生徒（4方向スプライト対応）
+  // 11. 女子生徒（8方向高解像度ピクセルアートスプライト対応）
   character_schoolgirl: {
     id: 'character_schoolgirl',
     name: '女子高校生（あおい）',
     type: 'character',
     category: 'npc',
     sprite: {
-      url: svgToUri(schoolgirlDownSvg),
-      width: 24,
-      height: 36,
+      url: '/assets/characters/schoolgirl_down.png',
+      width: 26,
+      height: 64,
       pixelArt: true,
       directionalUrls: {
-        down: svgToUri(schoolgirlDownSvg),
-        up: svgToUri(schoolgirlUpSvg),
-        left: svgToUri(schoolgirlLeftSvg),
-        right: svgToUri(schoolgirlRightSvg),
+        down: '/assets/characters/schoolgirl_down.png',
+        up: '/assets/characters/schoolgirl_up.png',
+        left: '/assets/characters/schoolgirl_left.png',
+        right: '/assets/characters/schoolgirl_right.png',
+        'down-left': '/assets/characters/schoolgirl_down_left.png',
+        'down-right': '/assets/characters/schoolgirl_down_right.png',
+        'up-left': '/assets/characters/schoolgirl_up_left.png',
+        'up-right': '/assets/characters/schoolgirl_up_right.png',
       },
     },
-    anchor: { x: 12, y: 34 },
-    collision: { enabled: true, type: 'box', offsetX: -6, offsetY: -6, width: 12, height: 6 },
+    anchor: { x: 13, y: 62 },
+    collision: { enabled: true, type: 'box', offsetX: -7, offsetY: -8, width: 14, height: 8 },
     depth: { enabled: true, offsetY: 0 },
     interactions: [
       {

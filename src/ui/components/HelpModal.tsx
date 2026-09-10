@@ -67,6 +67,14 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                 <span className="text-slate-300 font-sans">デバッグ画面</span>
               </div>
               <div className="bg-black/40 p-2 rounded-lg border border-white/5 flex justify-between">
+                <span className="text-amber-300">F</span>
+                <span className="text-slate-300 font-sans">車に乗る / 降りる</span>
+              </div>
+              <div className="bg-black/40 p-2 rounded-lg border border-white/5 flex justify-between">
+                <span className="text-cyan-300">M</span>
+                <span className="text-slate-300 font-sans">音ミュート切替</span>
+              </div>
+              <div className="bg-black/40 p-2 rounded-lg border border-white/5 flex justify-between">
                 <span className="text-slate-300">Esc / Q</span>
                 <span className="text-slate-300 font-sans">選択解除</span>
               </div>

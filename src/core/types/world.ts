@@ -35,13 +35,15 @@ export interface WorldEntity {
   customProperties?: Record<string, any>;
 }
 
+export type Direction = 'down' | 'up' | 'left' | 'right' | 'down-left' | 'down-right' | 'up-left' | 'up-right';
+
 export interface PlayerState {
   id: string;
   name: string;
   assetId: string;
   position: { x: number; y: number; z: number };
   vz: number;            // 垂直速度 (ジャンプ用)
-  direction: 'down' | 'up' | 'left' | 'right';
+  direction: Direction;
   isMoving: boolean;
   isJumping: boolean;
   isSprinting: boolean;  // ダッシュ中

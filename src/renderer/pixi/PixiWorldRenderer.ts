@@ -1,11 +1,15 @@
 import { Application, Container, Sprite, Graphics, Assets, Texture } from 'pixi.js';
-import { AirasWorldData, WeatherType } from '../../core/types/world';
+import { AirasWorldData, WeatherType, Direction } from '../../core/types/world';
 import { AirasAsset } from '../../core/types/asset';
 import { IRenderer, RendererGhostEntity } from '../IRenderer';
+import { audioManager, SurfaceType } from '../../audio/AudioManager';
 
 export class PixiWorldRenderer implements IRenderer {
   private app: Application | null = null;
   private container: HTMLElement | null = null;
+  private currentWorld: AirasWorldData | null = null;
+  private currentAssets: Record<string, AirasAsset> | null = null;
+  private stepTimer: number = 0;
   
   // シーン階層
   private stageContainer: Container = new Container();
@@ -34,7 +38,7 @@ export class PixiWorldRenderer implements IRenderer {
     y: 480,
     z: 0,
     vz: 0,
-    direction: 'down' as 'down' | 'up' | 'left' | 'right',
+    direction: 'down' as Direction,
     isMoving: false,
     isJumping: false,
     isSprinting: false,
@@ -206,6 +210,9 @@ export class PixiWorldRenderer implements IRenderer {
     if (isJump && this.playerState.z <= 0) {
       this.playerState.vz = 300; // 上向き初速
       this.playerState.isJumping = true;
+      if (!this.playerState.isDriving) {
+        audioManager.playJump();
+      }
     }
 
     if (this.playerState.isJumping || this.playerState.z > 0) {
@@ -214,6 +221,9 @@ export class PixiWorldRenderer implements IRenderer {
       if (this.playerState.z <= 0) {
         this.playerState.z = 0;
         this.playerState.vz = 0;
+        if (this.playerState.isJumping && !this.playerState.isDriving) {
+          audioManager.playLand();
+        }
         this.playerState.isJumping = false;
       }
     }
@@ -224,15 +234,44 @@ export class PixiWorldRenderer implements IRenderer {
       this.playerState.x += (dx / len) * speed * dt;
       this.playerState.y += (dy / len) * speed * dt;
 
-      // 向きの更新
-      if (Math.abs(dx) > Math.abs(dy)) {
-        this.playerState.direction = dx > 0 ? 'right' : 'left';
+      // 向きの更新 (車両運転時は4方向、歩行時は8方向フル対応)
+      if (this.playerState.isDriving) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+          this.playerState.direction = dx > 0 ? 'right' : 'left';
+        } else {
+          this.playerState.direction = dy > 0 ? 'down' : 'up';
+        }
       } else {
-        this.playerState.direction = dy > 0 ? 'down' : 'up';
+        const absX = Math.abs(dx);
+        const absY = Math.abs(dy);
+        if (absX > 0.3 && absY > 0.3) {
+          if (dy > 0 && dx > 0) this.playerState.direction = 'down-right';
+          else if (dy > 0 && dx < 0) this.playerState.direction = 'down-left';
+          else if (dy < 0 && dx > 0) this.playerState.direction = 'up-right';
+          else if (dy < 0 && dx < 0) this.playerState.direction = 'up-left';
+        } else if (absX > absY) {
+          this.playerState.direction = dx > 0 ? 'right' : 'left';
+        } else {
+          this.playerState.direction = dy > 0 ? 'down' : 'up';
+        }
       }
 
       // 歩行アニメーションタイマー
       this.walkAnimTimer += dt * (isSprint ? 18 : 12);
+
+      // 足音SE再生 (歩行時かつ接地中かつ非乗車時)
+      if (!this.playerState.isDriving && this.playerState.z <= 0) {
+        const stepInterval = isSprint ? 0.22 : 0.34;
+        const prevStepCount = Math.floor(this.stepTimer / stepInterval);
+        this.stepTimer += dt;
+        const curStepCount = Math.floor(this.stepTimer / stepInterval);
+        if (curStepCount > prevStepCount) {
+          const surface = this.getSurfaceAt(this.playerState.x, this.playerState.y);
+          audioManager.playFootstep(surface);
+        }
+      } else {
+        this.stepTimer = 0;
+      }
 
       // ダッシュ時 または 乗車爆走時の土煙・タイヤスモーク
       const shouldEmitDust = this.playerState.isDriving
@@ -251,21 +290,41 @@ export class PixiWorldRenderer implements IRenderer {
       }
     } else {
       this.walkAnimTimer = 0;
+      this.stepTimer = 0;
     }
+
+    // 車両エンジン音 (乗車時はリアルタイムに回転数・ニトロ反映)
+    if (this.playerState.isDriving) {
+      audioManager.updateEngine(isMoving, isSprint, speed);
+    } else {
+      audioManager.stopEngine();
+    }
+
+    // 空間音響（駅前・屋外などの反響度）の動的更新
+    this.updateAcoustics(this.playerState.x, this.playerState.y);
 
     // プレイヤーのスプライト位置を直接更新 (Reactを介さず爆速)
     this.updatePlayerSpriteVisual();
   }
 
-  // プレイヤーのスプライト描画更新 (4方向・ボビング・影)
+  // プレイヤーのスプライト描画更新 (8方向/4方向・ボビング・影)
   private updatePlayerSpriteVisual() {
     const sprite = this.entitySprites.get('player_main');
     if (!sprite) return;
 
-    // 4方向スプライトテクスチャの切り替え
+    // スプライトテクスチャの切り替え (8方向 / 4方向フォールバック対応)
     const asset = this.currentAssets?.[this.playerState.assetId];
     if (asset) {
-      const dirUrl = asset.sprite.directionalUrls?.[this.playerState.direction] || asset.sprite.url;
+      const dir = this.playerState.direction;
+      let dirUrl = asset.sprite.directionalUrls?.[dir];
+      if (!dirUrl && asset.sprite.directionalUrls) {
+        if (dir === 'down-right') dirUrl = asset.sprite.directionalUrls['right'] || asset.sprite.directionalUrls['down'];
+        else if (dir === 'down-left') dirUrl = asset.sprite.directionalUrls['left'] || asset.sprite.directionalUrls['down'];
+        else if (dir === 'up-right') dirUrl = asset.sprite.directionalUrls['right'] || asset.sprite.directionalUrls['up'];
+        else if (dir === 'up-left') dirUrl = asset.sprite.directionalUrls['left'] || asset.sprite.directionalUrls['up'];
+      }
+      if (!dirUrl) dirUrl = asset.sprite.url;
+
       if (this.textureCache.has(dirUrl)) {
         sprite.texture = this.textureCache.get(dirUrl)!;
       } else {
@@ -395,13 +454,11 @@ export class PixiWorldRenderer implements IRenderer {
     this.updateCameraTransform();
   }
 
-  private currentAssets: Record<string, AirasAsset> | null = null;
-
   public async setPlayerAvatar(assetId: string) {
     this.playerState.assetId = assetId;
     if (this.currentAssets?.[assetId]) {
       const asset = this.currentAssets[assetId];
-      // 4方向テクスチャのプリロード
+      // 4方向・8方向テクスチャのプリロード
       if (asset.sprite.directionalUrls) {
         for (const url of Object.values(asset.sprite.directionalUrls)) {
           if (url) await this.getTexture(url);
@@ -427,6 +484,9 @@ export class PixiWorldRenderer implements IRenderer {
     this.playerState.drivingVehicleAssetId = vehicleAssetId;
     this.playerState.originalAvatarId = this.playerState.assetId;
 
+    // 乗車SE再生
+    audioManager.playVehicleEnter();
+
     // プレイヤーのスプライトを車両に変更
     await this.setPlayerAvatar(vehicleAssetId);
 
@@ -444,6 +504,9 @@ export class PixiWorldRenderer implements IRenderer {
     const originalAvatar = this.playerState.originalAvatarId || 'character_schoolgirl';
     const currentX = this.playerState.x;
     const currentY = this.playerState.y;
+
+    // 降車SE再生
+    audioManager.playVehicleExit();
 
     // 降車位置（車の横に降りる）
     const exitOffsetX = this.playerState.direction === 'left' ? 46 : -46;
@@ -495,6 +558,7 @@ export class PixiWorldRenderer implements IRenderer {
   ): Promise<void> {
     if (!this.app) return;
     this.currentAssets = assets;
+    this.currentWorld = world;
     this.currentWeather = world.environment.weather;
 
     // 1. 静的マップタイルの初期化（一度だけ実行）
@@ -570,6 +634,40 @@ export class PixiWorldRenderer implements IRenderer {
     this.renderSelectionHighlight(world, assets, selectedEntityId);
   }
 
+  // プレイヤー足元の材質判定（芝生・石畳・アスファルト・木床）
+  private getSurfaceAt(x: number, y: number): SurfaceType {
+    if (!this.currentWorld) return 'stone';
+    const tileSize = this.currentWorld.map.tileSize || 32;
+    const chunkSize = this.currentWorld.map.chunkSize || 16;
+    const tileX = Math.floor(x / tileSize);
+    const tileY = Math.floor(y / tileSize);
+    const cx = Math.floor(tileX / chunkSize);
+    const cy = Math.floor(tileY / chunkSize);
+    const chunk = this.currentWorld.map.chunks[`${cx},${cy}`];
+    if (!chunk || !chunk.tiles) return 'stone';
+
+    const lx = ((tileX % chunkSize) + chunkSize) % chunkSize;
+    const ly = ((tileY % chunkSize) + chunkSize) % chunkSize;
+    const tile = chunk.tiles[ly]?.[lx];
+    if (!tile) return 'stone';
+
+    const tileId = tile.tileId.toLowerCase();
+    if (tileId.includes('grass') || tileId.includes('dirt')) return 'grass';
+    if (tileId.includes('road') || tileId.includes('asphalt')) return 'road';
+    if (tileId.includes('wood') || tileId.includes('floor')) return 'wood';
+    return 'stone';
+  }
+
+  // 空間リバーブの動的制御
+  private updateAcoustics(_x: number, y: number) {
+    // 駅舎・ホーム・線路（y <= 240）付近では反響を深める
+    if (y < 240) {
+      audioManager.setReverbWet(0.42);
+    } else {
+      audioManager.setReverbWet(0.18);
+    }
+  }
+
   private async renderTiles(world: AirasWorldData, assets: Record<string, AirasAsset>) {
     const tileSize = world.map.tileSize;
     for (const chunk of Object.values(world.map.chunks)) {
@@ -604,9 +702,16 @@ export class PixiWorldRenderer implements IRenderer {
     isGhost: boolean = false
   ) {
     let sprite = this.entitySprites.get(id);
-    const targetUrl = (id === 'player_main' && asset.sprite.directionalUrls)
-      ? (asset.sprite.directionalUrls[this.playerState.direction] || asset.sprite.url)
-      : asset.sprite.url;
+    let targetUrl = asset.sprite.url;
+    if (id === 'player_main' && asset.sprite.directionalUrls) {
+      const dir = this.playerState.direction;
+      targetUrl = asset.sprite.directionalUrls[dir]
+        || (dir === 'down-right' ? asset.sprite.directionalUrls['right'] || asset.sprite.directionalUrls['down'] : null)
+        || (dir === 'down-left' ? asset.sprite.directionalUrls['left'] || asset.sprite.directionalUrls['down'] : null)
+        || (dir === 'up-right' ? asset.sprite.directionalUrls['right'] || asset.sprite.directionalUrls['up'] : null)
+        || (dir === 'up-left' ? asset.sprite.directionalUrls['left'] || asset.sprite.directionalUrls['up'] : null)
+        || asset.sprite.url;
+    }
     const texture = await this.getTexture(targetUrl);
 
     if (!sprite) {

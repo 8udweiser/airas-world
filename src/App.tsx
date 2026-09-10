@@ -12,6 +12,7 @@ import { SettingsModal } from './ui/components/SettingsModal';
 import { DebugOverlayF3 } from './ui/hud/DebugOverlayF3';
 import { RendererGhostEntity } from './renderer/IRenderer';
 import { Bell, Users } from 'lucide-react';
+import { audioManager } from './audio/AudioManager';
 
 export const App: React.FC = () => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -30,6 +31,8 @@ export const App: React.FC = () => {
     setDialogue,
     notification,
     showNotification,
+    isMuted,
+    toggleMute,
   } = useUIStore();
 
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -41,6 +44,11 @@ export const App: React.FC = () => {
   const [ghostEntities, setGhostEntities] = useState<RendererGhostEntity[]>([]);
   const [isDriving, setIsDriving] = useState(false);
   const [nearbyVehicle, setNearbyVehicle] = useState<{ id: string; name: string; assetId: string } | null>(null);
+
+  // サウンドミュート状態の同期
+  useEffect(() => {
+    audioManager.setMuted(isMuted);
+  }, [isMuted]);
 
   // 1. レンダラー初期化 (1回のみ実行)
   useEffect(() => {
@@ -290,6 +298,14 @@ export const App: React.FC = () => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         setAIPanelOpen(!isAIPanelOpen);
+        return;
+      }
+
+      // M: サウンド ミュート / アンミュート切り替え
+      if ((e.code === 'KeyM' || e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey) {
+        toggleMute();
+        const willMute = !isMuted;
+        showNotification(willMute ? '🔇 サウンドをミュートにしました' : '🔊 サウンドをオンにしました');
         return;
       }
 

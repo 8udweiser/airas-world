@@ -1,7 +1,7 @@
 import React from 'react';
 import { useWorldStore } from '../../store/useWorldStore';
 import { useUIStore } from '../../store/useUIStore';
-import { Undo2, Redo2, Sun, CloudRain, Snowflake, Sunset, Clock, Sparkles, HelpCircle, Compass, Wrench, Terminal, Key } from 'lucide-react';
+import { Undo2, Redo2, Sun, CloudRain, Snowflake, Sunset, Clock, Sparkles, HelpCircle, Compass, Wrench, Terminal, Key, Volume2, VolumeX } from 'lucide-react';
 import { WeatherType } from '../../core/types/world';
 
 interface TopHUDProps {
@@ -20,7 +20,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({
   isF3Open,
 }) => {
   const { world, canUndo, canRedo, undo, redo, setWeather, setTime } = useWorldStore();
-  const { isAIPanelOpen, setAIPanelOpen, activeMode, setActiveMode } = useUIStore();
+  const { isAIPanelOpen, setAIPanelOpen, activeMode, setActiveMode, isMuted, toggleMute } = useUIStore();
 
   const weatherIcons: Record<WeatherType, { icon: React.ReactNode; label: string }> = {
     clear: { icon: <Sun className="w-4 h-4 text-amber-400" />, label: '快晴' },
@@ -186,6 +186,18 @@ export const TopHUD: React.FC<TopHUDProps> = ({
         </div>
 
         <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-1">
+          {/* サウンド ミュート / アンミュート */}
+          <button
+            onClick={() => toggleMute()}
+            className={`p-1.5 rounded-xl transition-all ${
+              isMuted
+                ? 'text-rose-400 bg-rose-500/20 hover:bg-rose-500/30'
+                : 'text-cyan-300 hover:text-white hover:bg-white/10'
+            }`}
+            title={isMuted ? 'サウンドをオンにする (Mキー)' : 'サウンドをミュートにする (Mキー)'}
+          >
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
           <button
             onClick={onOpenSettings}
             className="p-1.5 rounded-xl hover:bg-white/10 text-amber-300 hover:text-white transition-all"

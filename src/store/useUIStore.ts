@@ -12,6 +12,7 @@ interface UIStoreState {
   activeDialogue: { title: string; lines: string[] } | null;
   notification: string | null;
   fps: number;
+  isMuted: boolean;
 
   // アクション
   setSelectedEntityId: (id: string | null) => void;
@@ -23,6 +24,8 @@ interface UIStoreState {
   setDialogue: (dialogue: { title: string; lines: string[] } | null) => void;
   showNotification: (msg: string) => void;
   setFps: (fps: number) => void;
+  toggleMute: () => void;
+  setMuted: (muted: boolean) => void;
 }
 
 export const useUIStore = create<UIStoreState>((set) => ({
@@ -35,6 +38,7 @@ export const useUIStore = create<UIStoreState>((set) => ({
   activeDialogue: null,
   notification: null,
   fps: 60,
+  isMuted: false,
 
   setSelectedEntityId: (id) => set({ selectedEntityId: id }),
   setActiveMode: (mode) => set({ activeMode: mode, selectedEntityId: null, placingAssetId: null }),
@@ -44,6 +48,8 @@ export const useUIStore = create<UIStoreState>((set) => ({
   setAssetPickerOpen: (open) => set({ isAssetPickerOpen: open }),
   setDialogue: (dialogue) => set({ activeDialogue: dialogue }),
   setFps: (fps) => set({ fps }),
+  toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
+  setMuted: (muted) => set({ isMuted: muted }),
   showNotification: (msg) => {
     set({ notification: msg });
     setTimeout(() => {

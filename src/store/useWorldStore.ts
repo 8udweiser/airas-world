@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AirasWorldData, WeatherType, WorldEntity, PlayerState } from '../core/types/world';
+import { AirasWorldData, WeatherType, WorldEntity, PlayerState, Direction } from '../core/types/world';
 import { AirasAsset } from '../core/types/asset';
 import { DEFAULT_ASSETS } from '../core/asset/defaultAssets';
 import { createInitialWorld } from '../core/world/initialWorld';
@@ -31,7 +31,7 @@ interface WorldStoreState {
   setTime: (time: number) => void;
   
   // プレイヤー移動（ゲームループ用）
-  updatePlayerPosition: (x: number, y: number, direction: 'down' | 'up' | 'left' | 'right', isMoving: boolean) => void;
+  updatePlayerPosition: (x: number, y: number, direction: Direction, isMoving: boolean) => void;
   updatePlayerState: (updates: Partial<PlayerState>) => void;
   
   // アセット登録
