@@ -348,6 +348,36 @@ const boyUpSvg = `
   <rect x="7" y="10" width="10" height="3" fill="#451a03" />
 </svg>`;
 
+const boyLeftSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" shape-rendering="crispEdges">
+  <ellipse cx="12" cy="34" rx="6" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="10" y="26" width="3" height="7" fill="#fed7aa" />
+  <rect x="9" y="32" width="4" height="3" fill="#3b82f6" />
+  <rect x="9" y="20" width="6" height="6" fill="#1d4ed8" />
+  <rect x="8" y="14" width="8" height="7" fill="#facc15" />
+  <rect x="10" y="15" width="2" height="6" fill="#fed7aa" />
+  <rect x="7" y="8" width="7" height="6" fill="#fed7aa" />
+  <rect x="6" y="10" width="1" height="1" fill="#000" />
+  <rect x="8" y="4" width="9" height="5" fill="#dc2626" />
+  <rect x="4" y="7" width="6" height="2" fill="#b91c1c" />
+  <rect x="4" y="8" width="3" height="1" fill="#ef4444" />
+</svg>`;
+
+const boyRightSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" shape-rendering="crispEdges">
+  <ellipse cx="12" cy="34" rx="6" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="11" y="26" width="3" height="7" fill="#fed7aa" />
+  <rect x="11" y="32" width="4" height="3" fill="#3b82f6" />
+  <rect x="9" y="20" width="6" height="6" fill="#1d4ed8" />
+  <rect x="8" y="14" width="8" height="7" fill="#facc15" />
+  <rect x="12" y="15" width="2" height="6" fill="#fed7aa" />
+  <rect x="10" y="8" width="7" height="6" fill="#fed7aa" />
+  <rect x="17" y="10" width="1" height="1" fill="#000" />
+  <rect x="7" y="4" width="9" height="5" fill="#dc2626" />
+  <rect x="14" y="7" width="6" height="2" fill="#b91c1c" />
+  <rect x="17" y="8" width="3" height="1" fill="#ef4444" />
+</svg>`;
+
 // 13. サラリーマン（たなか）
 const salarymanDownSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 38" shape-rendering="crispEdges">
@@ -369,6 +399,54 @@ const salarymanDownSvg = `
   <rect x="7" y="4" width="10" height="4" fill="#0f172a" />
   <rect x="7" y="6" width="2" height="4" fill="#0f172a" />
   <rect x="15" y="6" width="2" height="4" fill="#0f172a" />
+</svg>`;
+
+const salarymanUpSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 38" shape-rendering="crispEdges">
+  <ellipse cx="12" cy="36" rx="7" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="8" y="25" width="3" height="9" fill="#334155" />
+  <rect x="13" y="25" width="3" height="9" fill="#334155" />
+  <rect x="7" y="34" width="4" height="3" fill="#0f172a" />
+  <rect x="13" y="34" width="4" height="3" fill="#0f172a" />
+  <rect x="7" y="14" width="10" height="11" fill="#475569" />
+  <line x1="12" y1="14" x2="12" y2="25" stroke="#334155" stroke-width="0.75" />
+  <rect x="5" y="15" width="2" height="8" fill="#475569" />
+  <rect x="17" y="15" width="2" height="8" fill="#475569" />
+  <rect x="18" y="22" width="4" height="5" fill="#78350f" />
+  <rect x="7" y="4" width="10" height="10" fill="#0f172a" />
+  <rect x="8" y="12" width="8" height="2" fill="#1e293b" />
+</svg>`;
+
+const salarymanLeftSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 38" shape-rendering="crispEdges">
+  <ellipse cx="12" cy="36" rx="6" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="10" y="25" width="4" height="9" fill="#334155" />
+  <rect x="9" y="34" width="5" height="3" fill="#0f172a" />
+  <rect x="8" y="14" width="8" height="11" fill="#475569" />
+  <rect x="7" y="15" width="2" height="2" fill="#ffffff" />
+  <rect x="7" y="17" width="1" height="4" fill="#dc2626" />
+  <rect x="9" y="15" width="3" height="8" fill="#475569" />
+  <rect x="11" y="22" width="4" height="5" fill="#78350f" />
+  <rect x="7" y="7" width="8" height="7" fill="#fed7aa" />
+  <rect x="6" y="9" width="3" height="2" fill="#0f172a" stroke="#000" stroke-width="0.5" />
+  <rect x="7" y="4" width="9" height="5" fill="#0f172a" />
+  <rect x="13" y="6" width="3" height="6" fill="#0f172a" />
+</svg>`;
+
+const salarymanRightSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 38" shape-rendering="crispEdges">
+  <ellipse cx="12" cy="36" rx="6" ry="2" fill="rgba(0,0,0,0.35)" />
+  <rect x="10" y="25" width="4" height="9" fill="#334155" />
+  <rect x="10" y="34" width="5" height="3" fill="#0f172a" />
+  <rect x="8" y="14" width="8" height="11" fill="#475569" />
+  <rect x="15" y="15" width="2" height="2" fill="#ffffff" />
+  <rect x="16" y="17" width="1" height="4" fill="#dc2626" />
+  <rect x="12" y="15" width="3" height="8" fill="#475569" />
+  <rect x="9" y="22" width="4" height="5" fill="#78350f" />
+  <rect x="9" y="7" width="8" height="7" fill="#fed7aa" />
+  <rect x="15" y="9" width="3" height="2" fill="#0f172a" stroke="#000" stroke-width="0.5" />
+  <rect x="8" y="4" width="9" height="5" fill="#0f172a" />
+  <rect x="8" y="6" width="3" height="6" fill="#0f172a" />
 </svg>`;
 
 // 14. タイル
@@ -714,8 +792,8 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
       directionalUrls: {
         down: svgToUri(boyDownSvg),
         up: svgToUri(boyUpSvg),
-        left: svgToUri(boyDownSvg),
-        right: svgToUri(boyDownSvg),
+        left: svgToUri(boyLeftSvg),
+        right: svgToUri(boyRightSvg),
       },
     },
     anchor: { x: 12, y: 34 },
@@ -747,9 +825,9 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
       pixelArt: true,
       directionalUrls: {
         down: svgToUri(salarymanDownSvg),
-        up: svgToUri(salarymanDownSvg),
-        left: svgToUri(salarymanDownSvg),
-        right: svgToUri(salarymanDownSvg),
+        up: svgToUri(salarymanUpSvg),
+        left: svgToUri(salarymanLeftSvg),
+        right: svgToUri(salarymanRightSvg),
       },
     },
     anchor: { x: 12, y: 36 },

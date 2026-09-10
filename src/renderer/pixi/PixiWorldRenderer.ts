@@ -249,10 +249,21 @@ export class PixiWorldRenderer implements IRenderer {
 
     // 4方向スプライトテクスチャの切り替え
     const asset = this.currentAssets?.[this.playerState.assetId];
-    if (asset?.sprite.directionalUrls) {
-      const dirUrl = asset.sprite.directionalUrls[this.playerState.direction] || asset.sprite.url;
+    if (asset) {
+      const dirUrl = asset.sprite.directionalUrls?.[this.playerState.direction] || asset.sprite.url;
       if (this.textureCache.has(dirUrl)) {
         sprite.texture = this.textureCache.get(dirUrl)!;
+      } else {
+        this.getTexture(dirUrl).then((tex) => {
+          if (sprite && !sprite.destroyed) {
+            sprite.texture = tex;
+          }
+        });
+      }
+      sprite.width = asset.sprite.width;
+      sprite.height = asset.sprite.height;
+      if (asset.sprite.width > 0 && asset.sprite.height > 0) {
+        sprite.anchor.set(asset.anchor.x / asset.sprite.width, asset.anchor.y / asset.sprite.height);
       }
     }
 
@@ -352,6 +363,14 @@ export class PixiWorldRenderer implements IRenderer {
           if (url) await this.getTexture(url);
         }
       }
+      await this.updateEntitySprite(
+        'player_main',
+        asset,
+        this.playerState.x,
+        this.playerState.y,
+        this.playerState.z,
+        1.0
+      );
       this.updatePlayerSpriteVisual();
     }
   }
@@ -478,17 +497,25 @@ export class PixiWorldRenderer implements IRenderer {
     isGhost: boolean = false
   ) {
     let sprite = this.entitySprites.get(id);
+    const targetUrl = (id === 'player_main' && asset.sprite.directionalUrls)
+      ? (asset.sprite.directionalUrls[this.playerState.direction] || asset.sprite.url)
+      : asset.sprite.url;
+    const texture = await this.getTexture(targetUrl);
+
     if (!sprite) {
-      const texture = await this.getTexture(asset.sprite.url);
       sprite = new Sprite(texture);
       sprite.eventMode = 'static';
       this.entitySprites.set(id, sprite);
       this.depthContainer.addChild(sprite);
+    } else {
+      sprite.texture = texture;
     }
 
-    const ax = asset.anchor.x / asset.sprite.width;
-    const ay = asset.anchor.y / asset.sprite.height;
+    const ax = asset.sprite.width > 0 ? asset.anchor.x / asset.sprite.width : 0.5;
+    const ay = asset.sprite.height > 0 ? asset.anchor.y / asset.sprite.height : 1.0;
     sprite.anchor.set(ax, ay);
+    sprite.width = asset.sprite.width;
+    sprite.height = asset.sprite.height;
 
     sprite.x = x;
     sprite.y = y - z;

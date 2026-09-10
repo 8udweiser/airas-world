@@ -47,11 +47,13 @@ export const App: React.FC = () => {
 
     const renderer = new PixiWorldRenderer();
     rendererRef.current = renderer;
+    (window as any).__renderer = renderer;
     renderer.isPlayMode = activeMode === 'play';
 
     renderer.init(canvasContainerRef.current).then(() => {
       // 初期描画
       renderer.render(world, assets, selectedEntityId, ghostEntities);
+      renderer.setPlayerAvatar(currentAvatarId);
 
       // 左クリック (選択)
       renderer.onEntityClick = (entityId: string) => {
