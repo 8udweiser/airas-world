@@ -616,6 +616,49 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
     },
   },
 
+  // ランボルギーニ・ウラカン (乗車可能なスーパーカー)
+  vehicle_lamborghini: {
+    id: 'vehicle_lamborghini',
+    name: 'ランボルギーニ・ウラカン',
+    type: 'object',
+    category: 'vehicle',
+    sprite: {
+      url: '/assets/vehicles/lamborghini_down.png',
+      width: 58,
+      height: 38,
+      pixelArt: true,
+      directionalUrls: {
+        down: '/assets/vehicles/lamborghini_down.png',
+        up: '/assets/vehicles/lamborghini_up.png',
+        left: '/assets/vehicles/lamborghini_left.png',
+        right: '/assets/vehicles/lamborghini_right.png',
+      },
+    },
+    anchor: { x: 29, y: 36 },
+    collision: {
+      enabled: true,
+      type: 'box',
+      offsetX: -26,
+      offsetY: -16,
+      width: 52,
+      height: 18,
+    },
+    depth: { enabled: true, offsetY: 0 },
+    interactions: [
+      {
+        type: 'drive',
+        label: '乗る (Fキー / 右クリック)',
+        dialogue: ['【ランボルギーニ・ウラカン】V10自然吸気エンジンが始動！Fキーで降車できる。'],
+      },
+    ],
+    metadata: {
+      tags: ['乗り物', 'スーパーカー', 'ランボルギーニ', '車'],
+      createdAt: Date.now(),
+      source: 'preset',
+      description: '猛烈なスピードを誇る黄色いスーパーカー。乗車してマップを爆走できる。',
+    },
+  },
+
   npc_cat: {
     id: 'npc_cat',
     name: '気ままな三毛猫',

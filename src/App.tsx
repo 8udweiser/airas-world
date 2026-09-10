@@ -40,6 +40,8 @@ export const App: React.FC = () => {
   const [currentAvatarId, setCurrentAvatarId] = useState('character_schoolgirl');
   const [fps, setFps] = useState(60);
   const [ghostEntities, setGhostEntities] = useState<RendererGhostEntity[]>([]);
+  const [isDriving, setIsDriving] = useState(false);
+  const [nearbyVehicle, setNearbyVehicle] = useState<{ id: string; name: string; assetId: string } | null>(null);
 
   // 1. レンダラー初期化 (1回のみ実行)
   useEffect(() => {
@@ -66,6 +68,16 @@ export const App: React.FC = () => {
         if (!ent) return;
         const asset = useWorldStore.getState().assets[ent.assetId];
         if (!asset) return;
+
+        // 🏎️ 乗り物乗車インタラクション
+        const driveInteraction = asset.interactions?.find((i) => i.type === 'drive');
+        if (driveInteraction || asset.category === 'vehicle') {
+          renderer.enterVehicle(entityId, ent.assetId);
+          setIsDriving(true);
+          setNearbyVehicle(null);
+          showNotification(`🏎️ ${ent.name} に乗車！[WASD]で爆走 / [Shift・Ctrl]でニトロ加速 / [F]で降車`);
+          return;
+        }
 
         if (asset.interactions && asset.interactions.length > 0) {
           const act = asset.interactions[0];
@@ -101,9 +113,43 @@ export const App: React.FC = () => {
         moveObject(entityId, newX, newY);
       };
 
-      // プレイヤー移動時の低頻度通知 (FPS更新用)
-      renderer.onPlayerMoveTick = (_x, _y, _z, _dir, liveFps) => {
+      // プレイヤー移動時の低頻度通知 (FPS更新 & 周囲の乗り物検知)
+      let lastTickTime = 0;
+      renderer.onPlayerMoveTick = (px, py, _z, _dir, liveFps) => {
+        const now = performance.now();
+        if (now - lastTickTime < 180) return;
+        lastTickTime = now;
+
         setFps(liveFps);
+
+        const driving = renderer.playerState.isDriving;
+        setIsDriving((prev) => (prev !== driving ? driving : prev));
+
+        if (!driving) {
+          // 周囲に乗れる車両があるかチェック (距離 85px以内)
+          const currentWorld = useWorldStore.getState().world;
+          const currentAssets = useWorldStore.getState().assets;
+          let foundVehicle: { id: string; name: string; assetId: string } | null = null;
+          let minDist = 85;
+
+          for (const ent of Object.values(currentWorld.entities)) {
+            const a = currentAssets[ent.assetId];
+            if (a?.category === 'vehicle' || a?.interactions?.some((i) => i.type === 'drive')) {
+              const d = Math.hypot(ent.position.x - px, ent.position.y - py);
+              if (d < minDist) {
+                minDist = d;
+                foundVehicle = { id: ent.id, name: ent.name || a.name, assetId: ent.assetId };
+              }
+            }
+          }
+          setNearbyVehicle((prev) => {
+            if (!prev && !foundVehicle) return null;
+            if (prev && foundVehicle && prev.id === foundVehicle.id) return prev;
+            return foundVehicle;
+          });
+        } else {
+          setNearbyVehicle((prev) => (prev !== null ? null : prev));
+        }
       };
     });
 
@@ -127,6 +173,50 @@ export const App: React.FC = () => {
     }
   }, [world, assets, selectedEntityId, ghostEntities]);
 
+  // 🏎️ 乗り物乗車・降車トグル
+  const handleToggleVehicle = useCallback(async () => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+
+    if (renderer.playerState.isDriving) {
+      // 降車
+      const res = await renderer.exitVehicle();
+      setIsDriving(false);
+      if (res && res.entityId) {
+        moveObject(res.entityId, res.x, res.y);
+      }
+      showNotification('降車しました');
+    } else {
+      // 乗車: 周囲85px以内の最寄り車両
+      const px = renderer.playerState.x;
+      const py = renderer.playerState.y;
+      const currentWorld = useWorldStore.getState().world;
+      const currentAssets = useWorldStore.getState().assets;
+      let targetVehicle: { id: string; name: string; assetId: string } | null = null;
+      let minDist = 85;
+
+      for (const ent of Object.values(currentWorld.entities)) {
+        const asset = currentAssets[ent.assetId];
+        if (asset?.category === 'vehicle' || asset?.interactions?.some((i) => i.type === 'drive')) {
+          const d = Math.hypot(ent.position.x - px, ent.position.y - py);
+          if (d < minDist) {
+            minDist = d;
+            targetVehicle = { id: ent.id, name: ent.name || asset.name, assetId: ent.assetId };
+          }
+        }
+      }
+
+      if (targetVehicle) {
+        await renderer.enterVehicle(targetVehicle.id, targetVehicle.assetId);
+        setIsDriving(true);
+        setNearbyVehicle(null);
+        showNotification(`🏎️ ${targetVehicle.name} に乗車！[WASD]で爆走 / [Shift・Ctrl]でニトロ加速 / [F]で降車`);
+      } else {
+        showNotification('近くに乗れる乗り物がありません（近づいてFキーを押してください）');
+      }
+    }
+  }, [moveObject, showNotification]);
+
   // 4. マインクラフトPC版キーボード入力 (レンダラーへ直接入力伝播)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -138,6 +228,13 @@ export const App: React.FC = () => {
       if (rendererRef.current) {
         rendererRef.current.keys[e.code] = true;
         rendererRef.current.keys[e.key] = true;
+      }
+
+      // F: 乗り物乗車 / 降車
+      if ((e.code === 'KeyF' || e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleToggleVehicle();
+        return;
       }
 
       // F3: デバッグ画面トグル
@@ -226,7 +323,7 @@ export const App: React.FC = () => {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [undo, redo, isAIPanelOpen, assets]);
+  }, [undo, redo, isAIPanelOpen, assets, handleToggleVehicle]);
 
   // モーダル表示時に移動を安全に停止
   useEffect(() => {
@@ -348,6 +445,56 @@ export const App: React.FC = () => {
         </div>
       )}
 
+      {/* 🏎️ 乗り物運転中 HUD */}
+      {isDriving && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-2xl glass-panel border border-amber-400/50 text-amber-200 shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl">🏎️</span>
+            <div>
+              <div className="text-xs font-bold text-white tracking-wide flex items-center gap-1.5">
+                <span>ランボルギーニ・ウラカン</span>
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/30 text-amber-300 text-[9px] border border-amber-400/40">爆走中</span>
+              </div>
+              <div className="text-[10px] text-amber-300/80 font-mono">V10 5.2L AWD | 最高速 325km/h</div>
+            </div>
+          </div>
+          <div className="w-[1px] h-6 bg-white/15" />
+          <div className="flex items-center gap-2 text-xs">
+            <span className="px-2 py-0.5 rounded bg-black/50 text-amber-300 font-mono text-[10px] border border-amber-400/30">
+              Shift / Ctrl
+            </span>
+            <span className="text-slate-300 text-[11px]">ニトロ加速</span>
+          </div>
+          <button
+            onClick={handleToggleVehicle}
+            className="px-3.5 py-1.5 rounded-xl bg-red-500/30 hover:bg-red-500/50 border border-red-400/50 text-red-100 text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="px-1.5 py-0.5 rounded bg-black/40 text-[9px] font-mono text-red-200 border border-red-400/30">F</span>
+            <span>降車する</span>
+          </button>
+        </div>
+      )}
+
+      {/* 🚗 周囲に乗り物がある時の乗車プロンプト */}
+      {nearbyVehicle && !isDriving && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-cyan-400/50 text-cyan-100 shadow-2xl flex items-center gap-3.5 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <span className="text-2xl">🏎️</span>
+          <div>
+            <div className="text-xs font-bold text-white">
+              <span className="text-amber-300">{nearbyVehicle.name}</span>
+            </div>
+            <div className="text-[10px] text-slate-400">近づいて乗車できます</div>
+          </div>
+          <button
+            onClick={handleToggleVehicle}
+            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/30 to-amber-600/30 hover:from-amber-500/50 hover:to-amber-600/50 border border-amber-400/60 text-amber-200 text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="px-1.5 py-0.5 rounded bg-black/40 text-[9px] font-mono text-amber-300 border border-amber-400/30">F</span>
+            <span>乗る</span>
+          </button>
+        </div>
+      )}
+
       {/* 画面左下: マイクラ風キーヒント */}
       <div className="absolute bottom-4 left-4 z-20 glass-panel px-3 py-1.5 rounded-xl border border-white/10 text-[11px] text-slate-300 pointer-events-none flex items-center gap-3">
         <div className="flex items-center gap-1.5">
@@ -366,9 +513,13 @@ export const App: React.FC = () => {
           <span className="px-1.5 py-0.5 rounded bg-black/40 font-mono text-[10px] text-purple-300 border border-white/10">Shift</span>
           <span>スニーク</span>
         </div>
+        <div className="flex items-center gap-1.5 text-amber-300 font-semibold">
+          <span className="px-1.5 py-0.5 rounded bg-black/40 font-mono text-[10px] text-amber-300 border border-amber-400/30">F</span>
+          <span>乗降</span>
+        </div>
         <div className="flex items-center gap-1.5 hidden md:flex">
           <span className="px-1.5 py-0.5 rounded bg-black/40 font-mono text-[10px] text-slate-300 border border-white/10">右クリック</span>
-          <span>調べる/話す</span>
+          <span>調べる/乗る</span>
         </div>
         <div className="flex items-center gap-1.5 hidden md:flex">
           <span className="px-1.5 py-0.5 rounded bg-black/40 font-mono text-[10px] text-amber-300 border border-white/10">E</span>

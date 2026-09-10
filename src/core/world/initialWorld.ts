@@ -159,6 +159,15 @@ export function createInitialWorld(): AirasWorldData {
         position: { x: 740, y: 320, z: 0 },
       },
 
+      // 2.5 車道中央: 黄色いランボルギーニ・ウラカン (スーパーカー)
+      lamborghini_1: {
+        id: 'lamborghini_1',
+        assetId: 'vehicle_lamborghini',
+        name: '黄色いランボルギーニ',
+        type: 'object',
+        position: { x: 550, y: 480, z: 0 },
+      },
+
       // 3. 商店街南側: ベンチ & 街路樹
       bench_south_1: {
         id: 'bench_south_1',

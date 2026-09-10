@@ -17,7 +17,7 @@ export interface CollisionBox {
 }
 
 export interface InteractionDefinition {
-  type: 'sit' | 'talk' | 'inspect' | 'open_shop' | 'buy';
+  type: 'sit' | 'talk' | 'inspect' | 'open_shop' | 'buy' | 'drive';
   label: string;
   dialogue?: string[];
   actionScript?: string;

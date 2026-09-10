@@ -40,6 +40,10 @@ export class PixiWorldRenderer implements IRenderer {
     isSprinting: false,
     isSneaking: false,
     assetId: 'character_schoolgirl',
+    isDriving: false,
+    drivingVehicleAssetId: null as string | null,
+    drivingEntityId: null as string | null,
+    originalAvatarId: 'character_schoolgirl',
   };
 
   // 入力キー状態
@@ -186,8 +190,14 @@ export class PixiWorldRenderer implements IRenderer {
 
     // キビキビ動く快適な速度設定
     let speed = 230; // 通常歩行
-    if (isSprint) speed = 400; // ダッシュ (約1.75倍)
-    else if (isSneak) speed = 90; // スニーク
+    if (this.playerState.isDriving) {
+      speed = 580; // ランボルギーニ巡航速度 (徒歩の約2.5倍)
+      if (isSprint) speed = 920; // ターボ・ニトロ加速 (時速300km/h級)
+      else if (isSneak) speed = 220; // 慎重な車庫入れ速度
+    } else {
+      if (isSprint) speed = 400; // ダッシュ (約1.75倍)
+      else if (isSneak) speed = 90; // スニーク
+    }
 
     // ジャンプ物理
     const gravity = 800; // px/s^2
@@ -222,14 +232,19 @@ export class PixiWorldRenderer implements IRenderer {
       // 歩行アニメーションタイマー
       this.walkAnimTimer += dt * (isSprint ? 18 : 12);
 
-      // ダッシュ時の土煙
-      if (isSprint && this.playerState.z <= 0 && Math.random() < 0.4) {
+      // ダッシュ時 または 乗車爆走時の土煙・タイヤスモーク
+      const shouldEmitDust = this.playerState.isDriving
+        ? (Math.random() < (isSprint ? 0.85 : 0.45))
+        : (isSprint && this.playerState.z <= 0 && Math.random() < 0.4);
+
+      if (shouldEmitDust) {
+        const pSpread = this.playerState.isDriving ? 14 : 8;
         this.dustParticles.push({
-          x: this.playerState.x + (Math.random() * 8 - 4),
-          y: this.playerState.y + (Math.random() * 4 - 2),
-          vx: (Math.random() - 0.5) * 30,
-          vy: -15 - Math.random() * 20,
-          life: 0.35,
+          x: this.playerState.x + (Math.random() * pSpread - pSpread / 2),
+          y: this.playerState.y + (Math.random() * 6 - 3),
+          vx: (Math.random() - 0.5) * (this.playerState.isDriving ? 50 : 30),
+          vy: -15 - Math.random() * (this.playerState.isDriving ? 35 : 20),
+          life: this.playerState.isDriving ? (isSprint ? 0.45 : 0.35) : 0.35,
         });
       }
     } else {
@@ -258,16 +273,31 @@ export class PixiWorldRenderer implements IRenderer {
           }
         });
       }
-      sprite.width = asset.sprite.width;
-      sprite.height = asset.sprite.height;
-      if (asset.sprite.width > 0 && asset.sprite.height > 0) {
-        sprite.anchor.set(asset.anchor.x / asset.sprite.width, asset.anchor.y / asset.sprite.height);
+
+      if (this.playerState.isDriving) {
+        // 車両のダイナミック比率対応 (左右向きはロングボディ)
+        const isHorizontal = this.playerState.direction === 'left' || this.playerState.direction === 'right';
+        if (isHorizontal) {
+          sprite.width = 110;
+          sprite.height = 34;
+          sprite.anchor.set(0.5, 0.85);
+        } else {
+          sprite.width = 58;
+          sprite.height = 38;
+          sprite.anchor.set(0.5, 0.85);
+        }
+      } else {
+        sprite.width = asset.sprite.width;
+        sprite.height = asset.sprite.height;
+        if (asset.sprite.width > 0 && asset.sprite.height > 0) {
+          sprite.anchor.set(asset.anchor.x / asset.sprite.width, asset.anchor.y / asset.sprite.height);
+        }
       }
     }
 
-    // 歩行ボビング (歩行中は上下2px揺れ、待機中はゆっくり呼吸)
+    // 歩行ボビング (車運転中はボビングさせずスムーズ走行)
     let bobbingY = 0;
-    if (this.playerState.isMoving) {
+    if (this.playerState.isMoving && !this.playerState.isDriving) {
       bobbingY = Math.sin(this.walkAnimTimer) * 2;
     }
 
@@ -275,12 +305,21 @@ export class PixiWorldRenderer implements IRenderer {
     sprite.y = this.playerState.y - this.playerState.z + bobbingY;
     (sprite as any).worldFootY = this.playerState.y;
 
-    // 接地影の更新 (足元接地Yに固定、ジャンプで縮小)
+    // 接地影の更新 (足元接地Yに固定、乗車時は大型シャドウ)
     this.shadowGraphics.clear();
-    const shadowScale = Math.max(0.35, 1 - this.playerState.z / 180);
-    this.shadowGraphics
-      .ellipse(this.playerState.x, this.playerState.y, 8 * shadowScale, 3 * shadowScale)
-      .fill({ color: 0x000000, alpha: 0.35 * shadowScale });
+    if (this.playerState.isDriving) {
+      const isHorizontal = this.playerState.direction === 'left' || this.playerState.direction === 'right';
+      const rx = isHorizontal ? 42 : 24;
+      const ry = isHorizontal ? 9 : 14;
+      this.shadowGraphics
+        .ellipse(this.playerState.x, this.playerState.y, rx, ry)
+        .fill({ color: 0x000000, alpha: 0.45 });
+    } else {
+      const shadowScale = Math.max(0.35, 1 - this.playerState.z / 180);
+      this.shadowGraphics
+        .ellipse(this.playerState.x, this.playerState.y, 8 * shadowScale, 3 * shadowScale)
+        .fill({ color: 0x000000, alpha: 0.35 * shadowScale });
+    }
   }
 
   private centerCamera() {
@@ -373,6 +412,61 @@ export class PixiWorldRenderer implements IRenderer {
     }
   }
 
+  // 🏎️ 乗り物に乗る
+  public async enterVehicle(entityId: string, vehicleAssetId: string) {
+    if (this.playerState.isDriving) return;
+    this.playerState.isDriving = true;
+    this.playerState.drivingEntityId = entityId;
+    this.playerState.drivingVehicleAssetId = vehicleAssetId;
+    this.playerState.originalAvatarId = this.playerState.assetId;
+
+    // プレイヤーのスプライトを車両に変更
+    await this.setPlayerAvatar(vehicleAssetId);
+
+    // 車両エンティティのスプライトを非表示（プレイヤー自身が運転するため）
+    const vehicleSprite = this.entitySprites.get(entityId);
+    if (vehicleSprite) {
+      vehicleSprite.visible = false;
+    }
+  }
+
+  // 🏎️ 乗り物から降りる
+  public async exitVehicle(): Promise<{ entityId: string | null; x: number; y: number } | null> {
+    if (!this.playerState.isDriving) return null;
+    const entityId = this.playerState.drivingEntityId;
+    const originalAvatar = this.playerState.originalAvatarId || 'character_schoolgirl';
+    const currentX = this.playerState.x;
+    const currentY = this.playerState.y;
+
+    // 降車位置（車の横に降りる）
+    const exitOffsetX = this.playerState.direction === 'left' ? 46 : -46;
+    const exitX = currentX + exitOffsetX;
+    const exitY = currentY;
+
+    this.playerState.isDriving = false;
+    this.playerState.drivingEntityId = null;
+    this.playerState.drivingVehicleAssetId = null;
+
+    // プレイヤーアバターを元の人間に戻す
+    await this.setPlayerAvatar(originalAvatar);
+    this.playerState.x = exitX;
+    this.playerState.y = exitY;
+
+    // 車両スプライトを現在位置（停車位置）に再表示
+    if (entityId) {
+      const vehicleSprite = this.entitySprites.get(entityId);
+      if (vehicleSprite) {
+        vehicleSprite.visible = true;
+        vehicleSprite.x = currentX;
+        vehicleSprite.y = currentY;
+        (vehicleSprite as any).worldFootY = currentY;
+      }
+    }
+
+    this.updatePlayerSpriteVisual();
+    return { entityId, x: currentX, y: currentY };
+  }
+
   private async getTexture(url: string): Promise<Texture> {
     if (this.textureCache.has(url)) {
       return this.textureCache.get(url)!;
@@ -423,6 +517,14 @@ export class PixiWorldRenderer implements IRenderer {
     const renderedIds = new Set<string>(['player_main']);
 
     for (const entity of Object.values(world.entities)) {
+      // 運転中の車両はプレイヤー自身が描画するため、ワールドエンティティとしては非表示
+      if (this.playerState.isDriving && entity.id === this.playerState.drivingEntityId) {
+        const vSprite = this.entitySprites.get(entity.id);
+        if (vSprite) vSprite.visible = false;
+        renderedIds.add(entity.id);
+        continue;
+      }
+
       const asset = assets[entity.assetId];
       if (!asset) continue;
 
