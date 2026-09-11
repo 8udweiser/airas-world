@@ -11,15 +11,18 @@ import { HelpModal } from './ui/components/HelpModal';
 import { SettingsModal } from './ui/components/SettingsModal';
 import { DebugOverlayF3 } from './ui/hud/DebugOverlayF3';
 import { RendererGhostEntity } from './renderer/IRenderer';
-import { Bell, Users } from 'lucide-react';
+import { Bell, Users, Globe, Bed } from 'lucide-react';
 import { audioManager } from './audio/AudioManager';
 import { MobileTouchControls } from './ui/touch/MobileTouchControls';
+import { multiplayerManager, RemotePlayerInfo } from './core/multiplayer/MultiplayerManager';
+import { ChatSystem } from './ui/chat/ChatSystem';
+import { PortalLandingModal } from './ui/portal/PortalLandingModal';
 
 export const App: React.FC = () => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<PixiWorldRenderer | null>(null);
 
-  const { world, assets, createObject, moveObject, undo, redo, updatePlayerPosition } = useWorldStore();
+  const { world, assets, createObject, moveObject, undo, redo, updatePlayerPosition, setTileAt } = useWorldStore();
   const {
     selectedEntityId,
     setSelectedEntityId,
@@ -38,6 +41,7 @@ export const App: React.FC = () => {
 
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPortalOpen, setIsPortalOpen] = useState(false);
   const [isF3Open, setIsF3Open] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth > 768 : true);
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
@@ -45,13 +49,36 @@ export const App: React.FC = () => {
   const [ghostEntities, setGhostEntities] = useState<RendererGhostEntity[]>([]);
   const [isDriving, setIsDriving] = useState(false);
   const [isSitting, setIsSitting] = useState(false);
+  const [isSleeping, setIsSleeping] = useState(false);
   const [nearbyVehicle, setNearbyVehicle] = useState<{ id: string; name: string; assetId: string } | null>(null);
   const [nearbyBench, setNearbyBench] = useState<{ id: string; name: string } | null>(null);
+  const [nearbyBed, setNearbyBed] = useState<{ id: string; name: string } | null>(null);
+  const [remotePlayers, setRemotePlayers] = useState<RemotePlayerInfo[]>([]);
+  const [playerScreenPos, setPlayerScreenPos] = useState<{ x: number; y: number } | null>(null);
+  const [isLowPerfMode, setIsLowPerfMode] = useState(false);
+  const [bgmTrackInfo, setBgmTrackInfo] = useState<{ title: string; isPlaying: boolean }>(() => {
+    const cur = audioManager.getCurrentBgmTrack();
+    return { title: cur.track.title, isPlaying: cur.isPlaying };
+  });
 
   // サウンドミュート状態の同期
   useEffect(() => {
     audioManager.setMuted(isMuted);
   }, [isMuted]);
+
+  // BGMトラック変更監視
+  useEffect(() => {
+    audioManager.onTrackChange = (track, isPlaying) => {
+      setBgmTrackInfo({ title: track.title, isPlaying });
+    };
+  }, []);
+
+  // 天候変更時に対応するGemini BGMへ自動クロスフェード
+  useEffect(() => {
+    if (world.environment.weather) {
+      audioManager.switchBgmForWeather(world.environment.weather);
+    }
+  }, [world.environment.weather]);
 
   // モード切り替え時のパレット表示制御 (スマホ時は探索中は隠して視界を確保)
   useEffect(() => {
@@ -65,6 +92,9 @@ export const App: React.FC = () => {
   // 1. レンダラー初期化 (1回のみ実行)
   useEffect(() => {
     if (!canvasContainerRef.current) return;
+
+    let vehicleClearTimer: any = null;
+    let benchClearTimer: any = null;
 
     const renderer = new PixiWorldRenderer();
     rendererRef.current = renderer;
@@ -98,6 +128,19 @@ export const App: React.FC = () => {
           return;
         }
 
+        // 🛏️ ベッド就寝インタラクション（同衾・一緒に寝る）
+        if (asset.category === 'furniture' && (asset.interactions?.some((i) => i.type === 'sleep') || ent.assetId.includes('bed'))) {
+          const sleeping = renderer.toggleSleep(entityId);
+          setIsSleeping(sleeping);
+          if (sleeping) {
+            audioManager.playSleep();
+            showNotification(`🛏️ ${ent.name} でおやすみ中... [WASD]または[Space]で起床`);
+          } else {
+            showNotification('ベッドから起きました');
+          }
+          return;
+        }
+
         if (asset.interactions && asset.interactions.length > 0) {
           const act = asset.interactions[0];
           if (act.dialogue && act.dialogue.length > 0) {
@@ -113,9 +156,44 @@ export const App: React.FC = () => {
         }
       };
 
-      // マップクリック (配置または選択解除)
+      // マップクリック (配置または選択解除、あるいはバケツ操作)
       renderer.onMapClick = (worldX: number, worldY: number) => {
         const currentPlacing = useUIStore.getState().placingAssetId;
+
+        // 🪣 空のバケツで水汲み
+        if (currentPlacing === 'tool_bucket_empty') {
+          const currentWorld = useWorldStore.getState().world;
+          const tileSize = currentWorld.map.tileSize || 32;
+          const chunkSize = currentWorld.map.chunkSize || 16;
+          const tileX = Math.floor(worldX / tileSize);
+          const tileY = Math.floor(worldY / tileSize);
+          const cx = Math.floor(tileX / chunkSize);
+          const cy = Math.floor(tileY / chunkSize);
+          const chunk = currentWorld.map.chunks[`${cx},${cy}`];
+          const lx = ((tileX % chunkSize) + chunkSize) % chunkSize;
+          const ly = ((tileY % chunkSize) + chunkSize) % chunkSize;
+          const tile = chunk?.tiles?.[ly]?.[lx];
+
+          if (tile && tile.tileId.toLowerCase().includes('water')) {
+            audioManager.playWaterScoop();
+            setPlacingAssetId('tool_bucket_water');
+            showNotification('🪣 川から澄んだ水を汲みました！（水入りバケツになりました）');
+            return;
+          } else {
+            showNotification('水面をクリックすると水を汲めます');
+            return;
+          }
+        }
+
+        // 🌊 水入りバケツで水を撒いて川タイル作成 & 連結
+        if (currentPlacing === 'tool_bucket_water') {
+          audioManager.playWaterSplash();
+          setTileAt(worldX, worldY, 'tile_water');
+          renderer.refreshTiles(useWorldStore.getState().world);
+          showNotification('🌊 水を流して清流を作りました！川が自然に繋がります');
+          return;
+        }
+
         if (currentPlacing) {
           const newId = createObject(currentPlacing, worldX, worldY);
           if (newId) {
@@ -132,73 +210,158 @@ export const App: React.FC = () => {
         moveObject(entityId, newX, newY);
       };
 
-      // プレイヤー移動時の低頻度通知 (周囲の乗り物検知 & F3用FPS通知)
+      // プレイヤー移動時の低頻度通知 (周囲の乗り物・ベンチ・ベッド検知 & F3用FPS通知 & マルチプレイヤー送信)
       let lastTickTime = 0;
+      let activeVehicleId: string | null = null;
+      let activeBenchId: string | null = null;
+      let activeBedId: string | null = null;
+
       renderer.onPlayerMoveTick = (px, py, _z, _dir, liveFps) => {
         const now = performance.now();
-        if (now - lastTickTime < 200) return;
+        if (now - lastTickTime < 180) return;
         lastTickTime = now;
 
-        // F3デバッグ用FPS更新 (Zustand経由で直接更新し、App全体の再レンダリングを完全防止)
+        // F3デバッグ用FPS更新
         useUIStore.getState().setFps(liveFps);
+
+        // プレイヤーの画面座標を更新（頭上チャットフキダシ用）
+        const sPos = renderer.worldToScreen(px, py);
+        setPlayerScreenPos(sPos);
 
         const driving = renderer.playerState.isDriving;
         const sitting = renderer.playerState.isSitting;
+        const sleeping = renderer.playerState.isSleeping;
         setIsDriving((prev) => (prev !== driving ? driving : prev));
         setIsSitting((prev) => (prev !== sitting ? sitting : prev));
+        setIsSleeping((prev) => (prev !== sleeping ? sleeping : prev));
 
-        if (driving || sitting) {
+        // 👥 マルチプレイヤー状態を送信
+        multiplayerManager.sendMyState({
+          assetId: renderer.playerState.assetId,
+          x: px,
+          y: py,
+          z: _z,
+          direction: _dir,
+          isMoving: renderer.playerState.isMoving,
+          isSprinting: renderer.playerState.isSprinting,
+          isDriving: driving,
+          isSitting: sitting,
+          isSleeping: sleeping,
+        });
+
+        if (driving || sitting || sleeping) {
+          activeVehicleId = null;
+          activeBenchId = null;
+          activeBedId = null;
+          if (vehicleClearTimer) clearTimeout(vehicleClearTimer);
+          if (benchClearTimer) clearTimeout(benchClearTimer);
           setNearbyVehicle(null);
           setNearbyBench(null);
+          setNearbyBed(null);
         } else {
           const currentWorld = useWorldStore.getState().world;
           const currentAssets = useWorldStore.getState().assets;
 
-          // 周囲に乗れる車両があるかチェック (距離 85px以内, 現在運転中車両は除外)
+          // 🏎️ 車両の検出
           let foundVehicle: { id: string; name: string; assetId: string } | null = null;
-          let minDist = 85;
-
           for (const ent of Object.values(currentWorld.entities)) {
             if (ent.id === renderer.playerState.drivingEntityId) continue;
             const a = currentAssets[ent.assetId];
             if (a?.category === 'vehicle' || a?.interactions?.some((i) => i.type === 'drive')) {
               const d = Math.hypot(ent.position.x - px, ent.position.y - py);
-              if (d < minDist) {
-                minDist = d;
-                foundVehicle = { id: ent.id, name: ent.name || a.name, assetId: ent.assetId };
+              const maxDist = (activeVehicleId === ent.id) ? 140 : 85;
+              if (d < maxDist) {
+                foundVehicle = { id: ent.id, name: ent.name || a.name || '黄色いランボルギーニ', assetId: ent.assetId };
+                break;
               }
             }
           }
-          setNearbyVehicle((prev) => {
-            if (!prev && !foundVehicle) return null;
-            if (prev && foundVehicle && prev.id === foundVehicle.id) return prev;
-            return foundVehicle;
-          });
 
-          // 周囲に座れるベンチがあるかチェック (距離 45px以内)
+          if (foundVehicle) {
+            if (vehicleClearTimer) {
+              clearTimeout(vehicleClearTimer);
+              vehicleClearTimer = null;
+            }
+            activeVehicleId = foundVehicle.id;
+            setNearbyVehicle((prev) => {
+              if (prev && prev.id === foundVehicle!.id && prev.name === foundVehicle!.name) return prev;
+              return foundVehicle;
+            });
+          } else if (activeVehicleId) {
+            if (!vehicleClearTimer) {
+              vehicleClearTimer = setTimeout(() => {
+                activeVehicleId = null;
+                vehicleClearTimer = null;
+                setNearbyVehicle(null);
+              }, 300);
+            }
+          }
+
+          // 🛋️ ベンチの検出
           let foundBench: { id: string; name: string } | null = null;
-          let minBenchDist = 45;
-
           for (const ent of Object.values(currentWorld.entities)) {
             const a = currentAssets[ent.assetId];
             if (a?.interactions?.some((i) => i.type === 'sit')) {
               const d = Math.hypot(ent.position.x - px, ent.position.y - py);
-              if (d < minBenchDist) {
-                minBenchDist = d;
+              const maxBenchDist = (activeBenchId === ent.id) ? 95 : 45;
+              if (d < maxBenchDist) {
                 foundBench = { id: ent.id, name: ent.name || a.name };
+                break;
               }
             }
           }
-          setNearbyBench((prev) => {
-            if (!prev && !foundBench) return null;
-            if (prev && foundBench && prev.id === foundBench.id) return prev;
-            return foundBench;
-          });
+
+          if (foundBench) {
+            if (benchClearTimer) {
+              clearTimeout(benchClearTimer);
+              benchClearTimer = null;
+            }
+            activeBenchId = foundBench.id;
+            setNearbyBench((prev) => {
+              if (prev && prev.id === foundBench!.id && prev.name === foundBench!.name) return prev;
+              return foundBench;
+            });
+          } else if (activeBenchId) {
+            if (!benchClearTimer) {
+              benchClearTimer = setTimeout(() => {
+                activeBenchId = null;
+                benchClearTimer = null;
+                setNearbyBench(null);
+              }, 300);
+            }
+          }
+
+          // 🛏️ ベッドの検出
+          let foundBed: { id: string; name: string } | null = null;
+          for (const ent of Object.values(currentWorld.entities)) {
+            const a = currentAssets[ent.assetId];
+            if (a?.interactions?.some((i) => i.type === 'sleep') || (a?.category === 'furniture' && ent.assetId.includes('bed'))) {
+              const d = Math.hypot(ent.position.x - px, ent.position.y - py);
+              const maxBedDist = (activeBedId === ent.id) ? 95 : 55;
+              if (d < maxBedDist) {
+                foundBed = { id: ent.id, name: ent.name || a.name || 'ダブルベッド' };
+                break;
+              }
+            }
+          }
+
+          if (foundBed) {
+            activeBedId = foundBed.id;
+            setNearbyBed((prev) => {
+              if (prev && prev.id === foundBed!.id && prev.name === foundBed!.name) return prev;
+              return foundBed;
+            });
+          } else if (activeBedId) {
+            activeBedId = null;
+            setNearbyBed(null);
+          }
         }
       };
     });
 
     return () => {
+      if (vehicleClearTimer) clearTimeout(vehicleClearTimer);
+      if (benchClearTimer) clearTimeout(benchClearTimer);
       renderer.destroy();
       rendererRef.current = null;
     };
@@ -275,6 +438,34 @@ export const App: React.FC = () => {
     }
   }, [showNotification]);
 
+  // 🛏️ ベッド就寝トグル（同衾・一緒に寝る）
+  const handleToggleSleep = useCallback((bedEntityId?: string) => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    const sleeping = renderer.toggleSleep(bedEntityId);
+    setIsSleeping(sleeping);
+    if (sleeping) {
+      audioManager.playSleep();
+      showNotification('🛏️ ふかふかダブルベッドでおやすみ中... [WASD] または [Space] で起床');
+    } else {
+      showNotification('ベッドから起きました');
+    }
+  }, [showNotification]);
+
+  // 👥 マルチプレイヤー管理（WebRTC PeerJS & BroadcastChannel）
+  useEffect(() => {
+    multiplayerManager.init();
+
+    multiplayerManager.onRemotePlayersChange = (players) => {
+      setRemotePlayers(players);
+      rendererRef.current?.updateRemotePlayers(players);
+    };
+
+    return () => {
+      multiplayerManager.destroy();
+    };
+  }, []);
+
   // 4. マインクラフトPC版キーボード入力 (レンダラーへ直接入力伝播)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -288,10 +479,22 @@ export const App: React.FC = () => {
         rendererRef.current.keys[e.key] = true;
       }
 
-      // F: 乗り物乗車 / 降車 / ベンチ着席・立ち上がり
+      // 🛏️ 就寝中の起床判定
+      if (rendererRef.current?.playerState.isSleeping) {
+        if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'KeyF', 'Escape'].includes(e.code)) {
+          handleToggleSleep();
+          return;
+        }
+      }
+
+      // F: 乗り物乗車 / 降車 / ベンチ着席・立ち上がり / ベッド就寝
       if ((e.code === 'KeyF' || e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         if (e.repeat) return;
+        if (rendererRef.current?.playerState.isSleeping) {
+          handleToggleSleep();
+          return;
+        }
         if (rendererRef.current?.playerState.isSitting) {
           handleToggleSit();
           return;
@@ -306,6 +509,10 @@ export const App: React.FC = () => {
         }
         if (nearbyBench) {
           handleToggleSit();
+          return;
+        }
+        if (nearbyBed) {
+          handleToggleSleep(nearbyBed.id);
           return;
         }
         handleToggleVehicle();
@@ -432,6 +639,30 @@ export const App: React.FC = () => {
     rendererRef.current?.resetCamera();
   }, []);
 
+  // ⚡ 低負荷モード切り替えハンドラー
+  const handleTogglePerfMode = useCallback(() => {
+    setIsLowPerfMode((prev) => {
+      const next = !prev;
+      rendererRef.current?.setLowPerformanceMode(next);
+      if (typeof document !== 'undefined') {
+        document.body.classList.toggle('perf-mode', next);
+      }
+      showNotification(next ? '⚡ 低負荷モード (ブラー無効化・GPU負荷激減) を有効にしました' : '✨ 通常グラフィックモードに切り替えました');
+      return next;
+    });
+  }, [showNotification]);
+
+  // 🎵 BGMトグル＆曲送りハンドラー
+  const handleToggleBgm = useCallback(() => {
+    audioManager.toggleBgm();
+  }, []);
+
+  const handleNextBgm = useCallback(() => {
+    audioManager.nextBgm();
+    const cur = audioManager.getCurrentBgmTrack();
+    showNotification(`🎵 BGM: ${cur.track.title}`);
+  }, [showNotification]);
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#090d16] select-none">
       {/* 2.5D Pixi レンダリング Canvas コンテナ */}
@@ -448,48 +679,65 @@ export const App: React.FC = () => {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onToggleF3={() => setIsF3Open((prev) => !prev)}
         isF3Open={isF3Open}
+        currentBgmTitle={bgmTrackInfo.title}
+        isBgmPlaying={bgmTrackInfo.isPlaying}
+        onToggleBgm={handleToggleBgm}
+        onNextBgm={handleNextBgm}
+        isLowPerfMode={isLowPerfMode}
+        onTogglePerfMode={handleTogglePerfMode}
       />
 
-      {/* アバター切り替えボタン (右上HUD下) */}
-      <div className="absolute top-16 right-4 z-30">
+      {/* 右上操作ボタン群 (ポータル / アバター切り替え) */}
+      <div className="absolute top-16 right-4 z-30 flex items-center gap-2">
         <button
-          onClick={() => setIsAvatarPickerOpen((prev) => !prev)}
-          className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-2 border border-white/15 text-xs text-slate-200 hover:text-white hover:border-cyan-400/50 shadow-lg transition-all cursor-pointer"
-          title="アバター変更"
+          onClick={() => setIsPortalOpen(true)}
+          className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-indigo-400/40 text-xs text-indigo-200 hover:text-white hover:border-indigo-400 shadow-lg hover:shadow-indigo-500/20 transition-all cursor-pointer bg-indigo-950/40"
+          title="スマホ接続・公開ポータル"
         >
-          <Users className="w-3.5 h-3.5 text-cyan-400" />
-          <span>キャラ変更</span>
+          <Globe className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+          <span>公開ポータル</span>
         </button>
 
-        {/* アバター選択ポップオーバー */}
-        {isAvatarPickerOpen && (
-          <div className="mt-2 w-56 glass-panel rounded-2xl border border-cyan-400/40 p-2 space-y-1 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150">
-            <div className="text-[10px] text-slate-400 px-2 py-1 font-semibold uppercase tracking-wider">
-              操作キャラクター選択
+        <div className="relative">
+          <button
+            onClick={() => setIsAvatarPickerOpen((prev) => !prev)}
+            className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-2 border border-white/15 text-xs text-slate-200 hover:text-white hover:border-cyan-400/50 shadow-lg transition-all cursor-pointer"
+            title="アバター変更"
+          >
+            <Users className="w-3.5 h-3.5 text-cyan-400" />
+            <span>キャラ変更</span>
+          </button>
+
+          {/* アバター選択ポップオーバー */}
+          {isAvatarPickerOpen && (
+            <div className="absolute top-full right-0 mt-2 w-56 glass-panel rounded-2xl border border-cyan-400/40 p-2 space-y-1 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150 z-40">
+              <div className="text-[10px] text-slate-400 px-2 py-1 font-semibold uppercase tracking-wider">
+                操作キャラクター選択
+              </div>
+              {[
+                { id: 'character_schoolgirl', name: '女子高校生（あおい）', desc: '黒髪セーラー服' },
+                { id: 'character_boy', name: '昭和少年（ケンタ）', desc: '赤いキャップ＆短パン' },
+                { id: 'character_salaryman', name: '会社員（たなか）', desc: 'グレースーツ＆メガネ' },
+              ].map((av) => (
+                <button
+                  key={av.id}
+                  onClick={() => handleSelectAvatar(av.id)}
+                  className={`w-full px-2.5 py-1.5 rounded-xl flex items-center justify-between text-left transition-all ${
+                    currentAvatarId === av.id
+                      ? 'bg-cyan-500/30 border border-cyan-400/50 text-white font-bold'
+                      : 'hover:bg-white/10 text-slate-300'
+                  }`}
+                >
+                  <div>
+                    <div className="text-xs">{av.name}</div>
+                    <div className="text-[10px] text-slate-400">{av.desc}</div>
+                  </div>
+                  {currentAvatarId === av.id && <span className="text-xs text-cyan-300">✓</span>}
+                </button>
+              ))}
             </div>
-            {[
-              { id: 'character_schoolgirl', name: '女子高校生（あおい）', desc: '黒髪セーラー服' },
-              { id: 'character_boy', name: '昭和少年（ケンタ）', desc: '赤いキャップ＆短パン' },
-              { id: 'character_salaryman', name: '会社員（たなか）', desc: 'グレースーツ＆メガネ' },
-            ].map((av) => (
-              <button
-                key={av.id}
-                onClick={() => handleSelectAvatar(av.id)}
-                className={`w-full px-2.5 py-1.5 rounded-xl flex items-center justify-between text-left transition-all ${
-                  currentAvatarId === av.id
-                    ? 'bg-cyan-500/30 border border-cyan-400/50 text-white font-bold'
-                    : 'hover:bg-white/10 text-slate-300'
-                }`}
-              >
-                <div>
-                  <div className="text-xs">{av.name}</div>
-                  <div className="text-[10px] text-slate-400">{av.desc}</div>
-                </div>
-                {currentAvatarId === av.id && <span className="text-xs text-cyan-300">✓</span>}
-              </button>
-            ))}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Minecraft風 F3 デバッグ情報画面 */}
@@ -579,8 +827,29 @@ export const App: React.FC = () => {
         </div>
       )}
 
+      {/* 🛏️ ベッド就寝中 HUD */}
+      {isSleeping && (
+        <div className="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-2xl glass-panel border border-indigo-400/50 text-indigo-100 shadow-2xl flex items-center gap-4 transition-all duration-200 whitespace-nowrap max-w-[92vw] bg-indigo-950/60">
+          <span className="text-2xl">🛏️</span>
+          <div>
+            <div className="text-xs font-bold text-white tracking-wide flex items-center gap-1.5">
+              <span>ふかふかダブルベッドでおやすみ中...</span>
+              <span className="px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-300 text-[9px] border border-indigo-400/40">Zzz...</span>
+            </div>
+            <div className="text-[10px] text-indigo-300/80">[WASD] または [Space] で起床します</div>
+          </div>
+          <button
+            onClick={() => handleToggleSleep()}
+            className="px-3.5 py-1.5 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/50 border border-indigo-400/50 text-indigo-100 text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="px-1.5 py-0.5 rounded bg-black/40 text-[9px] font-mono text-indigo-200 border border-indigo-400/30">F</span>
+            <span>起きる</span>
+          </button>
+        </div>
+      )}
+
       {/* 🚗 周囲に乗り物がある時の乗車プロンプト */}
-      {nearbyVehicle && !isDriving && !isSitting && (
+      {nearbyVehicle && !isDriving && !isSitting && !isSleeping && (
         <div className="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-cyan-400/50 text-cyan-100 shadow-2xl flex items-center gap-3.5 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
           <span className="text-2xl">🏎️</span>
           <div>
@@ -600,7 +869,7 @@ export const App: React.FC = () => {
       )}
 
       {/* 🛋️ 周囲にベンチがある時の着席プロンプト */}
-      {nearbyBench && !isSitting && !isDriving && !nearbyVehicle && (
+      {nearbyBench && !isSitting && !isDriving && !isSleeping && !nearbyVehicle && (
         <div className="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-emerald-400/50 text-emerald-100 shadow-2xl flex items-center gap-3.5 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
           <span className="text-2xl">🛋️</span>
           <div>
@@ -618,6 +887,32 @@ export const App: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* 🛏️ 周囲にベッドがある時の就寝プロンプト */}
+      {nearbyBed && !isSleeping && !isSitting && !isDriving && !nearbyVehicle && !nearbyBench && (
+        <div className="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-indigo-400/50 text-indigo-100 shadow-2xl flex items-center gap-3.5 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
+          <span className="text-2xl">🛏️</span>
+          <div>
+            <div className="text-xs font-bold text-white">
+              <span className="text-indigo-300">{nearbyBed.name}</span>
+            </div>
+            <div className="text-[10px] text-slate-400">近づいて一緒に眠れます</div>
+          </div>
+          <button
+            onClick={() => handleToggleSleep(nearbyBed.id)}
+            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-500/30 to-purple-600/30 hover:from-indigo-500/50 hover:to-purple-600/50 border border-indigo-400/60 text-indigo-200 text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="px-1.5 py-0.5 rounded bg-black/40 text-[9px] font-mono text-indigo-300 border border-indigo-400/30">F</span>
+            <span>眠る</span>
+          </button>
+        </div>
+      )}
+
+      {/* 💬 頭上フキダシチャット & メッセージ送受信 */}
+      <ChatSystem remotePlayers={remotePlayers} playerScreenPos={playerScreenPos} />
+
+      {/* 🌐 全プラットフォーム公開ポータル & スマホ接続共有モーダル */}
+      <PortalLandingModal isOpen={isPortalOpen} onClose={() => setIsPortalOpen(false)} />
 
       {/* 📱 スマホ・マルチタッチ操作バーチャルジョイスティック */}
       <MobileTouchControls

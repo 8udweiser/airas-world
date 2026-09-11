@@ -226,3 +226,107 @@ Airy, panoramic soundstage giving a sense of endless open sky and limitless expl
 Pure tranquility, warm sunshine, peaceful nostalgic adventure.
 Completely drumless, percussion-free, beat-free, instrumental only.
 ```
+
+---
+
+## 6. ベンチ・屋外ストリート家具 創出プロンプト集（第4版）
+
+Airasの世界でプレイヤーが腰掛けてひと休みしたり、飛び乗って遊べる **木製ベンチ（Park & Street Bench）** の生成プロンプトです。
+
+### 📐 ベンチのスケーリング＆幾何学仕様
+- **ゲーム内サイズ**: 幅48px × 高さ28px（横1.5マス、高さ1マス弱、座面高さ14px）
+- **座面とアームレスト**:
+  - キャラクター（幅20px）が中央に自然に座れる、奥行きのある木板座面。
+  - 鋳鉄製の緑または濃灰色のクラシックな脚部と肘掛け。
+
+---
+
+### ① 【単体オブジェクト・正面＆クォータービュー】昭和レトロ木製ベンチ
+プレイヤーが座る用途に最も適した、ノスタルジックな木板と鋳鉄脚の定番ベンチ。
+
+#### 日本語プロンプト:
+```text
+16bitレトロゲーム風のドット絵。日本の公園や商店街にある昭和レトロな木製ベンチ。
+ニス塗りの温かい木製スラット座面と背もたれ、深緑色の鋳鉄製アームレストと脚部。
+やや斜め上から見下ろした2.5Dクォータービュー（幅48px・高さ26px比率）。
+ドットの輪郭がシャープ、HD-2Dピクセルアート、ゲーム用マップオブジェクト素材。
+無人のベンチ（誰も座っていない）。
+背景は純粋な白一色（#FFFFFFの単色ベタ塗り）、影なし、切り抜き用。
+```
+
+#### 英語プロンプト:
+```text
+16-bit retro pixel art, Japanese Showa retro wooden park bench.
+Varnished warm timber slats seat and backrest, dark forest green cast iron curved armrests and ornate legs.
+2.5D top-down isometric quarter-view perspective (aspect ratio 48px width by 26px height).
+Sharp pixel outlines, crisp HD-2D game asset sprite, unoccupied empty bench.
+Pure solid white background (#FFFFFF flat color), no cast shadows, ready for alpha cutout.
+```
+
+---
+
+### ② 【多方向スプライトシート】ベンチ3方向（正面・側面・斜め）
+街角の向きに合わせて東西南北に配置するための3アングル素材。
+
+#### 日本語プロンプト:
+```text
+16bitレトロゲーム風のドット絵スプライトシート。木製公園ベンチ。
+横一列に並んだ3方向のゲーム素材：
+1. 正面向き（フロントビュー、幅48px・高さ26px）
+2. 側面向き（サイドビュー、横から見たL字型の木製座面、幅22px・高さ26px）
+3. 斜め向き（クォータービュー、斜めから見た立体的な木板ベンチ）
+等間隔に配置、各方向のスケール統一、ドットの輪郭がシャープ、HD-2Dスタイル。
+無人のベンチ。背景は純粋な白一色（#FFFFFFの完全単色ベタ塗り）、影なし、切り抜き用。
+```
+
+---
+
+## 7. 自転車「斜め前が生成されない問題」の徹底攻略ガイド
+
+### 🧐 なぜ自転車の「斜め前」だけ何度やっても生成されないのか？
+1. **開放フレーム構造（極細パイプ）の幾何学的難易度**:
+   - 車や家などの「面の塊（ソリッド）」と異なり、自転車は「2本の薄い円形ホイール」と「細いパイプフレーム」で構成されています。
+   - 正面（1本線）や真横（丸2つが並ぶ）はモデルにとって極めて学習密度が高く再現が容易ですが、**斜め前（クォータービュー）** は「手前の前輪と奥の後輪が楕円になり、フレームが遠近法で斜めに傾く」ため、生成AI（拡散モデル）の潜在空間で最も解像しにくい構造です。
+2. **多方向スプライトシートの注意散漫（Attention Dilution）**:
+   - 「正面、背面、右向き、斜め前、斜め後」と1枚の画像に複数アングルを同時に指定すると、モデルは描きやすい「真横」に強く引っ張られ、斜め前を要求しても勝手に真横や正面に歪んでしまいます。
+
+### 💡 解決策：単体特化アングル生成（1枚1アングル）
+シートではなく、**「斜め前（手前右向き）の自転車1台のみ」を狙い撃ちでプロンプトにする** ことで、AIが100%のリソースを斜め構造の描写に集中でき、一発で成功します！
+
+---
+
+### ① 【斜め前 単体特化】昭和レトロ日常ママチャリ（クォータービュー）
+
+#### 日本語プロンプト:
+```text
+16bitレトロゲーム風のドット絵。日本の昭和レトロな日常用自転車（ママチャリ）。無人の自転車単体。
+前輪が斜め右手前、後輪が斜め左奥を向いている、クォータービュー（斜め45度見下ろしアングル）。
+前カゴ、パイプフレーム（緑色または紺色）、シルバーのハンドルバー、サドル、ペダル、後部荷台、スタンド。
+2つの車輪が斜め前後の遠近感で立体的に並んで見える。
+全長約44px・車高約30pxのゲーム内スケール比率、ドットの輪郭がシャープ、HD-2Dピクセルアート。
+背景は純粋な白一色（#FFFFFFの単色ベタ塗り）、影なし、切り抜き用。
+ネガティブ：真横の視点、真正面、搭乗者（人が乗っている）、3Dリアル写真、グラデーション背景。
+```
+
+#### 英語プロンプト:
+```text
+16-bit retro pixel art game sprite, single Japanese commuter bicycle (mamachari), riderless unoccupied.
+Isometric 3/4 quarter view perspective, facing diagonally front-right: front wheel in the foreground right, rear wheel in the background left with clear depth perspective.
+Front wire basket, curved green metal step-through frame, silver handlebars angled towards viewer, black saddle, pedals, rear luggage carrier.
+Sharp crisp pixel borders, HD-2D sprite style (approx 44x30 px ratio).
+Pure solid flat white background (#FFFFFF only), no shadows, clean cutout ready.
+Negative prompt: flat side profile, direct front view, cyclist, rider, 3D photo render, messy gradients.
+```
+
+---
+
+### ② 【斜め前 単体特化】スポーティなクロスバイク／ロードバイク
+
+#### 日本語プロンプト:
+```text
+16bitレトロゲーム風のドット絵。軽量スポーツ自転車（クロスバイク・ロードバイク）。無人の自転車単体。
+右斜め前を向いたクォータービュー（斜め45度見下ろし構図）。前輪が手前右、後輪が奥左にオフセットされた立体的なアングル。
+鮮やかな青のダイヤモンドフレーム、細身のスポークホイール、ドロップハンドルバー、サドル。
+ドットの輪郭がシャープ、HD-2Dピクセルアート、ゲーム用乗り物素材。
+背景は純粋な白一色（#FFFFFFの単色ベタ塗り）、影なし、切り抜き用。
+```

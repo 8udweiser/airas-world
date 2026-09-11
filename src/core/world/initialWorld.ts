@@ -42,9 +42,19 @@ export function createInitialWorld(): AirasWorldData {
           else if (globalY >= 17 && globalY <= 19) {
             tileId = 'tile_sidewalk';
           }
-          // y = 20..31: 公園・緑地
+          // y = 20..31: 公園・緑地 & 清流（川）
           else if (globalY >= 20) {
-            tileId = 'tile_grass';
+            // x = 34..37: 公園を縦断する清流（川）
+            if (globalX >= 34 && globalX <= 37) {
+              // y = 24..25 は木橋
+              if (globalY >= 24 && globalY <= 25) {
+                tileId = 'tile_sidewalk';
+              } else {
+                tileId = 'tile_water';
+              }
+            } else {
+              tileId = 'tile_grass';
+            }
           }
 
           row.push({ tileId, elevation: 0 });
@@ -242,6 +252,15 @@ export function createInitialWorld(): AirasWorldData {
         name: '女子生徒（あおい）',
         type: 'npc',
         position: { x: 460, y: 585, z: 0 },
+      },
+
+      // 6. マイホーム・リラックス用ダブルベッド（川沿い）
+      bed_home_1: {
+        id: 'bed_home_1',
+        assetId: 'furniture_bed_double',
+        name: 'ふかふかダブルベッド',
+        type: 'object',
+        position: { x: 920, y: 780, z: 0 },
       },
     },
     player: {

@@ -34,6 +34,9 @@ interface WorldStoreState {
   updatePlayerPosition: (x: number, y: number, direction: Direction, isMoving: boolean) => void;
   updatePlayerState: (updates: Partial<PlayerState>) => void;
   
+  // タイル操作（川作り・地形変更）
+  setTileAt: (worldX: number, worldY: number, tileId: string) => boolean;
+
   // アセット登録
   registerAsset: (asset: AirasAsset) => void;
 }
@@ -194,6 +197,50 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
           },
         },
       }));
+    },
+
+    setTileAt: (worldX: number, worldY: number, tileId: string) => {
+      const { world } = get();
+      const tileSize = world.map.tileSize || 32;
+      const chunkSize = world.map.chunkSize || 16;
+      const tileX = Math.floor(worldX / tileSize);
+      const tileY = Math.floor(worldY / tileSize);
+      const cx = Math.floor(tileX / chunkSize);
+      const cy = Math.floor(tileY / chunkSize);
+      const chunkKey = `${cx},${cy}`;
+      const chunk = world.map.chunks[chunkKey];
+      if (!chunk || !chunk.tiles) return false;
+
+      const lx = ((tileX % chunkSize) + chunkSize) % chunkSize;
+      const ly = ((tileY % chunkSize) + chunkSize) % chunkSize;
+      if (!chunk.tiles[ly] || !chunk.tiles[ly][lx]) return false;
+
+      const newTiles = chunk.tiles.map((row, rIdx) => {
+        if (rIdx !== ly) return row;
+        return row.map((t, cIdx) => {
+          if (cIdx !== lx) return t;
+          return { ...t, tileId };
+        });
+      });
+
+      const newChunks = {
+        ...world.map.chunks,
+        [chunkKey]: {
+          ...chunk,
+          tiles: newTiles,
+        },
+      };
+
+      set({
+        world: {
+          ...world,
+          map: {
+            ...world.map,
+            chunks: newChunks,
+          },
+        },
+      });
+      return true;
     },
 
     registerAsset: (asset: AirasAsset) => {

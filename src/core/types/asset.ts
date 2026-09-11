@@ -5,6 +5,7 @@ export type AssetCategory =
   | 'npc' 
   | 'structure' 
   | 'vehicle'
+  | 'item'
   | 'tile';
 
 export interface CollisionBox {
@@ -17,7 +18,7 @@ export interface CollisionBox {
 }
 
 export interface InteractionDefinition {
-  type: 'sit' | 'talk' | 'inspect' | 'open_shop' | 'buy' | 'drive';
+  type: 'sit' | 'talk' | 'inspect' | 'open_shop' | 'buy' | 'drive' | 'sleep' | 'scoop_water' | 'place_water';
   label: string;
   dialogue?: string[];
   actionScript?: string;

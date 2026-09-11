@@ -1,7 +1,7 @@
 import React from 'react';
 import { useWorldStore } from '../../store/useWorldStore';
 import { useUIStore } from '../../store/useUIStore';
-import { Undo2, Redo2, Sun, CloudRain, Snowflake, Sunset, Clock, Sparkles, HelpCircle, Compass, Wrench, Terminal, Key, Volume2, VolumeX } from 'lucide-react';
+import { Undo2, Redo2, Sun, CloudRain, Snowflake, Sunset, Clock, Sparkles, HelpCircle, Compass, Wrench, Terminal, Key, Volume2, VolumeX, Music, SkipForward, Zap, CloudLightning } from 'lucide-react';
 import { WeatherType } from '../../core/types/world';
 
 interface TopHUDProps {
@@ -10,6 +10,12 @@ interface TopHUDProps {
   onOpenSettings: () => void;
   onToggleF3: () => void;
   isF3Open: boolean;
+  currentBgmTitle?: string;
+  isBgmPlaying?: boolean;
+  onToggleBgm?: () => void;
+  onNextBgm?: () => void;
+  isLowPerfMode?: boolean;
+  onTogglePerfMode?: () => void;
 }
 
 export const TopHUD: React.FC<TopHUDProps> = ({
@@ -18,6 +24,12 @@ export const TopHUD: React.FC<TopHUDProps> = ({
   onOpenSettings,
   onToggleF3,
   isF3Open,
+  currentBgmTitle,
+  isBgmPlaying,
+  onToggleBgm,
+  onNextBgm,
+  isLowPerfMode,
+  onTogglePerfMode,
 }) => {
   const { world, canUndo, canRedo, undo, redo, setWeather, setTime } = useWorldStore();
   const { isAIPanelOpen, setAIPanelOpen, activeMode, setActiveMode, isMuted, toggleMute } = useUIStore();
@@ -25,6 +37,8 @@ export const TopHUD: React.FC<TopHUDProps> = ({
   const weatherIcons: Record<WeatherType, { icon: React.ReactNode; label: string }> = {
     clear: { icon: <Sun className="w-4 h-4 text-amber-400" />, label: '快晴' },
     rain: { icon: <CloudRain className="w-4 h-4 text-sky-400" />, label: '雨' },
+    heavy_rain: { icon: <CloudRain className="w-4 h-4 text-blue-400 animate-pulse" />, label: '大雨' },
+    typhoon: { icon: <CloudLightning className="w-4 h-4 text-purple-300 animate-bounce" />, label: '台風' },
     snow: { icon: <Snowflake className="w-4 h-4 text-cyan-200" />, label: '雪' },
     sunset: { icon: <Sunset className="w-4 h-4 text-orange-400" />, label: '夕焼け' },
     fog: { icon: <Sun className="w-4 h-4 text-slate-300" />, label: '霧' },
@@ -185,7 +199,43 @@ export const TopHUD: React.FC<TopHUDProps> = ({
           </div>
         </div>
 
+        {/* 🎵 Gemini AI BGMプレイヤー */}
+        <div className="glass-panel px-2.5 py-1.5 rounded-2xl flex items-center gap-2">
+          <button
+            onClick={onToggleBgm}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer ${
+              isBgmPlaying ? 'text-amber-300 hover:text-amber-200' : 'text-slate-400 hover:text-slate-300'
+            }`}
+            title={isBgmPlaying ? 'BGM一時停止' : 'BGM再生 (クリックでGemini AI生成曲を再生)'}
+          >
+            <Music className={`w-3.5 h-3.5 ${isBgmPlaying ? 'animate-bounce text-amber-400' : ''}`} />
+            <span className="max-w-[120px] truncate text-[11px] font-medium hidden sm:inline">
+              {currentBgmTitle || 'Gemini BGM'}
+            </span>
+          </button>
+          <button
+            onClick={onNextBgm}
+            className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all cursor-pointer"
+            title="次の曲へスキップ (全3曲)"
+          >
+            <SkipForward className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
         <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-1">
+          {/* ⚡ 低負荷モード切り替え (低スペックPC用) */}
+          <button
+            onClick={onTogglePerfMode}
+            className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+              isLowPerfMode
+                ? 'bg-amber-500/30 text-amber-300 border border-amber-400/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/10'
+            }`}
+            title={isLowPerfMode ? '⚡ 低負荷モード稼働中 (クリックで通常画質)' : '⚡ 低負荷・軽量モードに切替 (重いブラー無効化・GPU負荷激減)'}
+          >
+            <Zap className="w-4 h-4" />
+          </button>
+
           {/* サウンド ミュート / アンミュート */}
           <button
             onClick={() => toggleMute()}

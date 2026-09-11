@@ -3,6 +3,7 @@ import { AirasWorldData, WeatherType, Direction } from '../../core/types/world';
 import { AirasAsset } from '../../core/types/asset';
 import { IRenderer, RendererGhostEntity } from '../IRenderer';
 import { audioManager, SurfaceType } from '../../audio/AudioManager';
+import { RemotePlayerInfo } from '../../core/multiplayer/MultiplayerManager';
 
 export class PixiWorldRenderer implements IRenderer {
   private app: Application | null = null;
@@ -15,15 +16,23 @@ export class PixiWorldRenderer implements IRenderer {
   private stageContainer: Container = new Container();
   private groundBgGraphics: Graphics = new Graphics();
   private tileContainer: Container = new Container();
-  private shadowGraphics: Graphics = new Graphics();
+  private waterFlowGraphics: Graphics = new Graphics(); // 自動水流 & コースティクス
+  private staticShadowGraphics: Graphics = new Graphics(); // 建物・街路樹の静的接地影（キャッシュ）
+  private shadowGraphics: Graphics = new Graphics(); // プレイヤー動的指向性投影影
   private selectionGraphics: Graphics = new Graphics();
   private depthContainer: Container = new Container();
-  private particleGraphics: Graphics = new Graphics();
+  private particleGraphics: Graphics = new Graphics(); // ダッシュ土煙 & 水しぶき
+  private staticLightingGraphics: Graphics = new Graphics(); // 街灯・自販機・喫茶店の静的環境光（キャッシュ）
+  private lightingGraphics: Graphics = new Graphics(); // プレイヤー動的ランタン
   private weatherGraphics: Graphics = new Graphics();
+  private thunderFlashGraphics: Graphics = new Graphics(); // 落雷閃光スクリーンフラッシュ
 
   // キャッシュ
   private entitySprites: Map<string, Sprite> = new Map();
   private textureCache: Map<string, Texture> = new Map();
+
+  // クリック・タップ移動（目的地自動歩行）
+  public targetMovePos: { x: number; y: number } | null = null;
 
   // カメラ状態 (広大な街が見渡せるよう初期ズームは 1.05x)
   private cameraX: number = 0;
@@ -45,6 +54,8 @@ export class PixiWorldRenderer implements IRenderer {
     isSneaking: false,
     isSitting: false,
     sittingEntityId: null as string | null,
+    isSleeping: false,
+    sleepingBedEntityId: null as string | null,
     assetId: 'character_schoolgirl',
     isDriving: false,
     drivingVehicleAssetId: null as string | null,
@@ -58,6 +69,10 @@ export class PixiWorldRenderer implements IRenderer {
   // 操作モード
   public isPlayMode: boolean = true; // デフォルトは快適な探索モード
 
+  public setLowPerformanceMode(enabled: boolean) {
+    this.isLowPerformanceMode = enabled;
+  }
+
   // ドラッグ操作ステート
   private isDraggingCamera: boolean = false;
   private lastMousePos: { x: number; y: number } = { x: 0, y: 0 };
@@ -69,13 +84,18 @@ export class PixiWorldRenderer implements IRenderer {
   public onEntityRightClick?: (entityId: string) => void;
   public onMapClick?: (worldX: number, worldY: number) => void;
   public onEntityDrag?: (entityId: string, newWorldX: number, newWorldY: number) => void;
-  public onPlayerMoveTick?: (x: number, y: number, z: number, dir: string, fps: number) => void;
+  public onPlayerMoveTick?: (x: number, y: number, z: number, dir: Direction, fps: number) => void;
 
   // パーティクル & アニメーション
   private weatherParticles: Array<{ x: number; y: number; speed: number; length: number }> = [];
   private dustParticles: Array<{ x: number; y: number; vx: number; vy: number; life: number }> = [];
   private walkAnimTimer: number = 0;
+  private waterAnimationTime: number = 0;
+  private thunderFlashTimer: number = 0;
   private currentWeather: WeatherType = 'sunset';
+  private lastRenderedWeather: WeatherType | null = null;
+  private depthSortTimer: number = 0;
+  public isLowPerformanceMode: boolean = false; // 低スペックマシン用軽量化モード
 
   async init(container: HTMLElement): Promise<void> {
     this.container = container;
@@ -84,34 +104,41 @@ export class PixiWorldRenderer implements IRenderer {
     await app.init({
       resizeTo: container,
       backgroundColor: 0x0f172a, // 深いレトロナイトブルー
-      resolution: Math.min(window.devicePixelRatio || 1, 2),
+      resolution: 1.0, // ピクセルアート用に1.0に最適化（低スペックGPUの4倍負荷を解消）
       autoDensity: true,
       antialias: false,
+      preference: 'webgl',
+      powerPreference: 'high-performance',
     });
 
     this.app = app;
     container.appendChild(app.canvas);
 
-    // シーン階層の構築
+    // シーン階層の構築 (静的レイヤーと動的レイヤーを完全分離しCPU負荷を最小化)
     this.app.stage.addChild(this.stageContainer);
     this.stageContainer.addChild(this.groundBgGraphics); // 広大な背景
     this.stageContainer.addChild(this.tileContainer);
-    this.stageContainer.addChild(this.shadowGraphics); // 接地影
+    this.stageContainer.addChild(this.waterFlowGraphics); // 🌊 リアルな水流 & コースティクス
+    this.stageContainer.addChild(this.staticShadowGraphics); // 🏛️ 建物・街路樹の静的接地影 (CPU負荷ゼロ)
+    this.stageContainer.addChild(this.shadowGraphics); // 👤 プレイヤー光源連動リアル投影影
     this.stageContainer.addChild(this.selectionGraphics);
     this.stageContainer.addChild(this.depthContainer); // Yソート
-    this.stageContainer.addChild(this.particleGraphics); // ダッシュ土煙
+    this.stageContainer.addChild(this.particleGraphics); // ダッシュ土煙 & 水しぶき
+    this.stageContainer.addChild(this.staticLightingGraphics); // 💡 街灯・自販機・喫茶店の静的環境光 (CPU負荷ゼロ)
+    this.stageContainer.addChild(this.lightingGraphics); // 🔦 プレイヤー足元ランタン
     this.stageContainer.addChild(this.weatherGraphics);
+    this.stageContainer.addChild(this.thunderFlashGraphics); // ⚡ 落雷ホワイトフラッシュ
 
     this.setupInteractions(app.canvas);
     this.centerCamera();
 
-    // 天候パーティクル初期化 (100個に抑えて低スペックでも爆速)
-    for (let i = 0; i < 90; i++) {
+    // 天候パーティクル初期化 (140個に最適化)
+    for (let i = 0; i < 140; i++) {
       this.weatherParticles.push({
         x: Math.random() * 2400 - 400,
         y: Math.random() * 1400 - 200,
-        speed: 6 + Math.random() * 6,
-        length: 12 + Math.random() * 10,
+        speed: 7 + Math.random() * 8,
+        length: 14 + Math.random() * 12,
       });
     }
 
@@ -143,7 +170,7 @@ export class PixiWorldRenderer implements IRenderer {
         fpsTimer = 0;
       }
 
-      // 1. プレイヤー物理 & 移動演算 (常時キビキビ動けるように実行)
+      // 1. プレイヤー物理 & 移動演算 (キー入力 & クリック移動)
       this.updatePlayerPhysics(dt);
 
       // 2. カメラ追従 (マウス手動ドラッグ中でない限り、dt指数平滑化追従)
@@ -151,16 +178,28 @@ export class PixiWorldRenderer implements IRenderer {
         this.followPlayer(this.playerState.x, this.playerState.y, dt);
       }
 
-      // 3. 2.5D 深度ソート (移動中またはジャンプ中のみソートしてCPU負荷激減)
-      if (this.playerState.isMoving || this.playerState.isJumping) {
+      // 3. 2.5D 深度ソート (移動中またはジャンプ中のみ、かつ50ms間隔でソートしてCPU負荷激減)
+      this.depthSortTimer += dt;
+      if ((this.playerState.isMoving || this.playerState.isJumping) && this.depthSortTimer >= 0.05) {
+        this.depthSortTimer = 0;
         this.depthContainer.children.sort((a, b) => (a as any).worldFootY - (b as any).worldFootY);
       }
 
-      // 4. パーティクル & 天候アニメーション
-      this.updateDustParticles(dt);
-      this.renderWeather(this.currentWeather);
+      // 4. 🌊 リアル水流アニメーション & コースティクス反射
+      this.updateWaterAnimation(dt);
 
-      // 5. 低頻度でReactへ座標通知 (毎フレーム再レンダリングさせない)
+      // 5. 👤 光源連動リアル動的投影影
+      this.renderDynamicShadows();
+
+      // 6. 💡 夜の街灯ライティング
+      this.renderLighting();
+
+      // 7. パーティクル & 天候アニメーション
+      this.updateDustParticles(dt);
+      this.renderWeather(this.currentWeather, dt);
+      this.updateThunderFlash(dt);
+
+      // 8. 低頻度でReactへ座標通知 (毎フレーム再レンダリングさせない)
       this.onPlayerMoveTick?.(
         this.playerState.x,
         this.playerState.y,
@@ -265,6 +304,53 @@ export class PixiWorldRenderer implements IRenderer {
     }
   }
 
+  // 🛏️ ベッド就寝トグル（一緒に寝る）
+  public toggleSleep(targetEntityId?: string): boolean {
+    if (this.playerState.isSleeping) {
+      // 起きる
+      this.playerState.isSleeping = false;
+      this.playerState.sleepingBedEntityId = null;
+      this.playerState.y += 18;
+      this.playerState.z = 0;
+      return false;
+    } else {
+      if (!this.currentWorld || !this.currentAssets) return false;
+      const px = this.playerState.x;
+      const py = this.playerState.y;
+
+      let bedEnt: any = null;
+      if (targetEntityId) {
+        bedEnt = this.currentWorld.entities[targetEntityId];
+      } else {
+        // 最寄りのベッドを探す (60px以内)
+        let minDist = 60;
+        for (const ent of Object.values(this.currentWorld.entities)) {
+          const a = this.currentAssets[ent.assetId];
+          if (a?.interactions?.some((i) => i.type === 'sleep') || a?.category === 'furniture' && ent.assetId.includes('bed')) {
+            const d = Math.hypot(ent.position.x - px, ent.position.y - py);
+            if (d < minDist) {
+              minDist = d;
+              bedEnt = ent;
+            }
+          }
+        }
+      }
+
+      if (bedEnt) {
+        this.playerState.isSleeping = true;
+        this.playerState.sleepingBedEntityId = bedEnt.id;
+        // ベッド中央（または横）に安らぎの姿勢で横たわる
+        this.playerState.x = bedEnt.position.x;
+        this.playerState.y = bedEnt.position.y - 6;
+        this.playerState.z = 8;
+        this.playerState.direction = 'down';
+        audioManager.playSleep();
+        return true;
+      }
+      return false;
+    }
+  }
+
   // キー入力に応じたプレイヤー物理演算
   private updatePlayerPhysics(dt: number) {
     const k = this.keys;
@@ -285,10 +371,41 @@ export class PixiWorldRenderer implements IRenderer {
     if (isLeft) dx -= 1;
     if (isRight) dx += 1;
 
+    // キー入力があればクリック移動は即キャンセル
+    if (isUp || isDown || isLeft || isRight) {
+      this.targetMovePos = null;
+    }
+
+    // 🎯 クリック・タップ目的地への自動歩行 (Auto-Walk)
+    if (this.targetMovePos && dx === 0 && dy === 0) {
+      const tdx = this.targetMovePos.x - this.playerState.x;
+      const tdy = this.targetMovePos.y - this.playerState.y;
+      const dist = Math.hypot(tdx, tdy);
+      if (dist < 10) {
+        this.targetMovePos = null; // 目的地到着
+      } else {
+        dx = tdx / dist;
+        dy = tdy / dist;
+      }
+    }
+
     const isMoving = dx !== 0 || dy !== 0;
     this.playerState.isMoving = isMoving;
     this.playerState.isSprinting = isSprint && isMoving;
     this.playerState.isSneaking = isSneak;
+
+    // 就寝中の処理 (WASDやSpaceで自然に起き上がる)
+    if (this.playerState.isSleeping) {
+      if (isMoving || isJump) {
+        this.playerState.isSleeping = false;
+        this.playerState.sleepingBedEntityId = null;
+        this.playerState.y += 18;
+        this.playerState.z = 0;
+      } else {
+        this.updatePlayerSpriteVisual();
+        return;
+      }
+    }
 
     // 着席中の処理 (WASDやSpaceで自然に立ち上がる)
     if (this.playerState.isSitting) {
@@ -778,6 +895,62 @@ export class PixiWorldRenderer implements IRenderer {
 
     // 5. 選択ハイライト
     this.renderSelectionHighlight(world, assets, selectedEntityId);
+
+    // 6. 🏛️ 静的接地影 & 静的街灯ライティング（エンティティ配置時・天候変更時のみ更新し毎フレーム走査を完全排除）
+    this.renderStaticShadows(world, assets);
+    this.renderStaticLighting(world);
+  }
+
+  // 👥 リモートプレイヤー（スマホや他PCの参加者）のリアルタイム描画同期
+  public async updateRemotePlayers(players: RemotePlayerInfo[]) {
+    if (!this.currentAssets) return;
+    const activeIds = new Set<string>();
+
+    for (const p of players) {
+      const spriteId = `__remote_${p.id}`;
+      activeIds.add(spriteId);
+      const asset = this.currentAssets[p.assetId] || this.currentAssets['character_schoolgirl'];
+      if (!asset) continue;
+
+      let targetUrl = asset.sprite.url;
+      if (asset.sprite.directionalUrls) {
+        targetUrl = asset.sprite.directionalUrls[p.direction]
+          || asset.sprite.directionalUrls['down']
+          || asset.sprite.url;
+      }
+
+      const texture = await this.getTexture(targetUrl);
+      let sprite = this.entitySprites.get(spriteId);
+
+      if (!sprite) {
+        sprite = new Sprite(texture);
+        sprite.eventMode = 'none';
+        this.entitySprites.set(spriteId, sprite);
+        this.depthContainer.addChild(sprite);
+      } else {
+        sprite.texture = texture;
+      }
+
+      const ax = asset.sprite.width > 0 ? asset.anchor.x / asset.sprite.width : 0.5;
+      const ay = asset.sprite.height > 0 ? asset.anchor.y / asset.sprite.height : 1.0;
+      sprite.anchor.set(ax, ay);
+      sprite.width = asset.sprite.width;
+      sprite.height = asset.sprite.height;
+
+      // 歩行ボビング
+      const bobY = p.isMoving ? Math.sin(Date.now() / 120) * 2 : 0;
+      sprite.x = p.x;
+      sprite.y = p.y - p.z + bobY;
+      (sprite as any).worldFootY = p.y;
+    }
+
+    // 退室したリモートプレイヤーの削除
+    for (const [id, sprite] of this.entitySprites.entries()) {
+      if (id.startsWith('__remote_') && !activeIds.has(id)) {
+        this.depthContainer.removeChild(sprite);
+        this.entitySprites.delete(id);
+      }
+    }
   }
 
   // プレイヤー足元の材質判定（芝生・石畳・アスファルト・木床）
@@ -798,6 +971,7 @@ export class PixiWorldRenderer implements IRenderer {
     if (!tile) return 'stone';
 
     const tileId = tile.tileId.toLowerCase();
+    if (tileId.includes('water') || tileId.includes('river')) return 'water';
     if (tileId.includes('grass') || tileId.includes('dirt')) return 'grass';
     if (tileId.includes('road') || tileId.includes('asphalt')) return 'road';
     if (tileId.includes('wood') || tileId.includes('floor')) return 'wood';
@@ -812,6 +986,14 @@ export class PixiWorldRenderer implements IRenderer {
     } else {
       audioManager.setReverbWet(0.18);
     }
+  }
+
+  public async refreshTiles(world?: AirasWorldData, assets?: Record<string, AirasAsset>) {
+    const targetWorld = world || this.currentWorld;
+    const targetAssets = assets || this.currentAssets;
+    if (!targetWorld || !targetAssets) return;
+    this.tileContainer.removeChildren();
+    await this.renderTiles(targetWorld, targetAssets);
   }
 
   private async renderTiles(world: AirasWorldData, assets: Record<string, AirasAsset>) {
@@ -930,37 +1112,331 @@ export class PixiWorldRenderer implements IRenderer {
       .stroke({ color: 0x38bdf8, width: 2, alpha: 0.9 });
   }
 
-  private renderWeather(weather: WeatherType) {
+  private waterFrameSkip: number = 0;
+
+  // 🌊 リアルな水流アニメーション & コースティクス反射 & 水面波紋 (ビューポートカリング & 30Hz間引き)
+  private updateWaterAnimation(dt: number) {
+    if (!this.currentWorld) return;
+    this.waterAnimationTime += dt;
+    this.waterFrameSkip++;
+    // 低負荷モード時は3フレームに1回、通常時は2フレームに1回（30FPS）更新でCPU頂点計算を半減
+    const skipThreshold = this.isLowPerformanceMode ? 3 : 2;
+    if (this.waterFrameSkip % skipThreshold !== 0) return;
+
+    this.waterFlowGraphics.clear();
+
+    const tileSize = this.currentWorld.map.tileSize || 32;
+    const chunkSize = this.currentWorld.map.chunkSize || 16;
+    const t = this.waterAnimationTime;
+
+    // 画面の可視範囲（ビューポートカリング）で画面外の水タイル走査を完全スキップ
+    const viewW = this.container ? this.container.clientWidth : 1280;
+    const viewH = this.container ? this.container.clientHeight : 720;
+    const minVx = -this.cameraX / this.zoom - 64;
+    const maxVx = minVx + viewW / this.zoom + 128;
+    const minVy = -this.cameraY / this.zoom - 64;
+    const maxVy = minVy + viewH / this.zoom + 128;
+
+    for (const chunk of Object.values(this.currentWorld.map.chunks)) {
+      const offsetX = chunk.cx * chunkSize * tileSize;
+      const offsetY = chunk.cy * chunkSize * tileSize;
+      const chunkW = chunkSize * tileSize;
+      if (offsetX + chunkW < minVx || offsetX > maxVx || offsetY + chunkW < minVy || offsetY > maxVy) {
+        continue;
+      }
+
+      for (let y = 0; y < chunk.tiles.length; y++) {
+        const wy = offsetY + y * tileSize;
+        if (wy + tileSize < minVy || wy > maxVy) continue;
+
+        for (let x = 0; x < chunk.tiles[y].length; x++) {
+          const wx = offsetX + x * tileSize;
+          if (wx + tileSize < minVx || wx > maxVx) continue;
+
+          const tile = chunk.tiles[y][x];
+          if (!tile.tileId.toLowerCase().includes('water') && !tile.tileId.toLowerCase().includes('river')) continue;
+
+          const flowShift1 = (t * 24 + wx * 0.35) % tileSize;
+          const flowShift2 = (t * 18 + wy * 0.25) % tileSize;
+
+          this.waterFlowGraphics
+            .moveTo(wx + 2, wy + flowShift1)
+            .lineTo(wx + tileSize - 4, wy + ((flowShift1 + 4) % tileSize))
+            .stroke({ color: 0xbae6fd, width: 1.2, alpha: 0.45 });
+
+          if (!this.isLowPerformanceMode) {
+            this.waterFlowGraphics
+              .moveTo(wx + 4, wy + flowShift2)
+              .lineTo(wx + tileSize - 2, wy + ((flowShift2 + 3) % tileSize))
+              .stroke({ color: 0x7dd3fc, width: 0.9, alpha: 0.35 });
+
+            const sparkPhase = Math.sin(t * 3.5 + x * 1.5 + y * 2.0);
+            if (sparkPhase > 0.70) {
+              const sx = wx + ((x * 11 + y * 7) % 24) + 4;
+              const sy = wy + ((x * 13 + y * 5) % 24) + 4;
+              this.waterFlowGraphics
+                .circle(sx, sy, 1.2)
+                .fill({ color: 0xffffff, alpha: (sparkPhase - 0.70) * 3.0 });
+            }
+          }
+        }
+      }
+    }
+
+    // プレイヤーが川に入っている時の足元波紋リング (Ripple)
+    const surface = this.getSurfaceAt(this.playerState.x, this.playerState.y);
+    if (surface === 'water') {
+      const rippleR = 8 + (Math.sin(t * 6) + 1) * 5;
+      const rippleAlpha = 0.6 - (rippleR - 8) / 14;
+      this.waterFlowGraphics
+        .ellipse(this.playerState.x, this.playerState.y, rippleR, rippleR * 0.45)
+        .stroke({ color: 0xe0f2fe, width: 1.2, alpha: Math.max(0.1, rippleAlpha) });
+    }
+  }
+
+  // 🏛️ 建物・街路樹の静的接地影：ワールド変更時・配置時のみ描画し毎フレーム走査を完全排除！
+  public renderStaticShadows(world?: AirasWorldData, assets?: Record<string, AirasAsset>) {
+    const w = world || this.currentWorld;
+    const a = assets || this.currentAssets;
+    if (!w || !a) return;
+    this.staticShadowGraphics.clear();
+
+    for (const ent of Object.values(w.entities)) {
+      if (ent.id === this.playerState.drivingEntityId) continue;
+      const asset = a[ent.assetId];
+      if (!asset || asset.category === 'tile') continue;
+      const ex = ent.position.x;
+      const ey = ent.position.y;
+      const sw = Math.min(48, Math.max(16, asset.sprite.width * 0.5));
+      const sh = sw * 0.32;
+      this.staticShadowGraphics
+        .ellipse(ex, ey, sw, sh)
+        .fill({ color: 0x020617, alpha: 0.32 });
+    }
+  }
+
+  // 👤 プレイヤーの指向性投影影のみ毎フレーム描画（最寄り街灯のみ超高速参照・CPU負荷激減）
+  private renderDynamicShadows() {
+    if (!this.currentWorld) return;
+    this.shadowGraphics.clear();
+
+    const px = this.playerState.x;
+    const py = this.playerState.y;
+
+    if (this.playerState.isDriving) {
+      const isHorizontal = this.playerState.direction === 'left' || this.playerState.direction === 'right';
+      this.shadowGraphics
+        .ellipse(px, py, isHorizontal ? 44 : 26, isHorizontal ? 10 : 16)
+        .fill({ color: 0x000000, alpha: 0.5 });
+      return;
+    }
+
+    const floorZ = this.getElevatedFloorZ(px, py);
+    const airHeight = Math.max(0, this.playerState.z - floorZ);
+    const shadowScale = Math.max(0.35, 1 - airHeight / 180);
+
+    // 最寄りの街灯探索 (260px以内)
+    let nearestLight: { x: number; y: number; dist: number } | null = null;
+    let minDist = 260;
+
+    for (const ent of Object.values(this.currentWorld.entities)) {
+      if (ent.assetId.includes('lamp') || ent.assetId.includes('light') || ent.assetId.includes('vending')) {
+        const d = Math.hypot(ent.position.x - px, ent.position.y - py);
+        if (d < minDist) {
+          minDist = d;
+          nearestLight = { x: ent.position.x, y: ent.position.y, dist: d };
+        }
+      }
+    }
+
+    if (nearestLight) {
+      const ldx = px - nearestLight.x;
+      const ldy = py - nearestLight.y;
+      const angle = Math.atan2(ldy, ldx);
+      const distRatio = Math.min(1.0, nearestLight.dist / 220);
+      const shadowLen = (14 + distRatio * 28) * shadowScale;
+      const tipX = px + Math.cos(angle) * shadowLen;
+      const tipY = py + Math.sin(angle) * shadowLen * 0.45;
+      const shadowAlpha = Math.max(0.2, (1.0 - distRatio * 0.55)) * 0.55 * shadowScale;
+
+      this.shadowGraphics
+        .ellipse((px + tipX) / 2, (py + tipY) / 2, shadowLen * 0.55, 5 * shadowScale)
+        .fill({ color: 0x050a14, alpha: shadowAlpha });
+    } else {
+      const envAngle = this.currentWeather === 'sunset' ? 0.65 : 0.4;
+      const shadowLen = (this.currentWeather === 'sunset' ? 26 : 14) * shadowScale;
+      const tipX = px + Math.cos(envAngle) * shadowLen;
+      const tipY = py + Math.sin(envAngle) * shadowLen * 0.5;
+
+      this.shadowGraphics
+        .ellipse((px + tipX) / 2, (py + tipY) / 2, shadowLen * 0.55, 4.5 * shadowScale)
+        .fill({ color: 0x050a14, alpha: 0.38 * shadowScale });
+    }
+  }
+
+  // 💡 街灯・自販機・喫茶店の静的環境光：天候・配置変更時のみ描画
+  public renderStaticLighting(world?: AirasWorldData) {
+    const w = world || this.currentWorld;
+    if (!w) return;
+    this.staticLightingGraphics.clear();
+
+    const weather = this.currentWeather;
+    const isDarkWeather = weather === 'sunset' || weather === 'rain' || weather === 'heavy_rain' || weather === 'typhoon';
+    if (!isDarkWeather) return;
+
+    for (const ent of Object.values(w.entities)) {
+      if (ent.assetId.includes('lamp') || ent.assetId.includes('light')) {
+        const lx = ent.position.x;
+        const ly = ent.position.y - 18;
+        this.staticLightingGraphics
+          .circle(lx, ly, 30).fill({ color: 0xffedd5, alpha: 0.32 })
+          .circle(lx, ly, 75).fill({ color: 0xfde047, alpha: 0.18 })
+          .circle(lx, ly, 135).fill({ color: 0xf59e0b, alpha: 0.08 });
+      }
+
+      if (ent.assetId.includes('vending')) {
+        const vx = ent.position.x;
+        const vy = ent.position.y - 12;
+        this.staticLightingGraphics.circle(vx, vy, 45).fill({ color: 0x38bdf8, alpha: 0.18 });
+      }
+
+      if (ent.assetId.includes('cafe')) {
+        const cx = ent.position.x;
+        const cy = ent.position.y;
+        this.staticLightingGraphics.circle(cx, cy, 90).fill({ color: 0xfbbf24, alpha: 0.14 });
+      }
+    }
+  }
+
+  // 🔦 プレイヤーの足元ランタンのみ毎フレーム描画 (CPU使用率ほぼ0.0%)
+  private renderLighting() {
+    this.lightingGraphics.clear();
+    const weather = this.currentWeather;
+    const isDarkWeather = weather === 'sunset' || weather === 'rain' || weather === 'heavy_rain' || weather === 'typhoon';
+    if (!isDarkWeather) return;
+
+    this.lightingGraphics
+      .circle(this.playerState.x, this.playerState.y - 10, 52)
+      .fill({ color: 0xfef08a, alpha: 0.15 });
+  }
+
+  // ⚡ 落雷ホワイトフラッシュの更新
+  public triggerThunderFlash() {
+    this.thunderFlashTimer = 0.40;
+    audioManager.playThunder(false);
+  }
+
+  private updateThunderFlash(dt: number) {
+    this.thunderFlashGraphics.clear();
+    if (this.thunderFlashTimer <= 0) return;
+
+    this.thunderFlashTimer -= dt;
+    const alpha = Math.min(0.85, this.thunderFlashTimer * 2.5);
+
+    // 画面全体を覆う強烈な落雷閃光
+    this.thunderFlashGraphics
+      .rect(-2000, -2000, 6000, 6000)
+      .fill({ color: 0xffffff, alpha });
+  }
+
+  // 🌧️ 天候レンダリング（雨・大雨・台風・雪・落雷）
+  private renderWeather(weather: WeatherType, dt: number = 0.016) {
+    if (weather === 'clear') {
+      if (this.lastRenderedWeather !== 'clear') {
+        this.weatherGraphics.clear();
+        this.lastRenderedWeather = 'clear';
+      }
+      return;
+    }
+
+    if (weather === 'sunset') {
+      if (this.lastRenderedWeather !== 'sunset') {
+        this.weatherGraphics.clear();
+        this.weatherGraphics
+          .rect(-2000, -2000, 6000, 6000)
+          .fill({ color: 0xf97316, alpha: 0.16 });
+        this.lastRenderedWeather = 'sunset';
+      }
+      return;
+    }
+
+    this.lastRenderedWeather = weather;
     this.weatherGraphics.clear();
-    if (weather === 'clear') return;
+
+    const particles = this.isLowPerformanceMode
+      ? this.weatherParticles.slice(0, 45)
+      : this.weatherParticles;
 
     if (weather === 'rain') {
-      for (const p of this.weatherParticles) {
+      // しとしと雨
+      for (const p of particles) {
         p.y += p.speed;
-        p.x -= p.speed * 0.3;
-        if (p.y > 1100) p.y = -50;
-        if (p.x < -200) p.x = 2200;
+        p.x -= p.speed * 0.25;
+        if (p.y > 1200) p.y = -50;
+        if (p.x < -300) p.x = 2400;
 
         this.weatherGraphics
           .moveTo(p.x, p.y)
           .lineTo(p.x - 3, p.y + p.length)
-          .stroke({ color: 0x93c5fd, width: 1.5, alpha: 0.55 });
+          .stroke({ color: 0x93c5fd, width: 1.4, alpha: 0.55 });
       }
+    } else if (weather === 'heavy_rain') {
+      // ⛈️ 大雨（激しい雨足）
+      this.weatherGraphics
+        .rect(-2000, -2000, 6000, 6000)
+        .fill({ color: 0x0f172a, alpha: 0.22 }); // 薄暗い雨空
+
+      for (const p of particles) {
+        p.y += p.speed * 1.55;
+        p.x -= p.speed * 0.65;
+        if (p.y > 1200) p.y = -50;
+        if (p.x < -300) p.x = 2400;
+
+        this.weatherGraphics
+          .moveTo(p.x, p.y)
+          .lineTo(p.x - 7, p.y + p.length * 1.5)
+          .stroke({ color: 0xa5b4fc, width: 2.0, alpha: 0.72 });
+      }
+    } else if (weather === 'typhoon') {
+      // 🌀 台風（暴風・超大雨・突風・落雷）
+      this.weatherGraphics
+        .rect(-2000, -2000, 6000, 6000)
+        .fill({ color: 0x030712, alpha: 0.42 }); // 荒れ狂う暗黒空
+
+      // 台風時の不定期落雷フラッシュトリガー（毎秒約1.5%確率）
+      if (Math.random() < 0.008) {
+        this.triggerThunderFlash();
+      }
+
+      for (const p of particles) {
+        p.y += p.speed * 1.85;
+        p.x -= p.speed * 1.45; // 強烈な横殴りの風
+        if (p.y > 1200) p.y = -50;
+        if (p.x < -300) p.x = 2400;
+
+        this.weatherGraphics
+          .moveTo(p.x, p.y)
+          .lineTo(p.x - 14, p.y + p.length * 1.8)
+          .stroke({ color: 0xc7d2fe, width: 2.4, alpha: 0.85 });
+      }
+
+      // 唸る風のうねりライン
+      const windY1 = (this.waterAnimationTime * 180) % 1000;
+      this.weatherGraphics
+        .moveTo(2200, windY1)
+        .lineTo(-200, windY1 + 120)
+        .stroke({ color: 0xffffff, width: 1.5, alpha: 0.22 });
     } else if (weather === 'snow') {
-      for (const p of this.weatherParticles) {
+      for (const p of particles) {
         p.y += p.speed * 0.4;
         p.x += Math.sin(p.y * 0.05) * 0.8;
-        if (p.y > 1100) p.y = -50;
-        if (p.x < -200) p.x = 2200;
+        if (p.y > 1200) p.y = -50;
+        if (p.x < -300) p.x = 2400;
 
         this.weatherGraphics
           .circle(p.x, p.y, 2)
           .fill({ color: 0xffffff, alpha: 0.75 });
       }
-    } else if (weather === 'sunset') {
-      this.weatherGraphics
-        .rect(-1000, -1000, 4000, 3000)
-        .fill({ color: 0xf97316, alpha: 0.16 });
     }
   }
 
@@ -969,6 +1445,9 @@ export class PixiWorldRenderer implements IRenderer {
     let hasMovedSignificantly = false;
 
     canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+      // 確実なキーボード入力受付のためCanvasにフォーカス
+      canvas.focus();
+
       pointerDownPos = { x: e.clientX, y: e.clientY };
       hasMovedSignificantly = false;
 
@@ -1073,6 +1552,8 @@ export class PixiWorldRenderer implements IRenderer {
         if (this.draggingEntityId) {
           this.onEntityClick?.(this.draggingEntityId);
         } else {
+          // 🎯 地面をクリック・タップした時は目的地へ自動歩行！
+          this.targetMovePos = { x: Math.round(worldPos.x), y: Math.round(worldPos.y) };
           this.onMapClick?.(worldPos.x, worldPos.y);
         }
       }

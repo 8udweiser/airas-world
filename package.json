@@ -12,6 +12,7 @@
     "clsx": "^2.1.1",
     "idb-keyval": "^6.2.1",
     "lucide-react": "^1.16.0",
+    "peerjs": "^1.5.5",
     "pixi.js": "^8.6.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

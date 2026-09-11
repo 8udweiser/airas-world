@@ -4,6 +4,65 @@ function svgToUri(svg: string): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
 }
 
+// 🌊 川の水タイル (32x32)
+const waterTileSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+  <rect x="0" y="0" width="32" height="32" fill="#0284c7" />
+  <rect x="0" y="0" width="32" height="32" fill="#0369a1" opacity="0.4" />
+  <path d="M2,6 Q10,2 18,6 T32,6" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.75" />
+  <path d="M0,16 Q8,12 16,16 T30,16" fill="none" stroke="#7dd3fc" stroke-width="1.2" opacity="0.85" />
+  <path d="M4,26 Q12,22 20,26 T32,26" fill="none" stroke="#38bdf8" stroke-width="1" opacity="0.7" />
+  <circle cx="8" cy="14" r="1" fill="#ffffff" opacity="0.6" />
+  <circle cx="24" cy="24" r="1" fill="#ffffff" opacity="0.5" />
+  <circle cx="18" cy="4" r="1.2" fill="#bae6fd" opacity="0.7" />
+</svg>`;
+
+// 🪣 空のブリキバケツ (32x32)
+const bucketEmptySvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+  <ellipse cx="16" cy="27" rx="9" ry="3" fill="rgba(0,0,0,0.35)" />
+  <polygon points="7,10 25,10 22,25 10,25" fill="#64748b" />
+  <polygon points="8,11 24,11 21,24 11,24" fill="#94a3b8" />
+  <ellipse cx="16" cy="10" rx="9" ry="2.5" fill="#475569" />
+  <ellipse cx="16" cy="10" rx="8" ry="2" fill="#334155" />
+  <path d="M8,10 C8,3 24,3 24,10" fill="none" stroke="#cbd5e1" stroke-width="1.5" />
+  <circle cx="16" cy="4" r="2" fill="#e2e8f0" />
+</svg>`;
+
+// 🌊 水入りバケツ (32x32)
+const bucketWaterSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+  <ellipse cx="16" cy="27" rx="9" ry="3" fill="rgba(0,0,0,0.35)" />
+  <polygon points="7,10 25,10 22,25 10,25" fill="#64748b" />
+  <polygon points="8,11 24,11 21,24 11,24" fill="#94a3b8" />
+  <ellipse cx="16" cy="10" rx="9" ry="2.5" fill="#0284c7" />
+  <ellipse cx="16" cy="10" rx="8" ry="2" fill="#38bdf8" />
+  <circle cx="14" cy="9.5" r="1.5" fill="#ffffff" opacity="0.9" />
+  <path d="M8,10 C8,3 24,3 24,10" fill="none" stroke="#cbd5e1" stroke-width="1.5" />
+  <circle cx="16" cy="4" r="2" fill="#e2e8f0" />
+</svg>`;
+
+// 🛏️ 昭和レトロダブルベッド (48x44)
+const doubleBedSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 44" shape-rendering="crispEdges">
+  <ellipse cx="24" cy="41" rx="21" ry="3" fill="rgba(0,0,0,0.35)" />
+  <rect x="4" y="6" width="40" height="12" fill="#78350f" rx="1" />
+  <rect x="6" y="8" width="36" height="8" fill="#92400e" />
+  <rect x="5" y="14" width="38" height="26" fill="#451a03" />
+  <rect x="6" y="15" width="36" height="24" fill="#f8fafc" />
+  <rect x="8" y="10" width="13" height="8" fill="#e2e8f0" rx="2" />
+  <rect x="9" y="11" width="11" height="6" fill="#ffffff" rx="1" />
+  <rect x="27" y="10" width="13" height="8" fill="#e2e8f0" rx="2" />
+  <rect x="28" y="11" width="11" height="6" fill="#ffffff" rx="1" />
+  <rect x="6" y="20" width="36" height="20" fill="#38bdf8" rx="1" />
+  <rect x="7" y="21" width="34" height="18" fill="#60a5fa" />
+  <line x1="6" y1="26" x2="42" y2="26" stroke="#2563eb" stroke-width="1" />
+  <line x1="6" y1="32" x2="42" y2="32" stroke="#2563eb" stroke-width="1" />
+  <line x1="18" y1="20" x2="18" y2="40" stroke="#2563eb" stroke-width="1" />
+  <line x1="30" y1="20" x2="30" y2="40" stroke="#2563eb" stroke-width="1" />
+  <rect x="6" y="19" width="36" height="4" fill="#eff6ff" />
+</svg>`;
+
 // 1. 高精細 昭和レトロ赤い自販機 (32x56)
 const vendingMachineSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 56" shape-rendering="crispEdges">
@@ -619,7 +678,7 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
   // ランボルギーニ・ウラカン (乗車可能なスーパーカー)
   vehicle_lamborghini: {
     id: 'vehicle_lamborghini',
-    name: 'ランボルギーニ・ウラカン',
+    name: '黄色いランボルギーニ',
     type: 'object',
     category: 'vehicle',
     sprite: {
@@ -959,5 +1018,83 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
     collision: { enabled: false, type: 'none', offsetX: 0, offsetY: 0, width: 0, height: 0 },
     depth: { enabled: false, offsetY: 0 },
     metadata: { tags: ['草地', '自然'], createdAt: Date.now(), source: 'preset' },
+  },
+
+  // 🌊 超リアルな川・清流タイル
+  tile_water: {
+    id: 'tile_water',
+    name: '川・清流の水面',
+    type: 'tile',
+    category: 'tile',
+    sprite: {
+      url: svgToUri(waterTileSvg),
+      width: 32,
+      height: 32,
+      pixelArt: true,
+    },
+    anchor: { x: 0, y: 0 },
+    collision: { enabled: false, type: 'none', offsetX: 0, offsetY: 0, width: 0, height: 0 },
+    depth: { enabled: false, offsetY: 0 },
+    metadata: { tags: ['川', '水', '清流', '自然'], createdAt: Date.now(), source: 'preset' },
+  },
+
+  // 🪣 空のバケツ (水を汲むツール)
+  tool_bucket_empty: {
+    id: 'tool_bucket_empty',
+    name: '空のブリキバケツ',
+    type: 'object',
+    category: 'item',
+    sprite: {
+      url: svgToUri(bucketEmptySvg),
+      width: 32,
+      height: 32,
+      pixelArt: true,
+    },
+    anchor: { x: 16, y: 28 },
+    collision: { enabled: false, type: 'none', offsetX: 0, offsetY: 0, width: 0, height: 0 },
+    depth: { enabled: true, offsetY: 0 },
+    metadata: { tags: ['バケツ', '道具', '水汲み'], createdAt: Date.now(), source: 'preset' },
+  },
+
+  // 🌊 水入りバケツ (水を流して川を作るツール)
+  tool_bucket_water: {
+    id: 'tool_bucket_water',
+    name: '水入りバケツ',
+    type: 'object',
+    category: 'item',
+    sprite: {
+      url: svgToUri(bucketWaterSvg),
+      width: 32,
+      height: 32,
+      pixelArt: true,
+    },
+    anchor: { x: 16, y: 28 },
+    collision: { enabled: false, type: 'none', offsetX: 0, offsetY: 0, width: 0, height: 0 },
+    depth: { enabled: true, offsetY: 0 },
+    metadata: { tags: ['バケツ', '川作り', '水'], createdAt: Date.now(), source: 'preset' },
+  },
+
+  // 🛏️ ふかふかダブルベッド (一緒に寝られる)
+  furniture_bed_double: {
+    id: 'furniture_bed_double',
+    name: '昭和レトロなふかふかダブルベッド',
+    type: 'object',
+    category: 'furniture',
+    sprite: {
+      url: svgToUri(doubleBedSvg),
+      width: 48,
+      height: 44,
+      pixelArt: true,
+    },
+    anchor: { x: 24, y: 38 },
+    collision: { enabled: true, type: 'box', offsetX: 4, offsetY: 12, width: 40, height: 26 },
+    depth: { enabled: true, offsetY: 0 },
+    interactions: [
+      {
+        type: 'sleep',
+        label: '一緒にベッドで寝る',
+      },
+    ],
+    metadata: { tags: ['家具', 'ベッド', '寝る', 'マイホーム'], createdAt: Date.now(), source: 'preset' },
   },
 };

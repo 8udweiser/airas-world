@@ -168,6 +168,8 @@ export class ChangeWeatherCommand implements IWorldCommand {
     const names: Record<WeatherType, string> = {
       clear: '快晴',
       rain: '雨',
+      heavy_rain: '大雨',
+      typhoon: '台風（超大雨・落雷）',
       snow: '雪',
       fog: '霧',
       sunset: '夕焼け',
