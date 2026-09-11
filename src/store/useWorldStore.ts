@@ -6,6 +6,7 @@ import { createInitialWorld } from '../core/world/initialWorld';
 import { CommandManager } from '../core/commands/CommandManager';
 import { IWorldCommand, SerializedCommand } from '../core/types/command';
 import { ChangeWeatherCommand, MoveObjectCommand, DeleteObjectCommand, CreateObjectCommand } from '../core/commands/WorldCommands';
+import { WorldStorage } from '../core/storage/WorldStorage';
 
 interface WorldStoreState {
   world: AirasWorldData;
@@ -49,6 +50,12 @@ interface WorldStoreState {
 
   // アセット登録
   registerAsset: (asset: AirasAsset) => void;
+
+  // 保存・復元・リセット
+  isSaveLoaded: boolean;
+  loadSavedWorld: (worldData: AirasWorldData) => void;
+  resetWorldToDefault: () => Promise<void>;
+  importWorldData: (worldData: AirasWorldData) => void;
 }
 
 const initialCommandManager = new CommandManager();
@@ -74,6 +81,7 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
     canRedo: false,
     undoHistory: [],
     redoHistory: [],
+    isSaveLoaded: false,
 
     executeCommand: (cmd: IWorldCommand) => {
       const { world, commandManager } = get();
@@ -86,6 +94,7 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
       const res = commandManager.execute(cmd, newWorld);
       if (res.success) {
         set({ world: newWorld });
+        WorldStorage.scheduleAutoSave(newWorld);
         return true;
       }
       return false;
@@ -101,6 +110,7 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
       const res = commandManager.undo(newWorld);
       if (res.success) {
         set({ world: newWorld });
+        WorldStorage.scheduleAutoSave(newWorld);
         return true;
       }
       return false;
@@ -116,6 +126,7 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
       const res = commandManager.redo(newWorld);
       if (res.success) {
         set({ world: newWorld });
+        WorldStorage.scheduleAutoSave(newWorld);
         return true;
       }
       return false;
@@ -316,15 +327,16 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
         },
       };
 
-      set({
-        world: {
-          ...world,
-          map: {
-            ...world.map,
-            chunks: newChunks,
-          },
+      const newWorld = {
+        ...world,
+        map: {
+          ...world.map,
+          chunks: newChunks,
         },
-      });
+      };
+
+      set({ world: newWorld });
+      WorldStorage.scheduleAutoSave(newWorld);
       return true;
     },
 
@@ -336,5 +348,42 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
         },
       }));
     },
+
+    loadSavedWorld: (worldData: AirasWorldData) => {
+      set({
+        world: worldData,
+        isSaveLoaded: true,
+      });
+    },
+
+    resetWorldToDefault: async () => {
+      await WorldStorage.clearLocalWorld();
+      const freshWorld = createInitialWorld();
+      set({
+        world: freshWorld,
+        canUndo: false,
+        canRedo: false,
+        undoHistory: [],
+        redoHistory: [],
+      });
+    },
+
+    importWorldData: (worldData: AirasWorldData) => {
+      set({
+        world: worldData,
+      });
+      WorldStorage.scheduleAutoSave(worldData);
+    },
   };
 });
+
+// アプリ起動時にローカル保存データを自動復元
+if (typeof window !== 'undefined') {
+  WorldStorage.loadLocalWorld().then((saved) => {
+    if (saved) {
+      useWorldStore.getState().loadSavedWorld(saved);
+    } else {
+      useWorldStore.setState({ isSaveLoaded: true });
+    }
+  });
+}

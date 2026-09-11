@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { X, Smartphone, Monitor, Globe, Home, Bed, MessageSquare, Copy, Check, QrCode, Sparkles } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Smartphone, Monitor, Globe, Home, Bed, MessageSquare, Copy, Check, QrCode, Sparkles, Download, Upload, RotateCcw, Share2, Save, HardDrive } from 'lucide-react';
+import { useWorldStore } from '../../store/useWorldStore';
+import { WorldStorage } from '../../core/storage/WorldStorage';
 
 interface PortalLandingModalProps {
   isOpen: boolean;
@@ -9,6 +11,11 @@ interface PortalLandingModalProps {
 
 export const PortalLandingModal: React.FC<PortalLandingModalProps> = ({ isOpen, onClose }) => {
   const [copied, setCopied] = useState(false);
+  const [lineCopied, setLineCopied] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { world, importWorldData, resetWorldToDefault } = useWorldStore();
 
   if (!isOpen) return null;
 
@@ -22,6 +29,54 @@ export const PortalLandingModal: React.FC<PortalLandingModalProps> = ({ isOpen, 
       navigator.clipboard.writeText(mobileAccessUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
+  const handleLineShare = () => {
+    const shareText = `Airas（アイラス）の私のワールドに遊びに来てね！\n${mobileAccessUrl}`;
+    const lineUrl = `https://line.me/R/msg/text/?${encodeURIComponent(shareText)}`;
+    window.open(lineUrl, '_blank');
+  };
+
+  const handleSaveNow = async () => {
+    const ok = await WorldStorage.saveImmediate(world);
+    if (ok) {
+      setSaveStatus('ブラウザ内(IndexedDB)に保存しました！');
+      setTimeout(() => setSaveStatus(null), 3000);
+    }
+  };
+
+  const handleExport = () => {
+    WorldStorage.exportToJson(world);
+    setSaveStatus('ワールドデータをJSONとしてダウンロードしました！');
+    setTimeout(() => setSaveStatus(null), 3000);
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      const parsed = WorldStorage.parseFromJson(content);
+      if (parsed) {
+        importWorldData(parsed);
+        setSaveStatus('ワールドデータを正常に読み込みました！');
+        setTimeout(() => setSaveStatus(null), 3000);
+      } else {
+        alert('無効なワールドJSONファイルです。');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleResetWorld = async () => {
+    if (window.confirm('現在のオブジェクト配置や川を初期状態にリセットしますか？\n（元に戻せなくなります）')) {
+      await resetWorldToDefault();
+      setSaveStatus('初期ワールドにリセットしました。');
+      setTimeout(() => setSaveStatus(null), 3000);
     }
   };
 
@@ -100,8 +155,90 @@ export const PortalLandingModal: React.FC<PortalLandingModalProps> = ({ isOpen, 
               <div className="text-[10px] text-slate-400">
                 LAN内IP: <span className="font-mono text-slate-300">192.168.0.16</span> | ポート: <span className="font-mono text-slate-300">5173</span>
               </div>
+
+              {/* 🟢 LINEで友達を招待ボタン */}
+              <div className="pt-1">
+                <button
+                  onClick={handleLineShare}
+                  className="w-full py-2 px-3 rounded-xl bg-[#06C755]/30 hover:bg-[#06C755]/50 border border-[#06C755]/60 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer shadow-lg"
+                >
+                  <Share2 className="w-4 h-4 text-[#06C755]" />
+                  <span>LINEの友達・トークに招待URLを送る</span>
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+
+        {/* 💾 オブジェクト・家の保存 ＆ 友達の家読み込み (IndexedDB / JSON) */}
+        <div className="p-4 md:p-5 rounded-2xl bg-gradient-to-r from-slate-900/90 to-cyan-950/50 border border-cyan-500/30 space-y-3.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-sm text-cyan-200">
+              <HardDrive className="w-4 h-4 text-cyan-400" />
+              <span>マイホーム（オブジェクト・川）の保存 ＆ 共有</span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 text-[10px] font-mono font-bold">
+              オブジェクト: {Object.keys(world.entities).length}件
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-300 leading-relaxed">
+            配置した家具・車・掘った川などは、<span className="text-cyan-300 font-bold">ブラウザ内（IndexedDB）に自動保存</span>され、リロードしてもそのまま残ります。
+            JSONファイルとして保存すれば、友達に渡してあなたの家に遊びに来てもらうこともできます。
+          </p>
+
+          {/* セーブ操作ボタングリッド */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            {/* 今すぐ保存 */}
+            <button
+              onClick={handleSaveNow}
+              className="px-3 py-2.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-400/40 text-xs font-bold text-cyan-100 flex flex-col items-center gap-1 transition-all active:scale-95 cursor-pointer shadow"
+            >
+              <Save className="w-4 h-4 text-cyan-300" />
+              <span>今すぐ手動保存</span>
+            </button>
+
+            {/* JSONエクスポート */}
+            <button
+              onClick={handleExport}
+              className="px-3 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-white/20 text-xs font-bold text-slate-200 flex flex-col items-center gap-1 transition-all active:scale-95 cursor-pointer shadow"
+            >
+              <Download className="w-4 h-4 text-amber-300" />
+              <span>JSONファイル保存</span>
+            </button>
+
+            {/* JSONインポート */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-white/20 text-xs font-bold text-slate-200 flex flex-col items-center gap-1 transition-all active:scale-95 cursor-pointer shadow"
+            >
+              <Upload className="w-4 h-4 text-emerald-300" />
+              <span>友達の家を読込</span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+
+            {/* 初期化リセット */}
+            <button
+              onClick={handleResetWorld}
+              className="px-3 py-2.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/50 border border-rose-500/30 text-xs font-bold text-rose-200 flex flex-col items-center gap-1 transition-all active:scale-95 cursor-pointer shadow"
+            >
+              <RotateCcw className="w-4 h-4 text-rose-400" />
+              <span>初期ワールドに戻す</span>
+            </button>
+          </div>
+
+          {/* 通知トースト */}
+          {saveStatus && (
+            <div className="p-2 rounded-xl bg-cyan-950/90 border border-cyan-400/60 text-cyan-200 text-xs text-center font-bold animate-in fade-in zoom-in duration-200">
+              {saveStatus}
+            </div>
+          )}
         </div>
 
         {/* 🌟 将来の全プラットフォーム展開 */}

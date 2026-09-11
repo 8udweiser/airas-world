@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Send, X } from 'lucide-react';
+import { MessageSquare, Send, X, Trash2 } from 'lucide-react';
 import { multiplayerManager, RemotePlayerInfo } from '../../core/multiplayer/MultiplayerManager';
+import { ChatStorage, SavedChatMessage } from '../../core/storage/ChatStorage';
 
 import { PixiWorldRenderer } from '../../renderer/pixi/PixiWorldRenderer';
 import { SpeechBubble } from './SpeechBubble';
@@ -147,24 +148,33 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<SavedChatMessage[]>([]);
   const [myBubble, setMyBubble] = useState<{ text: string; time: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 起動時にIndexedDBから過去ログをロード
+  useEffect(() => {
+    ChatStorage.loadChatHistory().then((history) => {
+      if (history.length > 0) {
+        setMessages(history);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     multiplayerManager.onChatReceived = (senderName, text) => {
       const now = new Date();
       const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      setMessages((prev) => [
-        ...prev.slice(-40),
-        {
-          id: `${Date.now()}_${Math.random()}`,
-          sender: senderName,
-          text,
-          isSelf: false,
-          time: timeStr,
-        },
-      ]);
+      const newMsg: SavedChatMessage = {
+        id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        sender: senderName,
+        text,
+        isSelf: false,
+        time: timeStr,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev.slice(-100), newMsg]);
+      ChatStorage.saveMessage(newMsg);
     };
   }, []);
 
@@ -183,20 +193,27 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
 
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const newMsg: SavedChatMessage = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      sender: multiplayerManager.myName,
+      text,
+      isSelf: true,
+      time: timeStr,
+      timestamp: Date.now(),
+    };
 
-    setMessages((prev) => [
-      ...prev.slice(-40),
-      {
-        id: `${Date.now()}_${Math.random()}`,
-        sender: multiplayerManager.myName,
-        text,
-        isSelf: true,
-        time: timeStr,
-      },
-    ]);
+    setMessages((prev) => [...prev.slice(-100), newMsg]);
+    ChatStorage.saveMessage(newMsg);
 
     setMyBubble({ text, time: Date.now() });
     setInputText('');
+  };
+
+  const handleClearHistory = async () => {
+    if (window.confirm('チャット履歴を消去しますか？')) {
+      await ChatStorage.clearChatHistory();
+      setMessages([]);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -258,19 +275,38 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
                 <span className="text-[10px] text-slate-400">
                   ({multiplayerManager.myName})
                 </span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  端末保存
+                </span>
               </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                onTouchEnd={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsOpen(false);
-                }}
-                className="p-2 rounded-xl hover:bg-white/15 text-slate-400 hover:text-white transition-all cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center"
-                title="閉じる"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                {messages.length > 0 && (
+                  <button
+                    onClick={handleClearHistory}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleClearHistory();
+                    }}
+                    className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 transition-all cursor-pointer"
+                    title="チャット履歴を消去"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsOpen(false)}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsOpen(false);
+                  }}
+                  className="p-1.5 rounded-xl hover:bg-white/15 text-slate-400 hover:text-white transition-all cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center"
+                  title="閉じる"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* チャット履歴 */}
