@@ -1601,29 +1601,29 @@ export class PixiWorldRenderer implements IRenderer {
       // 時間帯によって宵の口から真夜中、夜明け前へと自然に暗さが変化
       baseColor = 0x070c1b; // 深みのある澄んだミッドナイトインディゴ
       if (time >= 19.0 && time < 21.0) {
-        // 宵の口 (19:00〜21:00): 0.22 〜 0.38 へ徐々に深まる
+        // 宵の口 (19:00〜21:00): 0.25 〜 0.52 へ徐々に深まる
         const progress = (time - 19.0) / 2.0;
-        baseAlpha = 0.22 + progress * 0.16;
+        baseAlpha = 0.25 + progress * 0.27;
       } else if (time >= 21.0 || time < 3.5) {
-        // 真夜中 (21:00〜3:30): しっかりとした夜の静けさと街灯が美しく映えるムードの深み
-        // ドット絵の視認性を保ちながらコントラストとロマンチックな雰囲気が最高潮に
-        baseAlpha = 0.42;
+        // 真夜中 (21:00〜3:30): 静けさとロマンチックなムードが漂う深みのある夜空
+        // ドット絵がくっきり見えつつ、街灯やネオンが最高に美しく映える黄金比率
+        baseAlpha = 0.52;
       } else {
-        // 明け方前 (3:30〜4:30): 0.42 から 0.18 へ徐々に明るくなる
+        // 明け方前 (3:30〜4:30): 0.52 から 0.20 へ徐々に明るくなる
         const progress = (time - 3.5) / 1.0;
-        baseAlpha = 0.42 - progress * 0.24;
+        baseAlpha = 0.52 - progress * 0.32;
       }
     }
 
     // 悪天候による微補正（暗すぎないよう調整）
     if (weather === 'rain') {
-      baseAlpha = Math.min(0.28, baseAlpha + 0.08);
+      baseAlpha = Math.min(0.35, baseAlpha + 0.08);
       baseColor = 0x1e293b;
     } else if (weather === 'heavy_rain' || weather === 'typhoon') {
-      baseAlpha = Math.min(0.38, baseAlpha + 0.14);
+      baseAlpha = Math.min(0.48, baseAlpha + 0.14);
       baseColor = 0x0f172a;
     } else if (weather === 'fog') {
-      baseAlpha = Math.min(0.20, baseAlpha + 0.06);
+      baseAlpha = Math.min(0.25, baseAlpha + 0.06);
       baseColor = 0x64748b;
     }
 
@@ -1650,39 +1650,40 @@ export class PixiWorldRenderer implements IRenderer {
     for (const ent of Object.values(w.entities)) {
       const assetId = ent.assetId.toLowerCase();
 
-      // 1. 街灯：電球の温かい光 ＆ 足元の柔らかな照り返しグラデーション
+      // 1. 街灯：電球の温かい光 ＆ 足元の柔らかな3段照り返しグラデーション
       if (assetId.includes('lamp') || assetId.includes('light')) {
         const lx = ent.position.x;
         const ly = ent.position.y - 18;
 
         // 電球部分の温光（中心は明るく、外側へ滑らかにフェード）
         this.staticLightingGraphics
-          .circle(lx, ly, 6).fill({ color: 0xfffbeb, alpha: 0.50 })
-          .circle(lx, ly, 14).fill({ color: 0xfef08a, alpha: 0.25 })
-          .circle(lx, ly, 28).fill({ color: 0xf59e0b, alpha: 0.10 })
+          .circle(lx, ly, 6).fill({ color: 0xfffbeb, alpha: 0.55 })
+          .circle(lx, ly, 14).fill({ color: 0xfef08a, alpha: 0.28 })
+          .circle(lx, ly, 28).fill({ color: 0xf59e0b, alpha: 0.12 })
           .circle(lx, ly, 46).fill({ color: 0xd97706, alpha: 0.03 });
 
         // 足元の地面への照り返し（夜の街灯の下に立っている感覚を演出）
         const groundY = ent.position.y + 12;
         this.staticLightingGraphics
-          .ellipse(lx, groundY, 24, 10).fill({ color: 0xfef08a, alpha: 0.14 })
-          .ellipse(lx, groundY, 42, 16).fill({ color: 0xf59e0b, alpha: 0.05 });
+          .ellipse(lx, groundY, 24, 10).fill({ color: 0xfef08a, alpha: 0.18 })
+          .ellipse(lx, groundY, 44, 18).fill({ color: 0xf59e0b, alpha: 0.07 })
+          .ellipse(lx, groundY, 64, 26).fill({ color: 0xd97706, alpha: 0.02 });
       }
       // 2. 🥤 自販機 (vending): 夜道に浮かぶクールでエモい電光パネルの明かり
       else if (assetId.includes('vending')) {
         const vx = ent.position.x;
         const vy = ent.position.y + 12;
         this.staticLightingGraphics
-          .ellipse(vx, vy, 18, 8).fill({ color: 0xbae6fd, alpha: 0.12 })
-          .ellipse(vx, vy, 32, 14).fill({ color: 0x38bdf8, alpha: 0.04 });
+          .ellipse(vx, vy, 20, 9).fill({ color: 0xbae6fd, alpha: 0.15 })
+          .ellipse(vx, vy, 36, 16).fill({ color: 0x38bdf8, alpha: 0.05 });
       }
       // 3. ☕ 喫茶店・カフェ・住宅: 窓辺から漏れる温もりあるオレンジ光
       else if (assetId.includes('cafe') || assetId.includes('coffee') || assetId.includes('house') || assetId.includes('shop')) {
         const hx = ent.position.x;
         const hy = ent.position.y + 16;
         this.staticLightingGraphics
-          .ellipse(hx, hy, 28, 12).fill({ color: 0xfef08a, alpha: 0.10 })
-          .ellipse(hx, hy, 46, 18).fill({ color: 0xf59e0b, alpha: 0.04 });
+          .ellipse(hx, hy, 32, 14).fill({ color: 0xfef08a, alpha: 0.13 })
+          .ellipse(hx, hy, 52, 22).fill({ color: 0xf59e0b, alpha: 0.05 });
       }
     }
   }
