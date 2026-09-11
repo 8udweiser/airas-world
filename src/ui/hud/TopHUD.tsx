@@ -16,6 +16,7 @@ interface TopHUDProps {
   onNextBgm?: () => void;
   isLowPerfMode?: boolean;
   onTogglePerfMode?: () => void;
+  multiplayerSlot?: React.ReactNode;
 }
 
 export const TopHUD: React.FC<TopHUDProps> = ({
@@ -30,6 +31,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({
   onNextBgm,
   isLowPerfMode,
   onTogglePerfMode,
+  multiplayerSlot,
 }) => {
   const { world, canUndo, canRedo, undo, redo, setWeather, setTime } = useWorldStore();
   const { isAIPanelOpen, setAIPanelOpen, activeMode, setActiveMode, isMuted, toggleMute } = useUIStore();
@@ -139,8 +141,9 @@ export const TopHUD: React.FC<TopHUDProps> = ({
           </div>
         </div>
 
-        {/* 2段目: 探索 / 編集 モード切替 & F3 */}
-        <div className="flex items-center justify-between gap-1.5 pointer-events-auto">
+        {/* 2段目: 探索 / 編集 モード切替 & F3 (左) ｜ 待受中 / ポータル / キャラ変更 (右) */}
+        <div className="flex items-center justify-between gap-1 w-full pointer-events-auto">
+          {/* 左: 探索 / 編集 / F3 */}
           <div className="flex items-center p-0.5 bg-slate-950/85 backdrop-blur-md rounded-xl border border-white/15 shadow-md">
             <button
               onClick={() => setActiveMode('play')}
@@ -149,7 +152,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({
                 e.stopPropagation();
                 setActiveMode('play');
               }}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer ${
                 activeMode === 'play'
                   ? 'bg-cyan-500/40 text-cyan-100 border border-cyan-400/50 shadow-sm'
                   : 'text-slate-400'
@@ -165,7 +168,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({
                 e.stopPropagation();
                 setActiveMode('edit');
               }}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer ${
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all active:scale-95 cursor-pointer ${
                 activeMode === 'edit'
                   ? 'bg-amber-500/40 text-amber-100 border border-amber-400/50 shadow-sm'
                   : 'text-slate-400'
@@ -181,7 +184,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({
                 e.stopPropagation();
                 onToggleF3();
               }}
-              className={`px-2 py-1 rounded-lg text-[11px] font-mono transition-all active:scale-95 cursor-pointer ${
+              className={`px-1.5 py-1 rounded-lg text-[10px] font-mono transition-all active:scale-95 cursor-pointer ${
                 isF3Open
                   ? 'bg-amber-500/30 text-amber-300'
                   : 'text-slate-400'
@@ -190,6 +193,13 @@ export const TopHUD: React.FC<TopHUDProps> = ({
               F3
             </button>
           </div>
+
+          {/* 右: マルチプレイヤー・ポータル・アバター (同一フレックス行で絶対に重ならない！) */}
+          {multiplayerSlot && (
+            <div className="flex items-center gap-1 shrink-0">
+              {multiplayerSlot}
+            </div>
+          )}
         </div>
       </header>
 
@@ -287,10 +297,10 @@ export const TopHUD: React.FC<TopHUDProps> = ({
         </div>
 
         {/* 中央: AI World Brain ボタン */}
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto shrink-0">
           <button
             onClick={() => setAIPanelOpen(!isAIPanelOpen)}
-            className={`px-4 py-2 rounded-2xl flex items-center gap-2 font-medium text-sm transition-all shadow-lg active:scale-95 cursor-pointer ${
+            className={`px-4 py-2 rounded-2xl flex items-center gap-2 font-medium text-sm transition-all shadow-lg active:scale-95 cursor-pointer whitespace-nowrap shrink-0 ${
               isAIPanelOpen
                 ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-cyan-500/25 ring-2 ring-cyan-400'
                 : 'glass-panel text-cyan-200 hover:text-white hover:border-cyan-400/50 hover:shadow-cyan-500/10 bg-slate-950/80 backdrop-blur-md'

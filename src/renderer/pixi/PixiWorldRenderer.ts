@@ -114,6 +114,12 @@ export class PixiWorldRenderer implements IRenderer {
   private draggingEntityId: string | null = null;
   private dragOffset: { x: number; y: number } = { x: 0, y: 0 };
 
+  // 全画面スワイプ移動ステート (タッチ端末対応)
+  private isSwipingMovement: boolean = false;
+  private swipePointerId: number | null = null;
+  private swipeStartPos: { x: number; y: number } = { x: 0, y: 0 };
+  private swipeStartTime: number = 0;
+
   // コールバック
   public onEntityClick?: (entityId: string) => void;
   public onEntityRightClick?: (entityId: string) => void;
@@ -1508,6 +1514,33 @@ export class PixiWorldRenderer implements IRenderer {
     }
   }
 
+  // 🎯 画面座標 (screenX, screenY) にあるオブジェクト（エンティティ）を取得
+  public getEntityAtScreen(screenX: number, screenY: number): string | null {
+    if (!this.app || !this.app.renderer) return null;
+    for (const [id, sprite] of Array.from(this.entitySprites.entries()).reverse()) {
+      if (id.startsWith('__ghost_') || id === 'player_main' || id.startsWith('remote_player_')) continue;
+      const bounds = sprite.getBounds();
+      if (
+        screenX >= bounds.x &&
+        screenX <= bounds.x + bounds.width &&
+        screenY >= bounds.y &&
+        screenY <= bounds.y + bounds.height
+      ) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  // 移動キーとダッシュキーの全解除
+  public clearDirectionKeys(): void {
+    this.keys['KeyW'] = false;
+    this.keys['KeyS'] = false;
+    this.keys['KeyA'] = false;
+    this.keys['KeyD'] = false;
+    this.keys['ControlLeft'] = false;
+  }
+
   private setupInteractions(canvas: HTMLCanvasElement) {
     let pointerDownPos = { x: 0, y: 0 };
     let hasMovedSignificantly = false;
@@ -1524,23 +1557,9 @@ export class PixiWorldRenderer implements IRenderer {
       const screenY = e.clientY - rect.top;
       const worldPos = this.screenToWorld(screenX, screenY);
 
-      // 右クリック: マインクラフト準拠インタラクション
+      // 右クリック: マインクラフト準拠インタラクション (乗車・就寝・会話など)
       if (e.button === 2) {
-        let hitId: string | null = null;
-        for (const [id, sprite] of Array.from(this.entitySprites.entries()).reverse()) {
-          if (id.startsWith('__ghost_') || id === 'player_main') continue;
-          const bounds = sprite.getBounds();
-          if (
-            screenX >= bounds.x &&
-            screenX <= bounds.x + bounds.width &&
-            screenY >= bounds.y &&
-            screenY <= bounds.y + bounds.height
-          ) {
-            hitId = id;
-            break;
-          }
-        }
-
+        const hitId = this.getEntityAtScreen(screenX, screenY);
         if (hitId) {
           this.onEntityRightClick?.(hitId);
           return;
@@ -1551,59 +1570,59 @@ export class PixiWorldRenderer implements IRenderer {
         return;
       }
 
+      // 中クリック or Altキー: カメラパン
       if (e.button === 1 || e.altKey) {
         this.isDraggingCamera = true;
         this.lastMousePos = { x: e.clientX, y: e.clientY };
         return;
       }
 
-      // 左クリック: オブジェクト選択 / 移動
-      let pickedId: string | null = null;
-      for (const [id, sprite] of Array.from(this.entitySprites.entries()).reverse()) {
-        if (id.startsWith('__ghost_') || id === 'player_main') continue;
-        const bounds = sprite.getBounds();
-        if (
-          screenX >= bounds.x &&
-          screenX <= bounds.x + bounds.width &&
-          screenY >= bounds.y &&
-          screenY <= bounds.y + bounds.height
-        ) {
-          pickedId = id;
-          break;
-        }
-      }
-
-      // タッチ操作の場合はカメラドラッグを遮断（画面のブレやカメラパンを完全防止）
-      if (e.pointerType === 'touch') {
-        return;
-      }
-
-      if (pickedId) {
-        this.draggingEntityId = pickedId;
-        const sprite = this.entitySprites.get(pickedId)!;
+      // 🎯 左クリック / タッチ操作
+      // 1. オブジェクト判定: 画面のどこにあるオブジェクトでもタッチ・ドラッグ可能！
+      const hitId = this.getEntityAtScreen(screenX, screenY);
+      if (hitId) {
+        this.draggingEntityId = hitId;
+        const sprite = this.entitySprites.get(hitId)!;
         this.dragOffset = {
           x: worldPos.x - sprite.x,
           y: worldPos.y - sprite.y,
         };
-      } else {
-        this.isDraggingCamera = true;
-        this.lastMousePos = { x: e.clientX, y: e.clientY };
+        return;
       }
+
+      // 2. オブジェクト以外の地面・空間:
+      if (e.pointerType === 'touch') {
+        // 🏃💨 タッチ端末での全画面スワイプ移動開始（左・右・中央どこからでもスワイプ可能）
+        this.isSwipingMovement = true;
+        this.swipePointerId = e.pointerId;
+        this.swipeStartPos = { x: e.clientX, y: e.clientY };
+        this.swipeStartTime = performance.now();
+        return;
+      }
+
+      // マウス操作時の地面ドラッグ: カメラパン
+      this.isDraggingCamera = true;
+      this.lastMousePos = { x: e.clientX, y: e.clientY };
     });
 
     window.addEventListener('pointermove', (e: PointerEvent) => {
-      const dx = Math.abs(e.clientX - pointerDownPos.x);
-      const dy = Math.abs(e.clientY - pointerDownPos.y);
-      if (dx > 4 || dy > 4) {
+      const dxTotal = Math.abs(e.clientX - pointerDownPos.x);
+      const dyTotal = Math.abs(e.clientY - pointerDownPos.y);
+      if (dxTotal > 4 || dyTotal > 4) {
         hasMovedSignificantly = true;
       }
 
+      // 1. カメラドラッグ (マウス)
       if (this.isDraggingCamera) {
         const deltaX = e.clientX - this.lastMousePos.x;
         const deltaY = e.clientY - this.lastMousePos.y;
         this.panCamera(deltaX, deltaY);
         this.lastMousePos = { x: e.clientX, y: e.clientY };
-      } else if (this.draggingEntityId) {
+        return;
+      }
+
+      // 2. オブジェクトドラッグ (画面のどこにあるオブジェクトでも自由にドラッグ移動！)
+      if (this.draggingEntityId) {
         const rect = canvas.getBoundingClientRect();
         const screenX = e.clientX - rect.left;
         const screenY = e.clientY - rect.top;
@@ -1612,28 +1631,89 @@ export class PixiWorldRenderer implements IRenderer {
         const newX = Math.round(worldPos.x - this.dragOffset.x);
         const newY = Math.round(worldPos.y - this.dragOffset.y);
         this.onEntityDrag?.(this.draggingEntityId, newX, newY);
+        return;
+      }
+
+      // 3. 全画面スワイプ移動 (オブジェクトやボタン以外の画面どこからでもスワイプ移動！)
+      if (this.isSwipingMovement && (this.swipePointerId === null || this.swipePointerId === e.pointerId)) {
+        const deltaX = e.clientX - this.swipeStartPos.x;
+        const deltaY = e.clientY - this.swipeStartPos.y;
+        const dist = Math.hypot(deltaX, deltaY);
+
+        // デッドゾーン (7px) 未満は停止
+        if (dist < 7) {
+          this.clearDirectionKeys();
+          return;
+        }
+
+        const now = performance.now();
+        const elapsed = Math.max(1, now - this.swipeStartTime);
+        const velocity = dist / elapsed; // 移動速度 px / ms
+
+        // 素早いフリック (velocity > 0.20) または 大きめのスワイプ (dist >= 28px) でダッシュ発動
+        const isDashingNow = velocity > 0.20 || dist >= 28;
+        this.keys['ControlLeft'] = isDashingNow;
+
+        // 8方向スムーズ角度判定 (-180° 〜 180°)
+        const angle = Math.atan2(deltaY, deltaX);
+        const deg = (angle * 180) / Math.PI;
+
+        const isRight = deg >= -67.5 && deg <= 67.5;
+        const isLeft = deg >= 112.5 || deg <= -112.5;
+        const isDown = deg >= 22.5 && deg <= 157.5;
+        const isUp = deg <= -22.5 && deg >= -157.5;
+
+        this.keys['KeyD'] = isRight;
+        this.keys['KeyA'] = isLeft;
+        this.keys['KeyS'] = isDown;
+        this.keys['KeyW'] = isUp;
+        return;
       }
     });
 
-    window.addEventListener('pointerup', (e: PointerEvent) => {
-      if (!hasMovedSignificantly && e.button === 0) {
-        const rect = canvas.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        const worldPos = this.screenToWorld(screenX, screenY);
+    const handlePointerUp = (e: PointerEvent) => {
+      // 🏃💨 スワイプ移動終了処理
+      if (this.isSwipingMovement && (this.swipePointerId === null || this.swipePointerId === e.pointerId)) {
+        this.isSwipingMovement = false;
+        this.swipePointerId = null;
+        this.clearDirectionKeys();
 
-        if (this.draggingEntityId) {
-          this.onEntityClick?.(this.draggingEntityId);
-        } else {
-          // 🎯 地面をクリック・タップした時は目的地へ自動歩行！
+        // ほとんど動かさずにタップしただけなら地面クリック（歩行目標設定またはタイル配置）
+        if (!hasMovedSignificantly && e.button === 0) {
+          const rect = canvas.getBoundingClientRect();
+          const screenX = e.clientX - rect.left;
+          const screenY = e.clientY - rect.top;
+          const worldPos = this.screenToWorld(screenX, screenY);
           this.targetMovePos = { x: Math.round(worldPos.x), y: Math.round(worldPos.y) };
           this.onMapClick?.(worldPos.x, worldPos.y);
         }
       }
 
-      this.isDraggingCamera = false;
-      this.draggingEntityId = null;
-    });
+      // 📦 オブジェクト操作終了処理
+      if (this.draggingEntityId) {
+        if (!hasMovedSignificantly && e.button === 0) {
+          // 動かさずにタップしただけなら選択 / インタラクション
+          this.onEntityClick?.(this.draggingEntityId);
+        }
+        this.draggingEntityId = null;
+      }
+
+      // 📷 カメラドラッグ終了処理
+      if (this.isDraggingCamera) {
+        if (!hasMovedSignificantly && e.button === 0 && e.pointerType === 'mouse') {
+          const rect = canvas.getBoundingClientRect();
+          const screenX = e.clientX - rect.left;
+          const screenY = e.clientY - rect.top;
+          const worldPos = this.screenToWorld(screenX, screenY);
+          this.targetMovePos = { x: Math.round(worldPos.x), y: Math.round(worldPos.y) };
+          this.onMapClick?.(worldPos.x, worldPos.y);
+        }
+        this.isDraggingCamera = false;
+      }
+    };
+
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
 
     canvas.addEventListener(
       'wheel',

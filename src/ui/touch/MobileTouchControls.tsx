@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowUp, Car, Armchair, ChevronDown, Zap, Navigation } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ArrowUp, Car, Armchair, ChevronDown, Navigation } from 'lucide-react';
 import { PixiWorldRenderer } from '../../renderer/pixi/PixiWorldRenderer';
 
 interface MobileTouchControlsProps {
@@ -22,18 +22,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   onToggleSit,
 }) => {
   const [isTouchDevice, setIsTouchDevice] = useState(false);
-  const [joystickActive, setJoystickActive] = useState(false);
-  const [joystickOrigin, setJoystickOrigin] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [knobPos, setKnobPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isDashing, setIsDashing] = useState(false);
-  const [activeDirectionLabel, setActiveDirectionLabel] = useState<string>('');
   const [hasInteracted, setHasInteracted] = useState(false);
-
-  // タッチ追跡用のRef
-  const touchIdRef = useRef<number | null>(null);
-  const touchStartTimeRef = useRef<number>(0);
-  const touchStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const isDashLockedRef = useRef<boolean>(false);
 
   // タッチデバイス判定 & ブラウザ操作系ジェスチャーの完全無効化
   useEffect(() => {
@@ -49,7 +38,6 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
 
     // 🚫 スマホのブラウザ操作系ジェスチャー (戻る/進むスワイプ・ピンチズーム・引っ張り更新) 完全無効化
     const preventBrowserGestures = (e: TouchEvent) => {
-      // 画面左右端からの「戻る/進む」エッジスワイプを防止
       for (let i = 0; i < e.touches.length; i++) {
         const t = e.touches[i];
         if (t.clientX < 25 || t.clientX > window.innerWidth - 25) {
@@ -62,39 +50,25 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
       e.preventDefault();
     };
 
+    const onFirstTouch = () => {
+      setHasInteracted(true);
+    };
+
     window.addEventListener('touchstart', preventBrowserGestures, { passive: false });
+    window.addEventListener('touchstart', onFirstTouch, { once: true });
+    window.addEventListener('pointerdown', onFirstTouch, { once: true });
     window.addEventListener('gesturestart', preventZoom, { passive: false });
     window.addEventListener('gesturechange', preventZoom, { passive: false });
 
     return () => {
       window.removeEventListener('resize', checkTouch);
       window.removeEventListener('touchstart', preventBrowserGestures);
+      window.removeEventListener('touchstart', onFirstTouch);
+      window.removeEventListener('pointerdown', onFirstTouch);
       window.removeEventListener('gesturestart', preventZoom);
       window.removeEventListener('gesturechange', preventZoom);
     };
   }, []);
-
-  // キー入力更新
-  const updateKey = useCallback(
-    (code: string, pressed: boolean) => {
-      if (!renderer) return;
-      renderer.keys[code] = pressed;
-    },
-    [renderer]
-  );
-
-  // 全方向キー・ダッシュの解除
-  const clearDirectionKeys = useCallback(() => {
-    if (!renderer) return;
-    renderer.keys['KeyW'] = false;
-    renderer.keys['KeyS'] = false;
-    renderer.keys['KeyA'] = false;
-    renderer.keys['KeyD'] = false;
-    renderer.keys['ControlLeft'] = false;
-    setIsDashing(false);
-    isDashLockedRef.current = false;
-    setActiveDirectionLabel('');
-  }, [renderer]);
 
   // ジャンプトリガー (Space)
   const triggerJump = useCallback(() => {
@@ -113,146 +87,21 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
     },
     [renderer]
   );
-
-  // 🎯 タッチ開始 (左側65%の操作領域で発火)
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setHasInteracted(true);
-
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const touch = e.changedTouches[i];
-      if (touchIdRef.current === null) {
-        touchIdRef.current = touch.identifier;
-        touchStartTimeRef.current = performance.now();
-        touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
-        isDashLockedRef.current = false;
-
-        setJoystickOrigin({ x: touch.clientX, y: touch.clientY });
-        setKnobPos({ x: touch.clientX, y: touch.clientY });
-        setJoystickActive(true);
-        setIsDashing(false);
-        break;
-      }
-    }
-  };
-
-  // 🎯 スワイプ移動・ダッシュ判定
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (touchIdRef.current === null) return;
-
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const touch = e.changedTouches[i];
-      if (touch.identifier === touchIdRef.current) {
-        const ox = joystickOrigin.x;
-        const oy = joystickOrigin.y;
-        const dx = touch.clientX - ox;
-        const dy = touch.clientY - oy;
-        const dist = Math.hypot(dx, dy);
-
-        // ジョイスティックノブの可動半径クランプ (最大 56px)
-        const maxRadius = 56;
-        const angle = Math.atan2(dy, dx);
-        const clampedDist = Math.min(dist, maxRadius);
-
-        setKnobPos({
-          x: ox + Math.cos(angle) * clampedDist,
-          y: oy + Math.sin(angle) * clampedDist,
-        });
-
-        // デッドゾーン (7px) 未満は停止
-        if (dist < 7) {
-          clearDirectionKeys();
-          return;
-        }
-
-        // 🏃💨 スワイプ速度 (px/ms) と指の移動距離による動的ダッシュ / 歩行判定
-        // 「上にスワイプで歩き、素早くスワイプでダッシュ、ゆっくりで歩行に戻る」スムーズ操作
-        const now = performance.now();
-        const elapsed = Math.max(1, now - touchStartTimeRef.current);
-        const velocity = dist / elapsed; // 移動速度 px / ms
-
-        // 素早いフリック (velocity > 0.20) または 大きめのスワイプ (dist >= 28px) でダッシュ発動
-        const isDashingNow = velocity > 0.20 || dist >= 28;
-
-        setIsDashing(isDashingNow);
-        updateKey('ControlLeft', isDashingNow);
-
-        // 🧭 8方向スムーズ角度判定 (-180° 〜 180°)
-        const deg = (angle * 180) / Math.PI;
-
-        const isRight = deg >= -67.5 && deg <= 67.5;
-        const isLeft = deg >= 112.5 || deg <= -112.5;
-        const isDown = deg >= 22.5 && deg <= 157.5;
-        const isUp = deg <= -22.5 && deg >= -157.5;
-
-        updateKey('KeyD', isRight);
-        updateKey('KeyA', isLeft);
-        updateKey('KeyS', isDown);
-        updateKey('KeyW', isUp);
-
-        // デバッグ・UI用方向ラベル
-        let dirLabel = '';
-        if (isUp && isRight) dirLabel = '右上 ↗';
-        else if (isUp && isLeft) dirLabel = '左上 ↖';
-        else if (isDown && isRight) dirLabel = '右下 ↘';
-        else if (isDown && isLeft) dirLabel = '左下 ↙';
-        else if (isUp) dirLabel = '前進 ⬆';
-        else if (isDown) dirLabel = '後退 ⬇';
-        else if (isRight) dirLabel = '右 ➡';
-        else if (isLeft) dirLabel = '左 ⬅';
-        setActiveDirectionLabel(dirLabel);
-
-        break;
-      }
-    }
-  };
-
-  // 🎯 タッチ終了
-  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (touchIdRef.current === null) return;
-
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const touch = e.changedTouches[i];
-      if (touch.identifier === touchIdRef.current) {
-        touchIdRef.current = null;
-        setJoystickActive(false);
-        clearDirectionKeys();
-        break;
-      }
-    }
-  };
-
   if (!isTouchDevice) {
     return null;
   }
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-10 select-none touch-none">
-      {/* 📱 画面左側スワイプ受容エリア (上部HUDと左下チャットボタンを避けた安全領域) */}
-      <div
-        className="absolute left-0 top-20 bottom-24 w-[60%] pointer-events-auto touch-none z-10"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
-      >
-        {/* 初回ガイドヒント (操作開始でフェードアウト) */}
-        {!hasInteracted && (
-          <div className="absolute left-6 bottom-4 pointer-events-none animate-pulse">
-            <div className="glass-panel px-3.5 py-1.5 rounded-xl border border-cyan-400/40 shadow-xl flex items-center gap-2 text-cyan-200 text-[11px] font-semibold backdrop-blur-md bg-slate-950/70">
-              <Navigation className="w-3.5 h-3.5 text-cyan-400" />
-              <span>スワイプで歩き / 素早くダッシュ</span>
-            </div>
+    <div className="sm:hidden fixed inset-0 pointer-events-none z-30 select-none">
+      {/* 🧭 初回ガイドヒント (操作開始でフェードアウト) */}
+      {!hasInteracted && (
+        <div className="absolute left-6 bottom-4 pointer-events-none animate-pulse">
+          <div className="glass-panel px-3.5 py-1.5 rounded-xl border border-cyan-400/40 shadow-xl flex items-center gap-2 text-cyan-200 text-[11px] font-semibold backdrop-blur-md bg-slate-950/70">
+            <Navigation className="w-3.5 h-3.5 text-cyan-400" />
+            <span>画面スワイプで歩き / 素早くダッシュ</span>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* 🎮 画面右下: アクションボタングループ (親は pointer-events-auto) */}
       <div className="absolute right-4 bottom-8 pointer-events-auto flex flex-col items-end gap-2.5 touch-none z-40">

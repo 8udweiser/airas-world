@@ -31,4 +31,5 @@ export interface IRenderer {
   onEntityClick?: (entityId: string) => void;
   onMapClick?: (worldX: number, worldY: number) => void;
   onEntityDrag?: (entityId: string, newWorldX: number, newWorldY: number) => void;
+  getEntityAtScreen?: (screenX: number, screenY: number) => string | null;
 }

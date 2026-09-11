@@ -693,23 +693,111 @@ export const App: React.FC = () => {
         onNextBgm={handleNextBgm}
         isLowPerfMode={isLowPerfMode}
         onTogglePerfMode={handleTogglePerfMode}
+        multiplayerSlot={
+          <>
+            {/* 🟢 リアルタイムマルチプレイヤー同期バッジ */}
+            <button
+              onClick={() => setIsPortalOpen(true)}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsPortalOpen(true);
+              }}
+              className="glass-panel px-2 py-1 rounded-xl flex items-center gap-1 border border-cyan-400/40 text-xs shadow-lg transition-all cursor-pointer bg-slate-950/80 hover:border-cyan-300 backdrop-blur-md active:scale-95 shrink-0"
+              title={`ルーム: ${multiplayerManager.roomId} (${multiplayerManager.isHost ? 'ホスト' : 'クライアント'}) - クリックでQRコード表示`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  remotePlayers.length > 0
+                    ? 'bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400'
+                    : 'bg-cyan-400'
+                }`}
+              />
+              <span className="font-extrabold text-[10px] text-white tracking-tight whitespace-nowrap">
+                {remotePlayers.length > 0
+                  ? `同期 (${remotePlayers.length + 1})`
+                  : multiplayerManager.isHost
+                  ? '待受中'
+                  : '接続中'}
+              </span>
+            </button>
+
+            {/* 🌐 公開ポータル */}
+            <button
+              onClick={() => setIsPortalOpen(true)}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsPortalOpen(true);
+              }}
+              className="glass-panel px-1.5 py-1 rounded-xl flex items-center gap-1 border border-indigo-400/40 text-xs text-indigo-200 hover:text-white hover:border-indigo-400 shadow-lg hover:shadow-indigo-500/20 transition-all cursor-pointer bg-indigo-950/60 active:scale-95 shrink-0"
+              title="スマホ接続・公開ポータル"
+            >
+              <Globe className="w-3.5 h-3.5 text-indigo-400 animate-pulse shrink-0" />
+              <span className="text-[10px] hidden min-[400px]:inline whitespace-nowrap">ポータル</span>
+            </button>
+
+            {/* 👥 キャラ変更 */}
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setIsAvatarPickerOpen((prev) => !prev)}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsAvatarPickerOpen((prev) => !prev);
+                }}
+                className="glass-panel px-1.5 py-1 rounded-xl flex items-center gap-1 border border-white/15 text-xs text-slate-200 hover:text-white hover:border-cyan-400/50 shadow-lg transition-all cursor-pointer active:scale-95 bg-slate-900/80 shrink-0"
+                title="アバター変更"
+              >
+                <Users className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="text-[10px] hidden min-[400px]:inline whitespace-nowrap">キャラ</span>
+              </button>
+
+              {/* アバター選択ポップオーバー */}
+              {isAvatarPickerOpen && (
+                <div
+                  className="absolute top-full right-0 mt-2 w-56 glass-panel rounded-2xl border border-cyan-400/40 p-2 space-y-1 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150 z-50 bg-slate-950/95 backdrop-blur-xl"
+                  onTouchStart={(e) => e.stopPropagation()}
+                >
+                  <div className="text-[10px] text-slate-400 px-2 py-1 font-semibold uppercase tracking-wider">
+                    操作キャラクター選択
+                  </div>
+                  {[
+                    { id: 'character_schoolgirl', name: '女子高校生（あおい）', desc: '黒髪セーラー服' },
+                    { id: 'character_boy', name: '昭和少年（ケンタ）', desc: '赤いキャップ＆短パン' },
+                    { id: 'character_salaryman', name: '会社員（たなか）', desc: 'グレースーツ＆メガネ' },
+                  ].map((av) => (
+                    <button
+                      key={av.id}
+                      onClick={() => handleSelectAvatar(av.id)}
+                      className={`w-full px-2.5 py-1.5 rounded-xl flex items-center justify-between text-left transition-all ${
+                        currentAvatarId === av.id
+                          ? 'bg-cyan-500/30 border border-cyan-400/50 text-white font-bold'
+                          : 'hover:bg-white/10 text-slate-300'
+                      }`}
+                    >
+                      <div>
+                        <div className="text-xs">{av.name}</div>
+                        <div className="text-[10px] text-slate-400">{av.desc}</div>
+                      </div>
+                      {currentAvatarId === av.id && <span className="text-xs text-cyan-300">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        }
       />
 
-      {/* 右上操作ボタン群 (P2P同期状況 / ポータル / アバター切り替え: z-40で最前面・スマホタップ即応) */}
+      {/* 🖥️ PC・タブレット用マルチプレイヤーバー (ヘッダー下の右側に整然と配置) */}
       <div
-        className="absolute top-[90px] sm:top-16 right-3 sm:right-4 z-40 flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end pointer-events-auto"
+        className="hidden sm:flex absolute top-[68px] right-4 z-40 items-center gap-2 pointer-events-auto"
         onTouchStart={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
       >
-        {/* 🟢 リアルタイムマルチプレイヤー同期バッジ */}
         <button
           onClick={() => setIsPortalOpen(true)}
-          onTouchEnd={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsPortalOpen(true);
-          }}
-          className="glass-panel px-2.5 sm:px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-cyan-400/40 text-xs shadow-lg transition-all cursor-pointer bg-slate-950/80 hover:border-cyan-300 backdrop-blur-md active:scale-95"
+          className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-cyan-400/40 text-xs shadow-lg transition-all cursor-pointer bg-slate-950/80 hover:border-cyan-300 backdrop-blur-md active:scale-95"
           title={`ルーム: ${multiplayerManager.roomId} (${multiplayerManager.isHost ? 'ホスト' : 'クライアント'}) - クリックでQRコード表示`}
         >
           <span
@@ -719,7 +807,7 @@ export const App: React.FC = () => {
                 : 'bg-cyan-400'
             }`}
           />
-          <span className="font-extrabold text-[10px] sm:text-[11px] text-white tracking-tight">
+          <span className="font-extrabold text-[11px] text-white tracking-tight">
             {remotePlayers.length > 0
               ? `同期中 (${remotePlayers.length + 1}人)`
               : multiplayerManager.isHost
@@ -730,34 +818,23 @@ export const App: React.FC = () => {
 
         <button
           onClick={() => setIsPortalOpen(true)}
-          onTouchEnd={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsPortalOpen(true);
-          }}
-          className="glass-panel px-2.5 sm:px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-indigo-400/40 text-xs text-indigo-200 hover:text-white hover:border-indigo-400 shadow-lg hover:shadow-indigo-500/20 transition-all cursor-pointer bg-indigo-950/60 active:scale-95"
+          className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-indigo-400/40 text-xs text-indigo-200 hover:text-white hover:border-indigo-400 shadow-lg hover:shadow-indigo-500/20 transition-all cursor-pointer bg-indigo-950/60 active:scale-95"
           title="スマホ接続・公開ポータル"
         >
           <Globe className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-          <span className="text-[10px] sm:text-xs">公開ポータル</span>
+          <span className="text-xs">公開ポータル</span>
         </button>
 
         <div className="relative">
           <button
             onClick={() => setIsAvatarPickerOpen((prev) => !prev)}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsAvatarPickerOpen((prev) => !prev);
-            }}
-            className="glass-panel px-2.5 sm:px-3 py-1.5 rounded-2xl flex items-center gap-1.5 sm:gap-2 border border-white/15 text-xs text-slate-200 hover:text-white hover:border-cyan-400/50 shadow-lg transition-all cursor-pointer active:scale-95 bg-slate-900/80"
+            className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-2 border border-white/15 text-xs text-slate-200 hover:text-white hover:border-cyan-400/50 shadow-lg transition-all cursor-pointer active:scale-95 bg-slate-900/80"
             title="アバター変更"
           >
             <Users className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-[10px] sm:text-xs">キャラ変更</span>
+            <span className="text-xs">キャラ変更</span>
           </button>
 
-          {/* アバター選択ポップオーバー */}
           {isAvatarPickerOpen && (
             <div
               className="absolute top-full right-0 mt-2 w-56 glass-panel rounded-2xl border border-cyan-400/40 p-2 space-y-1 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150 z-50 bg-slate-950/95 backdrop-blur-xl"
