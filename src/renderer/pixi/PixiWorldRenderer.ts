@@ -800,8 +800,8 @@ export class PixiWorldRenderer implements IRenderer {
 
   private centerCamera() {
     if (!this.container) return;
-    const width = this.container.clientWidth;
-    const height = this.container.clientHeight;
+    const width = this.container.clientWidth || (typeof window !== 'undefined' ? window.innerWidth : 1280);
+    const height = this.container.clientHeight || (typeof window !== 'undefined' ? window.innerHeight : 720);
     this.cameraX = width / 2 - this.playerState.x * this.zoom;
     this.cameraY = height / 2 - this.playerState.y * this.zoom;
     this.updateCameraTransform();
