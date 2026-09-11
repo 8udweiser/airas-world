@@ -2,6 +2,7 @@ import React from 'react';
 import { useWorldStore } from '../../store/useWorldStore';
 import { useUIStore } from '../../store/useUIStore';
 import { Sparkles, MousePointer } from 'lucide-react';
+import { resolveAssetUrl } from '../../core/utils/url';
 
 interface AssetPaletteBarProps {
   isVisible: boolean;
@@ -69,7 +70,7 @@ export const AssetPaletteBar: React.FC<AssetPaletteBarProps> = ({ isVisible }) =
 
               <div className="w-9 h-9 rounded-lg bg-slate-900/60 border border-white/10 flex items-center justify-center p-1 overflow-hidden">
                 <img
-                  src={asset.sprite.url}
+                  src={resolveAssetUrl(asset.sprite.url)}
                   alt={asset.name}
                   className="max-w-full max-h-full pixelated object-contain group-hover:scale-110 transition-transform"
                 />

@@ -54,6 +54,7 @@ export class PixiWorldRenderer implements IRenderer {
   // キャッシュ
   private entitySprites: Map<string, Sprite> = new Map();
   private textureCache: Map<string, Texture> = new Map();
+  private textureLoadingPromises: Map<string, Promise<Texture>> = new Map();
 
   // カメラ状態 (広大な街が見渡せるよう初期ズームは 1.05x)
   private cameraX: number = 0;
@@ -719,9 +720,10 @@ export class PixiWorldRenderer implements IRenderer {
         else if (dir === 'up-left') dirUrl = asset.sprite.directionalUrls['left'] || asset.sprite.directionalUrls['up'];
       }
       if (!dirUrl) dirUrl = asset.sprite.url;
+      const resolvedDir = resolveAssetUrl(dirUrl);
 
-      if (this.textureCache.has(dirUrl)) {
-        sprite.texture = this.textureCache.get(dirUrl)!;
+      if (this.textureCache.has(resolvedDir) || this.textureCache.has(dirUrl)) {
+        sprite.texture = (this.textureCache.get(resolvedDir) || this.textureCache.get(dirUrl))!;
       } else {
         this.getTexture(dirUrl).then((tex) => {
           if (sprite && !sprite.destroyed) {
@@ -959,15 +961,35 @@ export class PixiWorldRenderer implements IRenderer {
 
   private async getTexture(url: string): Promise<Texture> {
     const targetUrl = resolveAssetUrl(url);
+    if (this.textureCache.has(url)) {
+      return this.textureCache.get(url)!;
+    }
     if (this.textureCache.has(targetUrl)) {
       return this.textureCache.get(targetUrl)!;
     }
-    const texture = await Assets.load(targetUrl);
-    if (texture.source) {
-      texture.source.scaleMode = 'nearest';
+    if (this.textureLoadingPromises.has(targetUrl)) {
+      return this.textureLoadingPromises.get(targetUrl)!;
     }
-    this.textureCache.set(targetUrl, texture);
-    return texture;
+
+    const loadPromise = (async () => {
+      try {
+        const texture = await Assets.load(targetUrl);
+        if (texture.source) {
+          texture.source.scaleMode = 'nearest';
+        }
+        this.textureCache.set(url, texture);
+        this.textureCache.set(targetUrl, texture);
+        return texture;
+      } catch (err) {
+        console.error('[PixiWorldRenderer] Failed to load texture:', targetUrl, err);
+        throw err;
+      } finally {
+        this.textureLoadingPromises.delete(targetUrl);
+      }
+    })();
+
+    this.textureLoadingPromises.set(targetUrl, loadPromise);
+    return loadPromise;
   }
 
   // ワールド同期 (マップタイル・エンティティ配置)

@@ -5,6 +5,7 @@ import { Sparkles, Trash2, Copy, Move, MessageCircle, ShoppingBag, Armchair, Eye
 import { CreateObjectCommand } from '../../core/commands/WorldCommands';
 import { WorldEntity, Direction } from '../../core/types/world';
 import { ROTATION_DIRECTIONS, DIRECTION_LABELS } from '../../renderer/pixi/PixiWorldRenderer';
+import { resolveAssetUrl } from '../../core/utils/url';
 
 export const ObjectContextMenu: React.FC = () => {
   const { world, assets, deleteObject, executeCommand, rotateObject } = useWorldStore();
@@ -98,8 +99,9 @@ export const ObjectContextMenu: React.FC = () => {
     showNotification(`🔄 向きを変更: ${label}`);
   };
 
-  const currentThumbnailUrl =
-    asset.sprite.directionalUrls?.[currentDir] || asset.sprite.url;
+  const currentThumbnailUrl = resolveAssetUrl(
+    asset.sprite.directionalUrls?.[currentDir] || asset.sprite.url
+  );
 
   return (
     <div className="absolute right-4 top-20 z-40 w-72 glass-panel rounded-2xl overflow-hidden border border-white/15 shadow-2xl animate-in fade-in slide-in-from-right-4 duration-200">
