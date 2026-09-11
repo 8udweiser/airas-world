@@ -90,10 +90,17 @@ export class PixiWorldRenderer implements IRenderer {
   private lastTapTime: number = 0;
   private sameKeyTapCount: number = 0;
 
-  public onKeyDown(code: string) {
+  public onKeyDown(code: string, isRepeat: boolean = false) {
+    const wasAlreadyPressed = Boolean(this.keys[code]);
     this.keys[code] = true;
 
-    // 移動キー (WASD / 矢印キー) の連打判定 (650ms以内の連打でゆったり判定)
+    // ⚠️ OSのキーリピート（長押しによる連続イベント発火）や、すでに押下状態のキーは無視！
+    // これにより「同じ方向キー押しっぱなしで勝手に小走りやダッシュに昇格してしまう現象」を100%防止
+    if (isRepeat || wasAlreadyPressed) {
+      return;
+    }
+
+    // 移動キー (WASD / 矢印キー) の連打判定 (650ms以内の物理的な連打でゆったり判定)
     const isMoveKey = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code);
     const now = performance.now();
 
@@ -153,7 +160,8 @@ export class PixiWorldRenderer implements IRenderer {
     );
     if (!isAnyMoveKeyPressed) {
       this.playerMoveTier = 'walk';
-      this.sameKeyTapCount = 0;
+      // 注意: sameKeyTapCount はここではリセットしない
+      // （指を離して650ms以内に再度同じキーを押した時に「2回連続入力」「3回連続入力」として正しく認識するため）
     }
   }
 
@@ -562,10 +570,22 @@ export class PixiWorldRenderer implements IRenderer {
     // 現在の足場高さ (地面=0、またはオブジェクトの天面)
     const floorZ = this.getElevatedFloorZ(this.playerState.x, this.playerState.y);
 
-    // ジャンプ物理
+    // ジャンプ物理 (歩きジャンプ=小ジャンプ、小走りジャンプ=中ジャンプ、ダッシュジャンプ=大ジャンプ)
     const gravity = 800; // px/s^2
     if (isJump && this.playerState.z <= floorZ + 2) {
-      this.playerState.vz = 300; // 上向き初速
+      let jumpVz = 240; // 歩き時: 小ジャンプ (到達高さ 約36px)
+      if (this.playerMoveTier === 'dash') {
+        jumpVz = 410; // ダッシュ時: 大ジャンプ (到達高さ 約105px、ダイナミックな跳躍)
+      } else if (this.playerMoveTier === 'jog') {
+        jumpVz = 320; // 小走り時: 中ジャンプ (到達高さ 約64px、バランスの良い跳躍)
+      } else if (isSneak) {
+        jumpVz = 180; // スニーク時: 極小ジャンプ (到達高さ 約20px)
+      }
+      if (this.playerState.isDriving) {
+        jumpVz = this.playerMoveTier === 'dash' ? 440 : 340;
+      }
+
+      this.playerState.vz = jumpVz;
       this.playerState.isJumping = true;
       if (!this.playerState.isDriving) {
         audioManager.playJump();

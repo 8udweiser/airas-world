@@ -540,7 +540,7 @@ export const App: React.FC = () => {
 
       // レンダラーへキー押下を直接伝播 (0ms遅延 & ダブルタップダッシュ判定)
       if (rendererRef.current) {
-        rendererRef.current.onKeyDown(e.code);
+        rendererRef.current.onKeyDown(e.code, e.repeat);
         rendererRef.current.keys[e.key] = true;
       }
 
