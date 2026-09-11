@@ -79,7 +79,7 @@ export function createInitialWorld(): AirasWorldData {
     environment: {
       time: 16.5, // 16:30 夕暮れ
       timeSpeed: 0.05,
-      weather: 'sunset', // 夕暮れの美しいノスタルジー
+      weather: 'clear', // 澄んだ夕空
       ambientColor: '#fed7aa',
     },
     map: {
@@ -169,11 +169,11 @@ export function createInitialWorld(): AirasWorldData {
         position: { x: 740, y: 320, z: 0 },
       },
 
-      // 2.5 車道中央: 黄色いランボルギーニ・ウラカン (スーパーカー)
+      // 2.5 車道中央: ランボルギーニ・ウラカン (スーパーカー)
       lamborghini_1: {
         id: 'lamborghini_1',
         assetId: 'vehicle_lamborghini',
-        name: '黄色いランボルギーニ',
+        name: 'ランボルギーニ',
         type: 'object',
         position: { x: 550, y: 480, z: 0 },
       },

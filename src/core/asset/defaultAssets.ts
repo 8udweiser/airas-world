@@ -679,7 +679,7 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
   // ランボルギーニ・ウラカン (乗車可能なスーパーカー)
   vehicle_lamborghini: {
     id: 'vehicle_lamborghini',
-    name: '黄色いランボルギーニ',
+    name: 'ランボルギーニ',
     type: 'object',
     category: 'vehicle',
     sprite: {

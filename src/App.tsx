@@ -368,7 +368,7 @@ export const App: React.FC = () => {
               const d = Math.hypot(ent.position.x - px, ent.position.y - py);
               const maxDist = (activeVehicleId === ent.id) ? 140 : 85;
               if (d < maxDist) {
-                foundVehicle = { id: ent.id, name: ent.name || a.name || '黄色いランボルギーニ', assetId: ent.assetId };
+                foundVehicle = { id: ent.id, name: ent.name || a.name || 'ランボルギーニ', assetId: ent.assetId };
                 break;
               }
             }
@@ -1070,7 +1070,7 @@ export const App: React.FC = () => {
             <span className="text-2xl">🏎️</span>
             <div>
               <div className="text-xs font-bold text-white tracking-wide flex items-center gap-1.5">
-                <span className="text-amber-300">黄色いランボルギーニ</span>
+                <span className="text-amber-300">ランボルギーニ</span>
                 <span className="px-1.5 py-0.5 rounded bg-amber-500/30 text-amber-300 text-[9px] border border-amber-400/40">爆走中</span>
               </div>
               <div className="text-[10px] text-amber-300/80 font-mono">V10 5.2L AWD | 最高速 325km/h</div>

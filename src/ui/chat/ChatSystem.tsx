@@ -401,7 +401,7 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
                       <span>{m.time}</span>
                     </div>
                     <div
-                      className={`px-3 py-1.5 rounded-2xl max-w-[85%] break-words ${
+                      className={`px-3 py-1.5 rounded-2xl max-w-[85%] break-words whitespace-pre-wrap ${
                         m.isSelf
                           ? 'bg-cyan-600/50 border border-cyan-400/50 text-white rounded-tr-none'
                           : 'bg-slate-800/80 border border-white/10 text-slate-200 rounded-tl-none'

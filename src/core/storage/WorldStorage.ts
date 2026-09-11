@@ -49,6 +49,38 @@ export class WorldStorage {
           console.warn('[WorldStorage] 初期エンティティのマージに失敗しました:', mergeErr);
         }
 
+        // 🛠️ セーブデータのサニタイズ（車道エリアの誤った水タイルをアスファルトに修復 & 旧sunset天気をclearに移行）
+        let sanitized = false;
+        if (saved.map && saved.map.chunks) {
+          const chunkSize = saved.map.chunkSize || 16;
+          for (const [key, chunk] of Object.entries(saved.map.chunks)) {
+            const [cxStr, cyStr] = key.split(',');
+            const cx = parseInt(cxStr, 10);
+            const cy = parseInt(cyStr, 10);
+            if (chunk && chunk.tiles) {
+              for (let ly = 0; ly < chunk.tiles.length; ly++) {
+                const row = chunk.tiles[ly];
+                const gy = cy * chunkSize + ly;
+                for (let lx = 0; lx < row.length; lx++) {
+                  // 車道エリア (gy = 11..16) に誤って入り込んだ水タイルをアスファルトに修復
+                  if (gy >= 11 && gy <= 16 && row[lx]?.tileId === 'tile_water') {
+                    row[lx].tileId = 'tile_asphalt';
+                    sanitized = true;
+                  }
+                }
+              }
+            }
+          }
+        }
+        if (saved.environment && (saved.environment.weather as string) === 'sunset') {
+          saved.environment.weather = 'clear';
+          sanitized = true;
+        }
+        if (sanitized) {
+          console.log('[WorldStorage] 🧹 汚染タイル/旧天候設定をサニタイズ・修復しました');
+          WorldStorage.saveImmediate(saved).catch(() => {});
+        }
+
         console.log('[WorldStorage] 💾 保存されたワールドデータを復元しました (オブジェクト数:', Object.keys(saved.entities).length, ')');
         return saved;
       }

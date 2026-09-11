@@ -44,10 +44,30 @@ export const TopHUD: React.FC<TopHUDProps> = ({
 
   const timePresets = [
     { label: '早朝', time: 6.0, icon: '🌅' },
-    { label: '昼', time: 12.0, icon: '☀️' },
+    { label: '朝', time: 9.0, icon: '☀️' },
+    { label: '昼', time: 12.0, icon: '🌤️' },
     { label: '夕方', time: 17.5, icon: '🌇' },
     { label: '夜', time: 21.0, icon: '🌙' },
   ];
+
+  // 🕒 次の時間帯へ循環切替 (早朝 ➜ 朝 ➜ 昼 ➜ 夕方 ➜ 夜 ➜ 早朝...)
+  const handleCycleTime = () => {
+    if (isRealtimeSync) {
+      setIsRealtimeSync(false);
+      try {
+        localStorage.setItem('airas_time_sync', 'false');
+      } catch {}
+    }
+    const cur = world.environment.time;
+    let nextIndex = 0;
+    if (cur >= 4.5 && cur < 7.5) nextIndex = 1; // 早朝 ➜ 朝
+    else if (cur >= 7.5 && cur < 11.0) nextIndex = 2; // 朝 ➜ 昼
+    else if (cur >= 11.0 && cur < 16.5) nextIndex = 3; // 昼 ➜ 夕方
+    else if (cur >= 16.5 && cur < 19.5) nextIndex = 4; // 夕方 ➜ 夜
+    else nextIndex = 0; // 夜 ➜ 早朝
+
+    setTime(timePresets[nextIndex].time);
+  };
 
   // 現実世界の現在時刻を算出して world.environment.time に反映
   const syncToCurrentRealTime = useCallback(() => {
@@ -88,14 +108,25 @@ export const TopHUD: React.FC<TopHUDProps> = ({
     return () => clearInterval(timer);
   }, [isRealtimeSync, syncToCurrentRealTime]);
 
+  // 🌤️ 天候の循環順序（夕焼け sunset は時間帯に統合されたため天候から排除）
+  const weatherCycleList: WeatherType[] = ['clear', 'rain', 'heavy_rain', 'snow', 'fog'];
+
   const weatherIcons: Record<WeatherType, { icon: React.ReactNode; label: string }> = {
     clear: { icon: <Sun className="w-4 h-4 text-amber-400" />, label: '快晴' },
     rain: { icon: <CloudRain className="w-4 h-4 text-sky-400" />, label: '雨' },
     heavy_rain: { icon: <CloudRain className="w-4 h-4 text-blue-400 animate-pulse" />, label: '大雨' },
     typhoon: { icon: <CloudLightning className="w-4 h-4 text-purple-300 animate-bounce" />, label: '台風' },
     snow: { icon: <Snowflake className="w-4 h-4 text-cyan-200" />, label: '雪' },
-    sunset: { icon: <Sunset className="w-4 h-4 text-orange-400" />, label: '夕焼け' },
     fog: { icon: <Sun className="w-4 h-4 text-slate-300" />, label: '霧' },
+    sunset: { icon: <Sun className="w-4 h-4 text-amber-400" />, label: '快晴' },
+  };
+
+  // 🌤️ 天候をトグル式で順に切り替え
+  const handleCycleWeather = () => {
+    const cur = world.environment.weather;
+    const curIdx = weatherCycleList.indexOf(cur);
+    const nextIdx = (curIdx + 1) % weatherCycleList.length;
+    setWeather(weatherCycleList[nextIdx]);
   };
 
   const formatTime = (time: number) => {
@@ -140,7 +171,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({
             </span>
           </div>
 
-          {/* 中央: ✨ AI世界生成 & 画像創出 ボタン (常時超目立つプレミアムグラデーション) */}
+          {/* 中央: ✨ AI ボタン */}
           <button
             onClick={() => setAIPanelOpen(!isAIPanelOpen)}
             onTouchEnd={(e) => {
@@ -148,14 +179,14 @@ export const TopHUD: React.FC<TopHUDProps> = ({
               e.stopPropagation();
               setAIPanelOpen(!isAIPanelOpen);
             }}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-bold text-xs shadow-lg active:scale-95 transition-all cursor-pointer border ${
+            className={`px-2.5 py-1 rounded-xl flex items-center gap-1 font-bold text-xs shadow-lg active:scale-95 transition-all cursor-pointer border ${
               isAIPanelOpen
                 ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-cyan-300 ring-2 ring-cyan-400/50'
                 : 'bg-gradient-to-r from-cyan-600/90 via-sky-600/90 to-blue-600/90 text-white border-cyan-300/60 shadow-cyan-500/30'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-spin" style={{ animationDuration: '6s' }} />
-            <span>AI世界生成</span>
+            <span>AI</span>
           </button>
 
           {/* 右: 🔇 ミュート & 🎵 BGM & ⚡ 低負荷 (スマホでも絶対に見える！) */}
@@ -333,43 +364,17 @@ export const TopHUD: React.FC<TopHUDProps> = ({
               F3
             </button>
 
-            {/* 📱 モバイル用 時間・時間帯表示バッジ (タップで昼・夕方・夜・早朝・連動を切替) */}
+            {/* 📱 モバイル用 時間・時間帯表示バッジ (タップで早朝・朝・昼・夕方・夜を順に循環切替) */}
             <div className="w-[1px] h-3.5 bg-white/15 mx-0.5" />
             <button
-              onClick={() => {
-                if (isRealtimeSync) {
-                  setIsRealtimeSync(false);
-                  try { localStorage.setItem('airas_time_sync', 'false'); } catch {}
-                  setTime(12.0);
-                } else if (world.environment.time < 10) {
-                  setTime(12.0);
-                } else if (world.environment.time < 16) {
-                  setTime(17.5);
-                } else if (world.environment.time < 20) {
-                  setTime(21.0);
-                } else {
-                  handleToggleSync();
-                }
-              }}
+              onClick={handleCycleTime}
               onTouchEnd={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (isRealtimeSync) {
-                  setIsRealtimeSync(false);
-                  try { localStorage.setItem('airas_time_sync', 'false'); } catch {}
-                  setTime(12.0);
-                } else if (world.environment.time < 10) {
-                  setTime(12.0);
-                } else if (world.environment.time < 16) {
-                  setTime(17.5);
-                } else if (world.environment.time < 20) {
-                  setTime(21.0);
-                } else {
-                  handleToggleSync();
-                }
+                handleCycleTime();
               }}
               className={`px-1.5 py-0.5 rounded-lg text-[10px] font-mono flex items-center gap-1 border transition-all active:scale-95 cursor-pointer ${periodInfo.bg} ${periodInfo.color}`}
-              title="タップで時間帯切替 (昼/夕/夜/早朝/連動)"
+              title="タップで時間帯切替 (早朝 ➜ 朝 ➜ 昼 ➜ 夕方 ➜ 夜)"
             >
               <span>{periodInfo.icon}</span>
               <span className="font-semibold">{formatTime(world.environment.time)}</span>
@@ -513,55 +518,48 @@ export const TopHUD: React.FC<TopHUDProps> = ({
           </div>
         </div>
 
-        {/* 中央: AI World Brain ボタン */}
+        {/* 中央: AIボタン (アイコン + ⌘K のみで極限省スペース化) */}
         <div className="pointer-events-auto shrink-0">
           <button
             onClick={() => setAIPanelOpen(!isAIPanelOpen)}
-            className={`px-4 py-2 rounded-2xl flex items-center gap-2 font-medium text-sm transition-all shadow-lg active:scale-95 cursor-pointer whitespace-nowrap shrink-0 ${
+            className={`px-3 py-1.5 rounded-2xl flex items-center gap-1.5 font-medium text-xs transition-all shadow-lg active:scale-95 cursor-pointer whitespace-nowrap shrink-0 ${
               isAIPanelOpen
                 ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-cyan-500/25 ring-2 ring-cyan-400'
                 : 'glass-panel text-cyan-200 hover:text-white hover:border-cyan-400/50 hover:shadow-cyan-500/10 bg-slate-950/80 backdrop-blur-md'
             }`}
+            title="AI世界生成 ＆ 画像創出 (⌘K / Ctrl+K)"
           >
             <Sparkles className="w-4 h-4 text-cyan-400 animate-spin" style={{ animationDuration: '6s' }} />
-            <span>AI世界生成 & 画像創出</span>
             <span className="text-[10px] bg-cyan-900/80 px-1.5 py-0.5 rounded text-cyan-300 font-mono">
-              ⌘K
+              AI ⌘K
             </span>
           </button>
         </div>
 
         {/* 右上: 時間・天候 & 設定 & カメラリセット & ヘルプ */}
         <div
-          className="flex items-center gap-2 pointer-events-auto"
+          className="flex items-center gap-2 pointer-events-auto shrink-0"
           onTouchStart={(e) => e.stopPropagation()}
         >
-          {/* 天候セレクター */}
-          <div className="glass-panel px-2.5 py-1.5 rounded-2xl items-center gap-2 bg-slate-950/80 backdrop-blur-md border border-white/15 flex">
-            <div className="flex items-center gap-1">
-              {(['clear', 'sunset', 'rain', 'snow'] as WeatherType[]).map((w) => (
-                <button
-                  key={w}
-                  onClick={() => setWeather(w)}
-                  className={`p-1.5 rounded-lg transition-all active:scale-95 cursor-pointer ${
-                    world.environment.weather === w
-                      ? 'bg-white/20 border border-white/30'
-                      : 'opacity-50 hover:opacity-90'
-                  }`}
-                  title={weatherIcons[w].label}
-                >
-                  {weatherIcons[w].icon}
-                </button>
-              ))}
-            </div>
+          {/* 天候 ＆ 時間帯コントロール */}
+          <div className="glass-panel px-2.5 py-1.5 rounded-2xl items-center gap-2 bg-slate-950/80 backdrop-blur-md border border-white/15 flex shrink-0">
+            {/* 🌤️ 天候トグルボタン（1ボタン循環切替: 快晴 ➜ 雨 ➜ 大雨 ➜ 雪 ➜ 霧） */}
+            <button
+              onClick={handleCycleWeather}
+              className="px-2 py-1 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-xs text-slate-200 hover:text-white flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0"
+              title="クリックで天候切替 (快晴 ➜ 雨 ➜ 大雨 ➜ 雪 ➜ 霧)"
+            >
+              {weatherIcons[world.environment.weather]?.icon || <Sun className="w-4 h-4 text-amber-400" />}
+              <span className="font-semibold text-[11px]">{weatherIcons[world.environment.weather]?.label || '快晴'}</span>
+            </button>
 
-            <div className="w-[1px] h-4 bg-white/10" />
+            <div className="w-[1px] h-4 bg-white/10 shrink-0" />
 
-            <div className="flex items-center gap-1.5 text-xs font-mono text-slate-300">
+            <div className="flex items-center gap-1.5 text-xs font-mono text-slate-300 shrink-0">
               {/* 🕒 時間連動 ON/OFF トグルスイッチ */}
               <button
                 onClick={handleToggleSync}
-                className={`px-2 py-1 rounded-xl text-[10px] font-bold font-sans transition-all active:scale-95 cursor-pointer border flex items-center gap-1 ${
+                className={`px-2 py-1 rounded-xl text-[10px] font-bold font-sans transition-all active:scale-95 cursor-pointer border flex items-center gap-1 shrink-0 ${
                   isRealtimeSync
                     ? 'bg-cyan-500/25 text-cyan-200 border-cyan-400/50 shadow-sm ring-1 ring-cyan-400/30'
                     : 'text-slate-400 bg-white/5 border-white/10 hover:text-white hover:bg-white/10'
@@ -572,40 +570,30 @@ export const TopHUD: React.FC<TopHUDProps> = ({
                 <span>{isRealtimeSync ? '連動:ON' : '手動'}</span>
               </button>
 
-              {/* 手動モード時のクイック時間帯ボタン (早朝・昼・夕方・夜) */}
+              {/* 手動モード時のクイック時間帯トグルボタン（1ボタン循環切替: 早朝 ➜ 朝 ➜ 昼 ➜ 夕方 ➜ 夜） */}
               {!isRealtimeSync && (
-                <div className="flex items-center gap-0.5 bg-black/40 p-0.5 rounded-xl border border-white/10">
-                  {timePresets.map((preset) => {
-                    const isActive = Math.abs(world.environment.time - preset.time) < 1.8;
-                    return (
-                      <button
-                        key={preset.label}
-                        onClick={() => setTime(preset.time)}
-                        className={`px-1.5 py-0.5 rounded-lg text-[10px] font-sans font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-0.5 ${
-                          isActive
-                            ? 'bg-amber-500/35 text-amber-200 border border-amber-400/50 shadow-sm'
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-                        }`}
-                        title={`${preset.label} (${preset.time}:00) に切替`}
-                      >
-                        <span>{preset.icon}</span>
-                        <span>{preset.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <button
+                  onClick={handleCycleTime}
+                  className={`px-2 py-1 rounded-xl text-[11px] font-bold transition-all active:scale-95 cursor-pointer flex items-center gap-1 border shadow-sm shrink-0 ${periodInfo.bg} ${periodInfo.color}`}
+                  title="クリックで時間帯切替 (早朝 ➜ 朝 ➜ 昼 ➜ 夕方 ➜ 夜)"
+                >
+                  <span>{periodInfo.icon}</span>
+                  <span>{periodInfo.label}</span>
+                </button>
               )}
 
-              {/* 🌅 時間帯バッジ */}
-              <span
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 shadow-sm ${periodInfo.bg} ${periodInfo.color}`}
-                title={`現在の時間帯: ${periodInfo.label}`}
-              >
-                <span>{periodInfo.icon}</span>
-                <span>{periodInfo.label}</span>
-              </span>
+              {/* 🌅 連動モード時の時間帯バッジ */}
+              {isRealtimeSync && (
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 shadow-sm shrink-0 ${periodInfo.bg} ${periodInfo.color}`}
+                  title={`現在の時間帯: ${periodInfo.label}`}
+                >
+                  <span>{periodInfo.icon}</span>
+                  <span>{periodInfo.label}</span>
+                </span>
+              )}
 
-              <span className="font-semibold text-slate-200 font-mono">{formatTime(world.environment.time)}</span>
+              <span className="font-semibold text-slate-200 font-mono shrink-0">{formatTime(world.environment.time)}</span>
 
               {/* 時刻スライダー */}
               <input
@@ -621,8 +609,8 @@ export const TopHUD: React.FC<TopHUDProps> = ({
                   }
                   setTime(parseFloat(e.target.value));
                 }}
-                className="w-14 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-400"
-                title="時刻調整（ドラッグで手動変更）"
+                className="w-12 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-400 shrink-0"
+                title="時刻微調整（ドラッグで手動変更）"
               />
             </div>
           </div>

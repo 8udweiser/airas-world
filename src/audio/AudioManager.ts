@@ -108,7 +108,7 @@ class AudioManager {
   private windNoiseSource: AudioBufferSourceNode | null = null;
   private windGain: GainNode | null = null;
   private windFilterNode: BiquadFilterNode | null = null;
-  private currentWeatherState: string = 'sunset';
+  private currentWeatherState: string = 'clear';
   private thunderTimer: any = null;
 
   constructor() {

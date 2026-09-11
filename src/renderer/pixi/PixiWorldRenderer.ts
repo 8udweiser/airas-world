@@ -233,7 +233,7 @@ export class PixiWorldRenderer implements IRenderer {
   private walkAnimTimer: number = 0;
   private waterAnimationTime: number = 0;
   private thunderFlashTimer: number = 0;
-  private currentWeather: WeatherType = 'sunset';
+  private currentWeather: WeatherType = 'clear';
   private lastRenderedWeather: WeatherType | null = null;
   private depthSortTimer: number = 0;
   public isLowPerformanceMode: boolean = false; // 低スペックマシン用軽量化モード
@@ -1729,8 +1729,10 @@ export class PixiWorldRenderer implements IRenderer {
         .ellipse((px + tipX) / 2, (py + tipY) / 2, shadowLen * 0.55, 5 * shadowScale)
         .fill({ color: 0x050a14, alpha: shadowAlpha });
     } else {
-      const envAngle = this.currentWeather === 'sunset' ? 0.65 : 0.4;
-      const shadowLen = (this.currentWeather === 'sunset' ? 26 : 14) * shadowScale;
+      const currentTime = this.currentWorld?.environment.time ?? 12.0;
+      const isSunsetTime = currentTime >= 16.5 && currentTime < 19.0;
+      const envAngle = isSunsetTime ? 0.65 : 0.4;
+      const shadowLen = (isSunsetTime ? 26 : 14) * shadowScale;
       const tipX = px + Math.cos(envAngle) * shadowLen;
       const tipY = py + Math.sin(envAngle) * shadowLen * 0.5;
 
@@ -1775,11 +1777,7 @@ export class PixiWorldRenderer implements IRenderer {
     let baseColor = 0x000000;
     let baseAlpha = 0;
 
-    if (weather === 'sunset') {
-      // 夕焼け天候: 柔らかな琥珀ゴールド
-      baseColor = 0xd97706;
-      baseAlpha = 0.08;
-    } else if (time >= 4.5 && time < 7.0) {
+    if (time >= 4.5 && time < 7.0) {
       // 🌄 早朝 (4:30〜7:00): 澄んだ清涼感のある薄青紫
       baseColor = 0x4338ca;
       baseAlpha = 0.08;
@@ -1791,9 +1789,14 @@ export class PixiWorldRenderer implements IRenderer {
       // 🌤️ 昼 (11:00〜16:30): 自然光 (透明)
       baseAlpha = 0;
     } else if (time >= 16.5 && time < 19.0) {
-      // 🌇 夕方 (16:30〜19:00): オブジェクトがはっきり見える温かい琥珀色（濁りを完全排除）
-      baseColor = 0xd97706;
-      baseAlpha = 0.07;
+      // 🌇 夕方 (16:30〜19:00): 美しいノスタルジックな夕暮れの琥珀オレンジ（旧sunset天候の極上トーンを完全統合）
+      baseColor = 0xf97316;
+      if (time < 17.5) {
+        const progress = (time - 16.5) / 1.0;
+        baseAlpha = 0.12 + progress * 0.06;
+      } else {
+        baseAlpha = 0.18;
+      }
     } else {
       // 🌙 夜 (19:00〜4:30): しっとりとした静寂とロマンチックなムードの夜空
       // 時間帯によって宵の口から真夜中、夜明け前へと自然に暗さが変化
@@ -1840,8 +1843,8 @@ export class PixiWorldRenderer implements IRenderer {
 
     const time = w.environment.time ?? 12.0;
     const weather = this.currentWeather;
-    const isNight = time >= 17.5 || time < 6.0;
-    const isDarkWeather = weather === 'sunset' || weather === 'rain' || weather === 'heavy_rain' || weather === 'typhoon';
+    const isNight = time >= 17.0 || time < 6.0;
+    const isDarkWeather = weather === 'rain' || weather === 'heavy_rain' || weather === 'typhoon';
 
     if (!isNight && !isDarkWeather) return;
 
@@ -1959,21 +1962,10 @@ export class PixiWorldRenderer implements IRenderer {
 
   // 🌧️ 天候レンダリング（雨・大雨・台風・雪・落雷）
   private renderWeather(weather: WeatherType, dt: number = 0.016) {
-    if (weather === 'clear') {
+    if (weather === 'clear' || (weather as string) === 'sunset') {
       if (this.lastRenderedWeather !== 'clear') {
         this.weatherGraphics.clear();
         this.lastRenderedWeather = 'clear';
-      }
-      return;
-    }
-
-    if (weather === 'sunset') {
-      if (this.lastRenderedWeather !== 'sunset') {
-        this.weatherGraphics.clear();
-        this.weatherGraphics
-          .rect(-2000, -2000, 6000, 6000)
-          .fill({ color: 0xf97316, alpha: 0.16 });
-        this.lastRenderedWeather = 'sunset';
       }
       return;
     }
