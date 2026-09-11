@@ -1688,6 +1688,38 @@ export class PixiWorldRenderer implements IRenderer {
     let pointerDownPos = { x: 0, y: 0 };
     let hasMovedSignificantly = false;
 
+    // 📦 オブジェクトドラッグ終了＆確定共通関数
+    const finishEntityDrag = (e?: PointerEvent | MouseEvent) => {
+      if (!this.draggingEntityId) return;
+      const draggedId = this.draggingEntityId;
+      const sprite = this.entitySprites.get(draggedId);
+      const startDir = this.dragStartEntityDirection;
+      const endDir = this.currentDraggingDirection;
+
+      if (e && 'pointerId' in e) {
+        try {
+          if (canvas.hasPointerCapture(e.pointerId)) {
+            canvas.releasePointerCapture(e.pointerId);
+          }
+        } catch {}
+      }
+
+      if (!hasMovedSignificantly && startDir === endDir && (!e || ('button' in e && e.button === 0))) {
+        // 動かさずに向きも変えずにタップしただけなら選択 / インタラクション
+        this.onEntityClick?.(draggedId);
+      } else if (this.dragStartEntityPos && sprite) {
+        // 移動または向き変更が行われた場合は開始位置から最終位置への単一コミットを発行（1 Undo化）
+        const startPos = this.dragStartEntityPos;
+        const endPos = { x: Math.round(sprite.x), y: Math.round(sprite.y) };
+        if (startPos.x !== endPos.x || startPos.y !== endPos.y || startDir !== endDir) {
+          this.onEntityDragEnd?.(draggedId, startPos, endPos, startDir, endDir);
+        }
+      }
+      this.draggingEntityId = null;
+      this.dragPointerId = null;
+      this.dragStartEntityPos = null;
+    };
+
     canvas.addEventListener('pointerdown', (e: PointerEvent) => {
       // 確実なキーボード入力受付のためCanvasにフォーカス
       canvas.focus();
@@ -1699,6 +1731,28 @@ export class PixiWorldRenderer implements IRenderer {
       const screenX = e.clientX - rect.left;
       const screenY = e.clientY - rect.top;
       const worldPos = this.screenToWorld(screenX, screenY);
+
+      // 0. 🔄 すでにオブジェクトを掴んでいる最中に、別のクリックやタップが発生した場合:
+      if (this.draggingEntityId) {
+        // 右クリック: マウスでの時計回り回転
+        if (e.button === 2) {
+          this.rotateDraggedEntity('cw');
+          hasMovedSignificantly = true;
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        // マルチタッチまたは別ポインタでの画面タップ回転:
+        // 画面右側タップは左回転 (ccw)、画面左側タップは右回転 (cw)！
+        if (this.dragPointerId === null || e.pointerId !== this.dragPointerId) {
+          const isRightSide = e.clientX >= window.innerWidth / 2;
+          this.rotateDraggedEntity(isRightSide ? 'ccw' : 'cw');
+          hasMovedSignificantly = true;
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
 
       // 右クリック: マインクラフト準拠インタラクション (乗車・就寝・会話など)
       if (e.button === 2) {
@@ -1720,18 +1774,6 @@ export class PixiWorldRenderer implements IRenderer {
         return;
       }
 
-      // 🎯 左クリック / タッチ操作
-      // 0. 🔄 すでにオブジェクトを掴んでいる最中に、別の指またはクリックが発生した場合:
-      // 画面右側タップは左回転 (ccw)、画面左側タップは右回転 (cw)！
-      if (this.draggingEntityId && (this.dragPointerId === null || e.pointerId !== this.dragPointerId)) {
-        const isRightSide = e.clientX >= window.innerWidth / 2;
-        this.rotateDraggedEntity(isRightSide ? 'ccw' : 'cw');
-        hasMovedSignificantly = true;
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-
       // 1. 編集モード（!this.isPlayMode）の場合のみ、オブジェクト判定とドラッグを有効化
       // 探索モード（this.isPlayMode）の時はオブジェクトを掴まず、オブジェクト上からでもスムーズにスワイプ移動できる
       if (!this.isPlayMode) {
@@ -1739,6 +1781,11 @@ export class PixiWorldRenderer implements IRenderer {
         if (hitId) {
           this.draggingEntityId = hitId;
           this.dragPointerId = e.pointerId;
+          try {
+            canvas.setPointerCapture(e.pointerId);
+          } catch {
+            // pointer capture not supported or invalid pointer
+          }
           const targetEntity = this.currentWorld?.entities[hitId];
           this.dragStartEntityDirection = targetEntity?.direction || 'down';
           this.currentDraggingDirection = this.dragStartEntityDirection;
@@ -1789,33 +1836,41 @@ export class PixiWorldRenderer implements IRenderer {
       }
 
       // 2. オブジェクトドラッグ (編集モード時: 画面のどこにあるオブジェクトでも自由にドラッグ移動！)
-      if (this.draggingEntityId && (this.dragPointerId === null || this.dragPointerId === e.pointerId)) {
-        const rect = canvas.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        const worldPos = this.screenToWorld(screenX, screenY);
-
-        const rawX = worldPos.x - this.dragOffset.x;
-        const rawY = worldPos.y - this.dragOffset.y;
-
-        let newX = Math.round(rawX);
-        let newY = Math.round(rawY);
-
-        // 🧲 グリッド吸着（マス吸着ON時は32px単位にスナップ）
-        if (this.isSnapToGrid) {
-          const tileSize = 32;
-          newX = Math.round(rawX / tileSize) * tileSize;
-          newY = Math.round(rawY / tileSize) * tileSize;
+      if (this.draggingEntityId) {
+        // マウス操作時、左クリック(1)が押されていなければゴーストドラッグを即座に強制解除
+        if (e.pointerType === 'mouse' && (e.buttons & 1) === 0) {
+          finishEntityDrag(e);
+          return;
         }
 
-        const sprite = this.entitySprites.get(this.draggingEntityId);
-        if (sprite) {
-          sprite.x = newX;
-          sprite.y = newY;
-          (sprite as any).worldFootY = newY;
+        if (this.dragPointerId === null || this.dragPointerId === e.pointerId) {
+          const rect = canvas.getBoundingClientRect();
+          const screenX = e.clientX - rect.left;
+          const screenY = e.clientY - rect.top;
+          const worldPos = this.screenToWorld(screenX, screenY);
+
+          const rawX = worldPos.x - this.dragOffset.x;
+          const rawY = worldPos.y - this.dragOffset.y;
+
+          let newX = Math.round(rawX);
+          let newY = Math.round(rawY);
+
+          // 🧲 グリッド吸着（マス吸着ON時は32px単位にスナップ）
+          if (this.isSnapToGrid) {
+            const tileSize = 32;
+            newX = Math.round(rawX / tileSize) * tileSize;
+            newY = Math.round(rawY / tileSize) * tileSize;
+          }
+
+          const sprite = this.entitySprites.get(this.draggingEntityId);
+          if (sprite) {
+            sprite.x = newX;
+            sprite.y = newY;
+            (sprite as any).worldFootY = newY;
+          }
+          this.onEntityDrag?.(this.draggingEntityId, newX, newY, this.currentDraggingDirection);
+          return;
         }
-        this.onEntityDrag?.(this.draggingEntityId, newX, newY, this.currentDraggingDirection);
-        return;
       }
 
       // 3. 全画面スワイプ移動 (オブジェクトやボタン以外の画面どこからでもスワイプ移動！)
@@ -1912,26 +1967,12 @@ export class PixiWorldRenderer implements IRenderer {
       }
 
       // 📦 オブジェクト操作終了処理
-      if (this.draggingEntityId && (this.dragPointerId === null || this.dragPointerId === e.pointerId)) {
-        const draggedId = this.draggingEntityId;
-        const sprite = this.entitySprites.get(draggedId);
-        const startDir = this.dragStartEntityDirection;
-        const endDir = this.currentDraggingDirection;
-
-        if (!hasMovedSignificantly && startDir === endDir && e.button === 0) {
-          // 動かさずに向きも変えずにタップしただけなら選択 / インタラクション
-          this.onEntityClick?.(draggedId);
-        } else if (this.dragStartEntityPos && sprite) {
-          // 移動または向き変更が行われた場合は開始位置から最終位置への単一コミットを発行（1 Undo化）
-          const startPos = this.dragStartEntityPos;
-          const endPos = { x: Math.round(sprite.x), y: Math.round(sprite.y) };
-          if (startPos.x !== endPos.x || startPos.y !== endPos.y || startDir !== endDir) {
-            this.onEntityDragEnd?.(draggedId, startPos, endPos, startDir, endDir);
-          }
+      if (this.draggingEntityId) {
+        const isDragPointer = this.dragPointerId === null || this.dragPointerId === e.pointerId;
+        const isMouseRelease = e.pointerType === 'mouse' && (e.button === 0 || (e.buttons & 1) === 0);
+        if (isDragPointer || isMouseRelease) {
+          finishEntityDrag(e);
         }
-        this.draggingEntityId = null;
-        this.dragPointerId = null;
-        this.dragStartEntityPos = null;
       }
 
       // 📷 カメラドラッグ終了処理
@@ -1948,7 +1989,36 @@ export class PixiWorldRenderer implements IRenderer {
     };
 
     window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
+    window.addEventListener('pointercancel', (e: PointerEvent) => {
+      handlePointerUp(e);
+      if (this.draggingEntityId) {
+        finishEntityDrag(e);
+      }
+    });
+
+    window.addEventListener('mouseup', (e: MouseEvent) => {
+      // マウスの左ボタンが離されたとき、ドラッグ中なら確実に終了
+      if (e.button === 0 && this.draggingEntityId) {
+        finishEntityDrag(e);
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      // ウィンドウフォーカスが外れた場合、安全のため全ドラッグ/スワイプ状態を解除
+      if (this.draggingEntityId) {
+        finishEntityDrag();
+      }
+      this.isSwipingMovement = false;
+      this.isDraggingCamera = false;
+      this.clearDirectionKeys();
+    });
+
+    window.addEventListener('touchend', (e: TouchEvent) => {
+      // 画面上の全指が離された場合、ドラッグ状態が残っていれば確実に終了
+      if (e.touches.length === 0 && this.draggingEntityId) {
+        finishEntityDrag();
+      }
+    });
 
     canvas.addEventListener(
       'wheel',
