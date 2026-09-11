@@ -85,29 +85,65 @@ export class PixiWorldRenderer implements IRenderer {
 
   // 入力キー状態
   public keys: { [key: string]: boolean } = {};
+  public playerMoveTier: 'walk' | 'jog' | 'dash' = 'walk';
   private lastTapKey: string | null = null;
   private lastTapTime: number = 0;
-  public isDoubleTapSprinting: boolean = false;
+  private sameKeyTapCount: number = 0;
 
   public onKeyDown(code: string) {
     this.keys[code] = true;
 
-    // 移動キー (WASD / 矢印キー) のダブルタップ判定 (320ms以内の連打でダッシュ発動)
+    // 移動キー (WASD / 矢印キー) の連打判定 (650ms以内の連打でゆったり判定)
     const isMoveKey = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code);
+    const now = performance.now();
+
     if (isMoveKey) {
-      const now = performance.now();
-      if (this.lastTapKey === code && now - this.lastTapTime < 320) {
-        this.isDoubleTapSprinting = true;
+      if (this.lastTapKey === code && now - this.lastTapTime < 650) {
+        this.sameKeyTapCount = Math.min(3, this.sameKeyTapCount + 1);
+      } else {
+        this.sameKeyTapCount = 1;
       }
       this.lastTapKey = code;
       this.lastTapTime = now;
+
+      // 1. 方向キーで歩き ➜ 同じ方向キー2回連続入力で小走り
+      // 2. 同じ方向キー3回連続入力でダッシュに切り替え
+      if (this.sameKeyTapCount === 2) {
+        if (this.playerMoveTier === 'walk') {
+          this.playerMoveTier = 'jog';
+        } else if (this.playerMoveTier === 'jog') {
+          // すでにCtrl等で小走りになっていた場合は2回連打でダッシュに昇格
+          this.playerMoveTier = 'dash';
+        }
+      } else if (this.sameKeyTapCount >= 3) {
+        this.playerMoveTier = 'dash';
+      }
+    }
+
+    // Ctrl キー または Shift キーの組み合わせ判定
+    const isCtrl = Boolean(this.keys['ControlLeft'] || this.keys['ControlRight'] || this.keys['Control']);
+    const isShift = Boolean(this.keys['ShiftLeft'] || this.keys['ShiftRight'] || this.keys['Shift']);
+
+    if (isCtrl && isShift) {
+      // 方向キーで歩き ➜ CTRLキーを押しながらSHIFTキーでいきなりダッシュ
+      // 方向キーで歩き ➜ CTRLキーで小走り ➜ CTRLキーを押しながらSHIFTキーでダッシュ
+      this.playerMoveTier = 'dash';
+    } else if (code === 'ControlLeft' || code === 'ControlRight' || code === 'Control') {
+      // 方向キーで歩き ➜ CTRLキーで小走り
+      if (this.playerMoveTier === 'walk') {
+        this.playerMoveTier = 'jog';
+      } else if (this.playerMoveTier === 'jog') {
+        // 同じ方向キー2回連続入力で小走り ➜ CTRLキーでダッシュに切り替え
+        this.playerMoveTier = 'dash';
+      }
     }
   }
 
   public onKeyUp(code: string) {
     this.keys[code] = false;
 
-    // 移動キーがすべて離されたらダブルタップダッシュをリセット
+    // 移動キーがすべて離されたら通常歩行に戻る
+    // （小走りもダッシュも一度切り替えればCTRLキーとSHIFTキーどちらを離してもその状態を維持）
     const k = this.keys;
     const isAnyMoveKeyPressed = Boolean(
       k['KeyW'] || k['ArrowUp'] || k['w'] || k['W'] ||
@@ -116,7 +152,8 @@ export class PixiWorldRenderer implements IRenderer {
       k['KeyD'] || k['ArrowRight'] || k['d'] || k['D']
     );
     if (!isAnyMoveKeyPressed) {
-      this.isDoubleTapSprinting = false;
+      this.playerMoveTier = 'walk';
+      this.sameKeyTapCount = 0;
     }
   }
 
@@ -140,6 +177,8 @@ export class PixiWorldRenderer implements IRenderer {
   private swipePointerId: number | null = null;
   private swipeStartPos: { x: number; y: number } = { x: 0, y: 0 };
   private swipeStartTime: number = 0;
+  private swipeRecentPoints: Array<{ x: number; y: number; t: number }> = [];
+  private swipeActiveTier: 'walk' | 'jog' | 'dash' = 'walk';
 
   // コールバック
   public onEntityClick?: (entityId: string) => void;
@@ -436,8 +475,10 @@ export class PixiWorldRenderer implements IRenderer {
     const isDown = Boolean(k['KeyS'] || k['ArrowDown'] || k['s'] || k['S']);
     const isLeft = Boolean(k['KeyA'] || k['ArrowLeft'] || k['a'] || k['A']);
     const isRight = Boolean(k['KeyD'] || k['ArrowRight'] || k['d'] || k['D']);
-    const isSprint = Boolean(k['ControlLeft'] || k['ControlRight'] || k['Control'] || this.isDoubleTapSprinting);
-    const isSneak = Boolean(k['ShiftLeft'] || k['ShiftRight'] || k['Shift']);
+    const isCtrl = Boolean(k['ControlLeft'] || k['ControlRight'] || k['Control']);
+    const isShift = Boolean(k['ShiftLeft'] || k['ShiftRight'] || k['Shift']);
+    // CTRLキーが押されている間はSHIFTキーでしゃがめない（ダッシュ移行や操作競合を防止）
+    const isSneak = isShift && !isCtrl;
     const isJump = Boolean(k['Space'] || k[' ']);
 
     // 方向ベクトル
@@ -450,7 +491,7 @@ export class PixiWorldRenderer implements IRenderer {
 
     const isMoving = dx !== 0 || dy !== 0;
     this.playerState.isMoving = isMoving;
-    this.playerState.isSprinting = isSprint && isMoving;
+    this.playerState.isSprinting = (this.playerMoveTier === 'dash' || this.playerMoveTier === 'jog') && isMoving;
     this.playerState.isSneaking = isSneak;
 
     // 🛋️ ベンチ近くでしゃがむ（Shift / スマホしゃがみボタン）を押した際の自動着席
@@ -503,15 +544,19 @@ export class PixiWorldRenderer implements IRenderer {
       }
     }
 
-    // キビキビ動く快適な速度設定
-    let speed = 230; // 通常歩行
+    // 癒し空間と快適性を両立した3段階速度設定 (歩き: 120, 小走り: 190, ダッシュ: 280)
+    const isSprint = this.playerMoveTier === 'dash';
+    let speed = 120; // 通常歩行 (昭和レトロタウンをゆったり散策できる癒し速度)
     if (this.playerState.isDriving) {
-      speed = 580; // ランボルギーニ巡航速度 (徒歩の約2.5倍)
-      if (isSprint) speed = 920; // ターボ・ニトロ加速 (時速300km/h級)
-      else if (isSneak) speed = 220; // 慎重な車庫入れ速度
+      speed = 500; // ランボルギーニ巡航速度 (徒歩の4倍以上で明確に優位)
+      if (this.playerMoveTier === 'dash') speed = 880; // ターボ・ニトロ猛加速
+      else if (this.playerMoveTier === 'jog') speed = 650; // 高速クルージング
+      else if (isSneak) speed = 180; // 慎重な車庫入れ速度
     } else {
-      if (isSprint) speed = 400; // ダッシュ (約1.75倍)
-      else if (isSneak) speed = 90; // スニーク
+      if (isSneak) speed = 70; // スニーク (静かに忍び足)
+      else if (this.playerMoveTier === 'dash') speed = 280; // ダッシュ (しっかり走る爽快ダッシュ)
+      else if (this.playerMoveTier === 'jog') speed = 190; // 小走り (軽快なジョギング)
+      else speed = 120; // 歩き
     }
 
     // 現在の足場高さ (地面=0、またはオブジェクトの天面)
@@ -585,17 +630,18 @@ export class PixiWorldRenderer implements IRenderer {
       }
 
       // 歩行アニメーションタイマー
-      this.walkAnimTimer += dt * (isSprint ? 18 : 12);
+      const animSpeed = isSneak ? 6 : (this.playerMoveTier === 'dash' ? 20 : (this.playerMoveTier === 'jog' ? 14 : 9));
+      this.walkAnimTimer += dt * animSpeed;
 
       // 足音SE再生 (歩行時かつ接地中かつ非乗車時)
       if (!this.playerState.isDriving && this.playerState.z <= floorZ + 2) {
-        const stepInterval = isSprint ? 0.22 : 0.34;
+        const stepInterval = isSneak ? 0.52 : (this.playerMoveTier === 'dash' ? 0.20 : (this.playerMoveTier === 'jog' ? 0.28 : 0.40));
         const prevStepCount = Math.floor(this.stepTimer / stepInterval);
         this.stepTimer += dt;
         const curStepCount = Math.floor(this.stepTimer / stepInterval);
         if (curStepCount > prevStepCount) {
           const surface = this.getSurfaceAt(this.playerState.x, this.playerState.y);
-          audioManager.playFootstep(surface, isSprint);
+          audioManager.playFootstep(surface, this.playerMoveTier === 'dash');
         }
       } else {
         this.stepTimer = 0;
@@ -991,6 +1037,15 @@ export class PixiWorldRenderer implements IRenderer {
       }
     }
 
+    // 🛡️ 安全装置: depthContainer 内に entitySprites に登録されていない孤立スプライト（残留キャラ等）があれば完全排除
+    const registeredSprites = new Set(this.entitySprites.values());
+    for (let i = this.depthContainer.children.length - 1; i >= 0; i--) {
+      const child = this.depthContainer.children[i];
+      if (!registeredSprites.has(child as any)) {
+        this.depthContainer.removeChild(child);
+      }
+    }
+
     // 5. 選択ハイライト
     this.renderSelectionHighlight(world, assets, selectedEntityId);
 
@@ -1161,6 +1216,14 @@ export class PixiWorldRenderer implements IRenderer {
     direction?: Direction
   ) {
     let sprite = this.entitySprites.get(id);
+    if (!sprite) {
+      // 🚀 同期的に即座にスプライトを生成・登録し、非同期ロード中の重複生成レースコンディションを完全排除！
+      sprite = new Sprite();
+      sprite.eventMode = 'static';
+      this.entitySprites.set(id, sprite);
+      this.depthContainer.addChild(sprite);
+    }
+
     let targetUrl = asset.sprite.url;
 
     const dir: Direction = (id === 'player_main')
@@ -1178,12 +1241,7 @@ export class PixiWorldRenderer implements IRenderer {
     }
     const texture = await this.getTexture(targetUrl);
 
-    if (!sprite) {
-      sprite = new Sprite(texture);
-      sprite.eventMode = 'static';
-      this.entitySprites.set(id, sprite);
-      this.depthContainer.addChild(sprite);
-    } else {
+    if (sprite && !sprite.destroyed) {
       sprite.texture = texture;
     }
 
@@ -1602,6 +1660,8 @@ export class PixiWorldRenderer implements IRenderer {
     this.keys['KeyA'] = false;
     this.keys['KeyD'] = false;
     this.keys['ControlLeft'] = false;
+    this.keys['ControlRight'] = false;
+    this.keys['Control'] = false;
   }
 
   private setupInteractions(canvas: HTMLCanvasElement) {
@@ -1642,10 +1702,10 @@ export class PixiWorldRenderer implements IRenderer {
 
       // 🎯 左クリック / タッチ操作
       // 0. 🔄 すでにオブジェクトを掴んでいる最中に、別の指またはクリックが発生した場合:
-      // オブジェクトを掴みながら画面右側タップで時計回り、画面左側タップで反時計回り回転！
+      // 画面右側タップは左回転 (ccw)、画面左側タップは右回転 (cw)！
       if (this.draggingEntityId && (this.dragPointerId === null || e.pointerId !== this.dragPointerId)) {
         const isRightSide = e.clientX >= window.innerWidth / 2;
-        this.rotateDraggedEntity(isRightSide ? 'cw' : 'ccw');
+        this.rotateDraggedEntity(isRightSide ? 'ccw' : 'cw');
         hasMovedSignificantly = true;
         e.preventDefault();
         e.stopPropagation();
@@ -1679,7 +1739,11 @@ export class PixiWorldRenderer implements IRenderer {
         this.isSwipingMovement = true;
         this.swipePointerId = e.pointerId;
         this.swipeStartPos = { x: e.clientX, y: e.clientY };
-        this.swipeStartTime = performance.now();
+        const now = performance.now();
+        this.swipeStartTime = now;
+        this.swipeRecentPoints = [{ x: e.clientX, y: e.clientY, t: now }];
+        this.swipeActiveTier = 'walk';
+        this.playerMoveTier = 'walk';
         return;
       }
 
@@ -1738,21 +1802,57 @@ export class PixiWorldRenderer implements IRenderer {
       if (this.isSwipingMovement && (this.swipePointerId === null || this.swipePointerId === e.pointerId)) {
         const deltaX = e.clientX - this.swipeStartPos.x;
         const deltaY = e.clientY - this.swipeStartPos.y;
+        // 縦も横と同じ距離にしたいので縦幅10に対して判定を行わずスワイプ距離は常に横幅基準で判定
         const dist = Math.hypot(deltaX, deltaY);
 
-        // デッドゾーン (7px) 未満は停止
-        if (dist < 7) {
+        const now = performance.now();
+        this.swipeRecentPoints.push({ x: e.clientX, y: e.clientY, t: now });
+        while (this.swipeRecentPoints.length > 1 && now - this.swipeRecentPoints[0].t > 150) {
+          this.swipeRecentPoints.shift();
+        }
+
+        const oldestPoint = this.swipeRecentPoints[0];
+        const pointDt = Math.max(1, now - oldestPoint.t);
+        const pointDist = Math.hypot(e.clientX - oldestPoint.x, e.clientY - oldestPoint.y);
+        const recentVelocity = pointDist / pointDt; // px / ms
+
+        // デッドゾーン (8px) 未満は停止
+        if (dist < 8) {
           this.clearDirectionKeys();
           return;
         }
 
-        const now = performance.now();
-        const elapsed = Math.max(1, now - this.swipeStartTime);
-        const velocity = dist / elapsed; // 移動速度 px / ms
+        // スワイプ距離は常に画面横幅基準で判定 (3/10 で少しスワイプ、6/10 で大きくスワイプ)
+        const W = window.innerWidth;
+        const smallThreshold = W * 0.30;
+        const largeThreshold = W * 0.60;
 
-        // 素早いフリック (velocity > 0.20) または 大きめのスワイプ (dist >= 28px) でダッシュ発動
-        const isDashingNow = velocity > 0.20 || dist >= 28;
-        this.keys['ControlLeft'] = isDashingNow;
+        const isFastSwipe = recentVelocity > 0.60 || (now - this.swipeStartTime < 280 && dist >= 35);
+
+        // 状態遷移:
+        // ・ゆっくりスワイプで歩き（ゆっくりスワイプなら大きく引いても歩きのまま。8方向に大きく引いても歩き）
+        //   ➜ 素早くスワイプで小走り、素早く大きくスワイプでダッシュ
+        // ・素早く少しスワイプで小走り（そのまま8方向にスワイプしても小走り、そこから大きく引いても小走りのまま、素早く大きくスワイプでダッシュ）
+        // ・素早く大きくスワイプでダッシュ（そのまま8方向スワイプでもダッシュのまま）
+        if (this.swipeActiveTier === 'walk') {
+          if (isFastSwipe) {
+            if (dist >= largeThreshold) {
+              this.swipeActiveTier = 'dash';
+            } else {
+              this.swipeActiveTier = 'jog';
+            }
+          }
+          // ゆっくりスワイプなら大きく引いても walk のまま維持
+        } else if (this.swipeActiveTier === 'jog') {
+          if (isFastSwipe && dist >= largeThreshold) {
+            this.swipeActiveTier = 'dash';
+          }
+          // ゆっくり大きく引いた場合は jog のまま維持
+        } else if (this.swipeActiveTier === 'dash') {
+          // そのまま8方向スワイプでもダッシュのまま維持
+        }
+
+        this.playerMoveTier = this.swipeActiveTier;
 
         // 8方向スムーズ角度判定 (-180° 〜 180°)
         const angle = Math.atan2(deltaY, deltaX);
@@ -1776,6 +1876,9 @@ export class PixiWorldRenderer implements IRenderer {
       if (this.isSwipingMovement && (this.swipePointerId === null || this.swipePointerId === e.pointerId)) {
         this.isSwipingMovement = false;
         this.swipePointerId = null;
+        this.swipeRecentPoints = [];
+        this.swipeActiveTier = 'walk';
+        this.playerMoveTier = 'walk';
         this.clearDirectionKeys();
 
         // タップ時の処理（クリック自動歩行 targetMovePos は完全廃止）
@@ -1949,6 +2052,29 @@ export class PixiWorldRenderer implements IRenderer {
     audioManager.playPlace();
     this.onEntityRotate?.(entityId, newDir);
     return newDir;
+  }
+
+  // 🔄 任意のエンティティの向きを直接設定（UIボタン等からの呼び出し用）
+  public setEntityDirection(entityId: string, newDir: Direction): void {
+    const entity = this.currentWorld?.entities[entityId];
+    if (!entity) return;
+    entity.direction = newDir;
+
+    const asset = this.currentAssets?.[entity.assetId];
+    const sprite = this.entitySprites.get(entityId);
+    if (asset && sprite) {
+      this.updateEntitySprite(
+        entityId,
+        asset,
+        sprite.x,
+        sprite.y,
+        0,
+        1.0,
+        false,
+        newDir
+      );
+    }
+    audioManager.playPlace();
   }
 
   destroy(): void {

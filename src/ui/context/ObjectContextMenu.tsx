@@ -87,7 +87,11 @@ export const ObjectContextMenu: React.FC = () => {
 
     const renderer = (window as any).__renderer;
     if (renderer) {
-      renderer.rotateEntity(selectedEntityId, delta === 1 ? 'cw' : 'ccw');
+      if (typeof renderer.setEntityDirection === 'function') {
+        renderer.setEntityDirection(selectedEntityId, nextDir);
+      } else {
+        renderer.rotateEntity(selectedEntityId, delta === 1 ? 'cw' : 'ccw');
+      }
     }
 
     const label = DIRECTION_LABELS[nextDir] || nextDir;

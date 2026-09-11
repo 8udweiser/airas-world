@@ -117,10 +117,10 @@ export const App: React.FC = () => {
     renderer.isPlayMode = activeMode === 'play';
     renderer.isSnapToGrid = isSnapToGrid;
 
-    renderer.init(canvasContainerRef.current).then(() => {
+    renderer.init(canvasContainerRef.current).then(async () => {
       // 初期描画
-      renderer.render(world, assets, selectedEntityId, ghostEntities);
-      renderer.setPlayerAvatar(currentAvatarId);
+      await renderer.render(world, assets, selectedEntityId, ghostEntities);
+      await renderer.setPlayerAvatar(currentAvatarId);
 
       // 左クリック (選択)
       renderer.onEntityClick = (entityId: string) => {

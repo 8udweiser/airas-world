@@ -40,4 +40,5 @@ export interface IRenderer {
     endDir?: Direction
   ) => void;
   getEntityAtScreen?: (screenX: number, screenY: number) => string | null;
+  setEntityDirection?: (entityId: string, newDir: Direction) => void;
 }
