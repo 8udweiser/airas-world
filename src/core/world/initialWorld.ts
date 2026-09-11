@@ -245,14 +245,6 @@ export function createInitialWorld(): AirasWorldData {
         position: { x: 430, y: 840, z: 0 },
       },
 
-      // 5. NPC女子高校生
-      npc_schoolgirl_1: {
-        id: 'npc_schoolgirl_1',
-        assetId: 'character_schoolgirl',
-        name: '女子生徒（あおい）',
-        type: 'npc',
-        position: { x: 460, y: 585, z: 0 },
-      },
 
       // 6. マイホーム・リラックス用ダブルベッド（川沿い）
       bed_home_1: {

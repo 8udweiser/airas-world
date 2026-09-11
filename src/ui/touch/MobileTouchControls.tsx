@@ -36,14 +36,42 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
     checkTouch();
     window.addEventListener('resize', checkTouch);
 
-    // 🚫 スマホのブラウザ操作系ジェスチャー (戻る/進むスワイプ・ピンチズーム・引っ張り更新) 完全無効化
-    const preventBrowserGestures = (e: TouchEvent) => {
+    // 🚫 全ブラウザ共通 (Chrome, Brave, Firefox, Opera, Edge, Safari) のブラウザ操作系ジェスチャー完全無効化
+    let lastTapTime = 0;
+
+    const onTouchStart = (e: TouchEvent) => {
+      // 画面端からのスワイプ戻る/進むジェスチャー阻止 (Chrome, Edge, Safari, Brave等)
       for (let i = 0; i < e.touches.length; i++) {
         const t = e.touches[i];
-        if (t.clientX < 25 || t.clientX > window.innerWidth - 25) {
+        if (t.clientX < 35 || t.clientX > window.innerWidth - 35 || t.clientY < 30) {
           e.preventDefault();
         }
       }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      // 1. ピンチズーム阻止 (2本指以上は100%遮断)
+      if (e.touches.length > 1) {
+        e.preventDefault();
+        return;
+      }
+      // 2. プルダウン更新・画面スワイプナビゲーション阻止 (スクロール可能領域以外は完全抑止)
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest('.allow-scroll')) {
+        e.preventDefault();
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      // ダブルタップズーム防止
+      const now = performance.now();
+      if (now - lastTapTime < 280) {
+        const target = e.target as HTMLElement | null;
+        if (!target?.closest('input, textarea, .allow-scroll')) {
+          e.preventDefault();
+        }
+      }
+      lastTapTime = now;
     };
 
     const preventZoom = (e: Event) => {
@@ -54,19 +82,34 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
       setHasInteracted(true);
     };
 
-    window.addEventListener('touchstart', preventBrowserGestures, { passive: false });
+    // wheel + ctrlKey (Ctrl+スクロールによるブラウザ拡大) 阻止
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('touchstart', onTouchStart, { passive: false });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd, { passive: false });
     window.addEventListener('touchstart', onFirstTouch, { once: true });
     window.addEventListener('pointerdown', onFirstTouch, { once: true });
     window.addEventListener('gesturestart', preventZoom, { passive: false });
     window.addEventListener('gesturechange', preventZoom, { passive: false });
+    window.addEventListener('gestureend', preventZoom, { passive: false });
+    window.addEventListener('wheel', onWheel, { passive: false });
 
     return () => {
       window.removeEventListener('resize', checkTouch);
-      window.removeEventListener('touchstart', preventBrowserGestures);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('touchstart', onFirstTouch);
       window.removeEventListener('pointerdown', onFirstTouch);
       window.removeEventListener('gesturestart', preventZoom);
       window.removeEventListener('gesturechange', preventZoom);
+      window.removeEventListener('gestureend', preventZoom);
+      window.removeEventListener('wheel', onWheel);
     };
   }, []);
 
@@ -151,12 +194,16 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
 
         {/* しゃがむ ＆ JUMP ボタン */}
         <div className="flex items-center gap-3">
-          {/* 🏃 しゃがむ（スニーク）ボタン */}
+          {/* 🏃 しゃがむ（スニーク）ボタン & ベンチ近接時は自動着席 */}
           <button
             onTouchStart={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setCrouch(true);
+              if (nearbyBenchName && !isSitting && !isDriving) {
+                onToggleSit();
+              } else {
+                setCrouch(true);
+              }
             }}
             onTouchEnd={(e) => {
               e.preventDefault();
@@ -165,7 +212,11 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
             }}
             onMouseDown={(e) => {
               e.preventDefault();
-              setCrouch(true);
+              if (nearbyBenchName && !isSitting && !isDriving) {
+                onToggleSit();
+              } else {
+                setCrouch(true);
+              }
             }}
             onMouseUp={(e) => {
               e.preventDefault();

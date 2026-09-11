@@ -113,6 +113,7 @@ export class PixiWorldRenderer implements IRenderer {
   private lastMousePos: { x: number; y: number } = { x: 0, y: 0 };
   private draggingEntityId: string | null = null;
   private dragOffset: { x: number; y: number } = { x: 0, y: 0 };
+  private dragStartEntityPos: { x: number; y: number } | null = null;
 
   // 全画面スワイプ移動ステート (タッチ端末対応)
   private isSwipingMovement: boolean = false;
@@ -125,6 +126,8 @@ export class PixiWorldRenderer implements IRenderer {
   public onEntityRightClick?: (entityId: string) => void;
   public onMapClick?: (worldX: number, worldY: number) => void;
   public onEntityDrag?: (entityId: string, newWorldX: number, newWorldY: number) => void;
+  public onEntityDragEnd?: (entityId: string, startPos: { x: number; y: number }, endPos: { x: number; y: number }) => void;
+  public onAutoSitTriggered?: (benchId: string) => void;
   public onPlayerMoveTick?: (x: number, y: number, z: number, dir: Direction, fps: number) => void;
 
   // パーティクル & アニメーション
@@ -318,8 +321,8 @@ export class PixiWorldRenderer implements IRenderer {
       if (targetEntityId) {
         benchEnt = this.currentWorld.entities[targetEntityId];
       } else {
-        // 最寄りの座れるベンチを探す (45px以内)
-        let minDist = 45;
+        // 最寄りの座れるベンチを探す (55px以内)
+        let minDist = 55;
         for (const ent of Object.values(this.currentWorld.entities)) {
           const a = this.currentAssets[ent.assetId];
           if (a?.interactions?.some((i) => i.type === 'sit')) {
@@ -340,6 +343,7 @@ export class PixiWorldRenderer implements IRenderer {
         this.playerState.z = 6;
         this.playerState.direction = 'down';
         audioManager.playSit();
+        this.updatePlayerSpriteVisual();
         return true;
       }
       return false;
@@ -435,6 +439,30 @@ export class PixiWorldRenderer implements IRenderer {
     this.playerState.isMoving = isMoving;
     this.playerState.isSprinting = isSprint && isMoving;
     this.playerState.isSneaking = isSneak;
+
+    // 🛋️ ベンチ近くでしゃがむ（Shift / スマホしゃがみボタン）を押した際の自動着席
+    if (isSneak && !this.playerState.isSitting && !this.playerState.isDriving && !this.playerState.isSleeping) {
+      if (this.currentWorld && this.currentAssets) {
+        const px = this.playerState.x;
+        const py = this.playerState.y;
+        for (const ent of Object.values(this.currentWorld.entities)) {
+          const a = this.currentAssets[ent.assetId];
+          if (a?.interactions?.some((i) => i.type === 'sit')) {
+            const d = Math.hypot(ent.position.x - px, ent.position.y - py);
+            if (d < 55) {
+              const sat = this.toggleSit(ent.id);
+              if (sat) {
+                this.onAutoSitTriggered?.(ent.id);
+                this.keys['ShiftLeft'] = false;
+                this.keys['ShiftRight'] = false;
+                this.keys['Shift'] = false;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
 
     // 就寝中の処理 (WASDやSpaceで自然に起き上がる)
     if (this.playerState.isSleeping) {
@@ -1587,6 +1615,7 @@ export class PixiWorldRenderer implements IRenderer {
           x: worldPos.x - sprite.x,
           y: worldPos.y - sprite.y,
         };
+        this.dragStartEntityPos = { x: sprite.x, y: sprite.y };
         return;
       }
 
@@ -1630,6 +1659,12 @@ export class PixiWorldRenderer implements IRenderer {
 
         const newX = Math.round(worldPos.x - this.dragOffset.x);
         const newY = Math.round(worldPos.y - this.dragOffset.y);
+        const sprite = this.entitySprites.get(this.draggingEntityId);
+        if (sprite) {
+          sprite.x = newX;
+          sprite.y = newY;
+          (sprite as any).worldFootY = newY;
+        }
         this.onEntityDrag?.(this.draggingEntityId, newX, newY);
         return;
       }
@@ -1691,11 +1726,21 @@ export class PixiWorldRenderer implements IRenderer {
 
       // 📦 オブジェクト操作終了処理
       if (this.draggingEntityId) {
+        const draggedId = this.draggingEntityId;
+        const sprite = this.entitySprites.get(draggedId);
         if (!hasMovedSignificantly && e.button === 0) {
           // 動かさずにタップしただけなら選択 / インタラクション
-          this.onEntityClick?.(this.draggingEntityId);
+          this.onEntityClick?.(draggedId);
+        } else if (hasMovedSignificantly && this.dragStartEntityPos && sprite) {
+          // 移動した場合は開始位置から最終位置への単一コミットを発行（1 Undo化）
+          const startPos = this.dragStartEntityPos;
+          const endPos = { x: Math.round(sprite.x), y: Math.round(sprite.y) };
+          if (startPos.x !== endPos.x || startPos.y !== endPos.y) {
+            this.onEntityDragEnd?.(draggedId, startPos, endPos);
+          }
         }
         this.draggingEntityId = null;
+        this.dragStartEntityPos = null;
       }
 
       // 📷 カメラドラッグ終了処理

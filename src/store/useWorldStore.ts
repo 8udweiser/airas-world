@@ -24,6 +24,8 @@ interface WorldStoreState {
   // オブジェクト操作ショートカット
   createObject: (assetId: string, x: number, y: number) => string;
   moveObject: (entityId: string, toX: number, toY: number) => boolean;
+  updateObjectPositionDirect: (entityId: string, toX: number, toY: number) => void;
+  commitMoveObject: (entityId: string, fromPos: { x: number; y: number; z?: number }, toPos: { x: number; y: number; z?: number }) => boolean;
   deleteObject: (entityId: string) => boolean;
   
   // 環境操作
@@ -139,6 +141,42 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
         entityId,
         { ...target.position },
         { x: toX, y: toY, z: target.position.z },
+        target.name
+      );
+      return executeCommand(cmd);
+    },
+
+    updateObjectPositionDirect: (entityId: string, toX: number, toY: number) => {
+      const { world } = get();
+      const target = world.entities[entityId];
+      if (!target) return;
+      set({
+        world: {
+          ...world,
+          entities: {
+            ...world.entities,
+            [entityId]: {
+              ...target,
+              position: { ...target.position, x: toX, y: toY },
+            },
+          },
+        },
+      });
+    },
+
+    commitMoveObject: (
+      entityId: string,
+      fromPos: { x: number; y: number; z?: number },
+      toPos: { x: number; y: number; z?: number }
+    ) => {
+      const { world, executeCommand } = get();
+      const target = world.entities[entityId];
+      if (!target) return false;
+
+      const cmd = new MoveObjectCommand(
+        entityId,
+        { x: fromPos.x, y: fromPos.y, z: fromPos.z ?? target.position.z },
+        { x: toPos.x, y: toPos.y, z: toPos.z ?? target.position.z },
         target.name
       );
       return executeCommand(cmd);

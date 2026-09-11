@@ -272,7 +272,7 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
             </div>
 
             {/* チャット履歴 */}
-            <div className="h-36 sm:h-40 overflow-y-auto space-y-2 pr-1 text-xs">
+            <div className="h-36 sm:h-40 overflow-y-auto allow-scroll space-y-2 pr-1 text-xs">
               {messages.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-slate-500 text-[11px]">
                   メッセージはありません。話しかけてみよう！

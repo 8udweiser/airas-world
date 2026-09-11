@@ -92,12 +92,12 @@ class MultiplayerManager {
     // 2. WebRTC PeerJS (スマホとPC、他端末同士のリアルタイムP2P同期)
     this.startPeerConnection();
 
-    // 3. 一定時間応答のない他プレイヤーの切断チェック
+    // 3. 一定時間応答のない他プレイヤーの切断チェック (2.8秒無通信で退室判定)
     setInterval(() => {
       const now = Date.now();
       let changed = false;
       for (const [id, p] of this.remotePlayers.entries()) {
-        if (now - p.lastSeen > 6000) {
+        if (now - p.lastSeen > 2800) {
           this.remotePlayers.delete(id);
           changed = true;
         }
@@ -105,7 +105,13 @@ class MultiplayerManager {
       if (changed) {
         this.notifyPlayersChange();
       }
-    }, 1500);
+    }, 1000);
+
+    // 4. タブ閉じ・リロード・画面離脱時の即時退出通知
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', () => this.destroy());
+      window.addEventListener('pagehide', () => this.destroy());
+    }
   }
 
   /**
@@ -407,8 +413,38 @@ class MultiplayerManager {
     return this.remotePlayers.size;
   }
 
+  public broadcastLeave() {
+    const packet: PlayerPacket = {
+      type: 'player_leave',
+      senderId: this.myId,
+      name: this.myName,
+      assetId: '',
+      x: 0,
+      y: 0,
+      z: 0,
+      direction: 'down',
+      isMoving: false,
+      isSprinting: false,
+      isDriving: false,
+      isSitting: false,
+      isSleeping: false,
+      timestamp: Date.now(),
+    };
+    try {
+      this.broadcastChannel?.postMessage(packet);
+    } catch (_) {}
+    this.connections.forEach((conn) => {
+      if (conn.open) {
+        try {
+          conn.send(packet);
+        } catch (_) {}
+      }
+    });
+  }
+
   public destroy() {
     try {
+      this.broadcastLeave();
       this.broadcastChannel?.close();
       this.peer?.destroy();
     } catch (_) {}

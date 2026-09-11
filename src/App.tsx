@@ -22,7 +22,18 @@ export const App: React.FC = () => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<PixiWorldRenderer | null>(null);
 
-  const { world, assets, createObject, moveObject, undo, redo, updatePlayerPosition, setTileAt } = useWorldStore();
+  const {
+    world,
+    assets,
+    createObject,
+    moveObject,
+    updateObjectPositionDirect,
+    commitMoveObject,
+    undo,
+    redo,
+    updatePlayerPosition,
+    setTileAt,
+  } = useWorldStore();
   const {
     selectedEntityId,
     setSelectedEntityId,
@@ -206,9 +217,22 @@ export const App: React.FC = () => {
         }
       };
 
-      // オブジェクトドラッグ移動
+      // オブジェクトドラッグ移動 (ドラッグ中は軽量リアルタイム更新)
       renderer.onEntityDrag = (entityId: string, newX: number, newY: number) => {
-        moveObject(entityId, newX, newY);
+        updateObjectPositionDirect(entityId, newX, newY);
+      };
+
+      // オブジェクトドロップ完了 (離した瞬間に開始位置から最終位置への単一コマンドを登録 ➜ 1回のUndoで元の位置に一発復帰！)
+      renderer.onEntityDragEnd = (entityId: string, startPos, endPos) => {
+        commitMoveObject(entityId, startPos, endPos);
+        showNotification('オブジェクトを移動しました');
+      };
+
+      // 🛋️ ベンチ自動着席（しゃがみキー/ボタンで自動着席した時のHUD通知）
+      renderer.onAutoSitTriggered = (_benchId: string) => {
+        setIsSitting(true);
+        setNearbyBench(null);
+        showNotification('🛋️ ベンチに腰掛けました [WASD]または[Space]で立ち上がる');
       };
 
       // プレイヤー移動時の低頻度通知 (周囲の乗り物・ベンチ・ベッド検知 & F3用FPS通知 & マルチプレイヤー送信)
