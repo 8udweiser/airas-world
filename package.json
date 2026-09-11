@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy:cloudflare": "npm run build && npx -y wrangler pages deploy dist --project-name airas-world",
+    "deploy:firebase": "npm run build && npx -y firebase-tools deploy",
+    "deploy:gh-pages": "npm run build && npx -y gh-pages -d dist"
   },
   "dependencies": {
     "clsx": "^2.1.1",

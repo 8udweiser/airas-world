@@ -12,12 +12,14 @@ import { HelpModal } from './ui/components/HelpModal';
 import { SettingsModal } from './ui/components/SettingsModal';
 import { DebugOverlayF3 } from './ui/hud/DebugOverlayF3';
 import { RendererGhostEntity } from './renderer/IRenderer';
-import { Bell, Users, Globe, Bed } from 'lucide-react';
+import { Bell, Users, Globe, Bed, BookOpen } from 'lucide-react';
 import { audioManager } from './audio/AudioManager';
 import { MobileTouchControls } from './ui/touch/MobileTouchControls';
 import { multiplayerManager, RemotePlayerInfo } from './core/multiplayer/MultiplayerManager';
 import { ChatSystem } from './ui/chat/ChatSystem';
 import { PortalLandingModal } from './ui/portal/PortalLandingModal';
+import { FriendBookModal } from './ui/friends/FriendBookModal';
+import { FriendStorage, FriendProfile } from './core/storage/FriendStorage';
 
 export const App: React.FC = () => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -56,9 +58,33 @@ export const App: React.FC = () => {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPortalOpen, setIsPortalOpen] = useState(false);
+  const [isFriendBookOpen, setIsFriendBookOpen] = useState(false);
+  const [incomingFriend, setIncomingFriend] = useState<{ name: string; houseId: string; roomId: string } | null>(null);
   const [isF3Open, setIsF3Open] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth > 768 : true);
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
+
+  // 招待URLからのアクセス検知 (?friend=xxx または ?hostFriend=xxx)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const friendName = params.get('friend') || params.get('hostFriend');
+    const houseId = params.get('house') || '';
+    const room = params.get('room') || '';
+
+    if (friendName) {
+      FriendStorage.getFriends().then((friends) => {
+        const alreadyAdded = friends.some((f) => f.name === friendName || (houseId && f.houseId === houseId));
+        if (!alreadyAdded) {
+          setIncomingFriend({
+            name: friendName,
+            houseId: houseId || `house_${friendName}`,
+            roomId: room ? `airas_room_${room}` : 'airas_main_room',
+          });
+        }
+      });
+    }
+  }, []);
   const [currentAvatarId, setCurrentAvatarId] = useState('character_schoolgirl');
   const [ghostEntities, setGhostEntities] = useState<RendererGhostEntity[]>([]);
   const [isDriving, setIsDriving] = useState(false);
@@ -891,6 +917,15 @@ export const App: React.FC = () => {
           <span className="text-xs">公開ポータル</span>
         </button>
 
+        <button
+          onClick={() => setIsFriendBookOpen(true)}
+          className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-amber-400/40 text-xs text-amber-200 hover:text-white hover:border-amber-400 shadow-lg hover:shadow-amber-500/20 transition-all cursor-pointer bg-amber-950/50 active:scale-95"
+          title="フレンド連絡帳を開く"
+        >
+          <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+          <span className="text-xs">フレンド帳</span>
+        </button>
+
         <div className="relative">
           <button
             onClick={() => setIsAvatarPickerOpen((prev) => !prev)}
@@ -962,6 +997,41 @@ export const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         onSaved={() => showNotification('Gemini API キーを保存しました！')}
       />
+
+      {/* 🤝 友達からの招待アクセス検知バナー */}
+      {incomingFriend && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl glass-panel border border-amber-400/60 bg-amber-950/90 text-amber-100 text-xs font-medium flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-3 duration-200">
+          <BookOpen className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>
+            🎉 <strong className="text-white">{incomingFriend.name}</strong> さんの家に遊びに来ました！
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={async () => {
+                await FriendStorage.saveFriend({
+                  id: `f_${Date.now()}`,
+                  name: incomingFriend.name,
+                  assetId: 'character_student',
+                  houseId: incomingFriend.houseId,
+                  roomId: incomingFriend.roomId,
+                  lastVisitedAt: Date.now(),
+                });
+                setIncomingFriend(null);
+                showNotification(`「${incomingFriend.name}」さんをフレンド登録しました！`);
+              }}
+              className="px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition-all active:scale-95 cursor-pointer"
+            >
+              フレンド登録
+            </button>
+            <button
+              onClick={() => setIncomingFriend(null)}
+              className="px-2 py-1 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all text-xs cursor-pointer"
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 通知トースト */}
       {notification && (
@@ -1122,6 +1192,9 @@ export const App: React.FC = () => {
 
       {/* 🌐 全プラットフォーム公開ポータル & スマホ接続共有モーダル */}
       <PortalLandingModal isOpen={isPortalOpen} onClose={() => setIsPortalOpen(false)} />
+
+      {/* 📖 フレンド連絡帳モーダル */}
+      <FriendBookModal isOpen={isFriendBookOpen} onClose={() => setIsFriendBookOpen(false)} />
 
       {/* 📱 スマホ・マルチタッチ操作バーチャルジョイスティック */}
       <MobileTouchControls
