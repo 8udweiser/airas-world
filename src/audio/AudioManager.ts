@@ -386,23 +386,28 @@ class AudioManager {
 
   public switchBgmForWeather(weather: string) {
     this.updateWeatherAmbient(weather);
-    const targetIdx = BGM_PLAYLIST.findIndex((t) => t.mood === weather || (weather === 'heavy_rain' && t.mood === 'rain') || (weather === 'typhoon' && t.mood === 'rain'));
+    const targetIdx = BGM_PLAYLIST.findIndex(
+      (t) =>
+        t.mood === weather ||
+        ((weather === 'heavy_rain' || weather === 'typhoon') && t.mood === 'rain') ||
+        ((weather === 'heavy_snow' || weather === 'blizzard') && t.mood === 'snow')
+    );
     if (targetIdx !== -1 && targetIdx !== this.currentTrackIndex) {
       this.startBgm(targetIdx);
     }
   }
 
   /**
-   * 🌧️ リアル雨音・大雨・台風（落雷）リアルタイム環境音エンジン
-   * 雨が強くなるほど音量・水しぶき感が増大し、台風では暴風と不定期な落雷が発生
+   * 🌧️ リアル雨音・大雨・台風（落雷）・吹雪 リアルタイム環境音エンジン
+   * 雨が強くなるほど音量・水しぶき感が増大し、台風では暴風と不定期な落雷、吹雪では冷たい猛風が発生
    */
   public updateWeatherAmbient(weather: string, intensity: number = 1.0) {
     this.currentWeatherState = weather;
     if (!this.ctx) return;
 
-    const isRaining = weather === 'rain' || weather === 'heavy_rain' || weather === 'typhoon';
+    const isWeatherActive = weather === 'rain' || weather === 'heavy_rain' || weather === 'typhoon' || weather === 'blizzard';
 
-    if (!isRaining) {
+    if (!isWeatherActive) {
       this.stopRainAmbient();
       return;
     }
@@ -421,7 +426,11 @@ class AudioManager {
     } else if (weather === 'typhoon') {
       targetRainVol = 0.75 * intensity;
       targetRainFreq = 4800; // 暴風雨の激しい雨足
-      targetWindVol = 0.45; // 唸る強風
+      targetWindVol = 0.48; // 唸る強風
+    } else if (weather === 'blizzard') {
+      targetRainVol = 0.05 * intensity; // 氷片の擦れ音
+      targetRainFreq = 4000;
+      targetWindVol = 0.52; // 凍てつく猛烈な風
     }
 
     if (this.rainAmbientGain) {

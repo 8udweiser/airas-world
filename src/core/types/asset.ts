@@ -42,11 +42,15 @@ export interface AirasAsset {
       up?: string;
       left?: string;
       right?: string;
-      // 将来の8方向(斜め)対応
       'down-left'?: string;
       'down-right'?: string;
       'up-left'?: string;
       'up-right'?: string;
+      down_left?: string;
+      down_right?: string;
+      up_left?: string;
+      up_right?: string;
+      [key: string]: string | undefined;
     };
   };
 

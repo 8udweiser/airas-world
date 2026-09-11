@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useWorldStore } from '../../store/useWorldStore';
 import { useUIStore } from '../../store/useUIStore';
-import { Undo2, Redo2, Sun, CloudRain, Snowflake, Sunset, Clock, Sparkles, HelpCircle, Compass, Wrench, Terminal, Key, Volume2, VolumeX, Music, SkipForward, Zap, CloudLightning } from 'lucide-react';
+import { Undo2, Redo2, Sun, CloudRain, Snowflake, Sunset, Clock, Sparkles, HelpCircle, Compass, Wrench, Terminal, Key, Volume2, VolumeX, Music, SkipForward, Zap, CloudLightning, Wind } from 'lucide-react';
 import { WeatherType } from '../../core/types/world';
 
 interface TopHUDProps {
@@ -108,8 +108,8 @@ export const TopHUD: React.FC<TopHUDProps> = ({
     return () => clearInterval(timer);
   }, [isRealtimeSync, syncToCurrentRealTime]);
 
-  // 🌤️ 天候の循環順序（夕焼け sunset は時間帯に統合されたため天候から排除）
-  const weatherCycleList: WeatherType[] = ['clear', 'rain', 'heavy_rain', 'snow', 'fog'];
+  // 🌤️ 天候の循環順序（快晴 ➜ 雨 ➜ 大雨 ➜ 台風 ➜ 雪 ➜ 大雪 ➜ 吹雪 ➜ 霧）
+  const weatherCycleList: WeatherType[] = ['clear', 'rain', 'heavy_rain', 'typhoon', 'snow', 'heavy_snow', 'blizzard', 'fog'];
 
   const weatherIcons: Record<WeatherType, { icon: React.ReactNode; label: string }> = {
     clear: { icon: <Sun className="w-4 h-4 text-amber-400" />, label: '快晴' },
@@ -117,6 +117,8 @@ export const TopHUD: React.FC<TopHUDProps> = ({
     heavy_rain: { icon: <CloudRain className="w-4 h-4 text-blue-400 animate-pulse" />, label: '大雨' },
     typhoon: { icon: <CloudLightning className="w-4 h-4 text-purple-300 animate-bounce" />, label: '台風' },
     snow: { icon: <Snowflake className="w-4 h-4 text-cyan-200" />, label: '雪' },
+    heavy_snow: { icon: <Snowflake className="w-4 h-4 text-cyan-100 animate-pulse drop-shadow" />, label: '大雪' },
+    blizzard: { icon: <Wind className="w-4 h-4 text-sky-100 animate-pulse" />, label: '吹雪' },
     fog: { icon: <Sun className="w-4 h-4 text-slate-300" />, label: '霧' },
     sunset: { icon: <Sun className="w-4 h-4 text-amber-400" />, label: '快晴' },
   };

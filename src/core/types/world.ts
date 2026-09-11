@@ -1,4 +1,4 @@
-export type WeatherType = 'clear' | 'rain' | 'heavy_rain' | 'typhoon' | 'snow' | 'fog' | 'sunset';
+export type WeatherType = 'clear' | 'rain' | 'heavy_rain' | 'typhoon' | 'snow' | 'heavy_snow' | 'blizzard' | 'fog' | 'sunset';
 
 export interface WorldEnvironment {
   time: number;          // 0.0 - 24.0 (時刻: 例 14.5 = 14:30)

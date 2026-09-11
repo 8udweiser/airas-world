@@ -275,8 +275,8 @@ export class PixiWorldRenderer implements IRenderer {
     this.setupInteractions(app.canvas);
     this.centerCamera();
 
-    // 天候パーティクル初期化 (140個に最適化)
-    for (let i = 0; i < 140; i++) {
+    // 天候パーティクル初期化 (大雨・台風・大雪・吹雪に対応する280個プール)
+    for (let i = 0; i < 280; i++) {
       this.weatherParticles.push({
         x: Math.random() * 2400 - 400,
         y: Math.random() * 1400 - 200,
@@ -917,7 +917,7 @@ export class PixiWorldRenderer implements IRenderer {
     const asset = this.currentAssets?.[this.playerState.assetId];
     if (asset) {
       const dir = this.playerState.direction;
-      let dirUrl = asset.sprite.directionalUrls?.[dir];
+      let dirUrl = asset.sprite.directionalUrls?.[dir] || asset.sprite.directionalUrls?.[dir.replace('-', '_')];
       if (!dirUrl && asset.sprite.directionalUrls) {
         if (dir === 'down-right') dirUrl = asset.sprite.directionalUrls['right'] || asset.sprite.directionalUrls['down'];
         else if (dir === 'down-left') dirUrl = asset.sprite.directionalUrls['left'] || asset.sprite.directionalUrls['down'];
@@ -1323,6 +1323,11 @@ export class PixiWorldRenderer implements IRenderer {
       let targetUrl = asset.sprite.url;
       if (asset.sprite.directionalUrls) {
         targetUrl = asset.sprite.directionalUrls[p.direction]
+          || asset.sprite.directionalUrls[p.direction.replace('-', '_')]
+          || (p.direction === 'down-right' ? asset.sprite.directionalUrls['right'] || asset.sprite.directionalUrls['down'] : null)
+          || (p.direction === 'down-left' ? asset.sprite.directionalUrls['left'] || asset.sprite.directionalUrls['down'] : null)
+          || (p.direction === 'up-right' ? asset.sprite.directionalUrls['right'] || asset.sprite.directionalUrls['up'] : null)
+          || (p.direction === 'up-left' ? asset.sprite.directionalUrls['left'] || asset.sprite.directionalUrls['up'] : null)
           || asset.sprite.directionalUrls['down']
           || asset.sprite.url;
       }
@@ -1496,6 +1501,7 @@ export class PixiWorldRenderer implements IRenderer {
 
     if (asset.sprite.directionalUrls) {
       targetUrl = asset.sprite.directionalUrls[dir]
+        || asset.sprite.directionalUrls[dir.replace('-', '_')]
         || (dir === 'down-right' ? asset.sprite.directionalUrls['right'] || asset.sprite.directionalUrls['down'] : null)
         || (dir === 'down-left' ? asset.sprite.directionalUrls['left'] || asset.sprite.directionalUrls['down'] : null)
         || (dir === 'up-right' ? asset.sprite.directionalUrls['right'] || asset.sprite.directionalUrls['up'] : null)
@@ -1816,15 +1822,24 @@ export class PixiWorldRenderer implements IRenderer {
       }
     }
 
-    // 悪天候による微補正（暗すぎないよう調整）
+    // 悪天候による微補正（暗すぎず各天候のムードを際立たせる）
     if (weather === 'rain') {
       baseAlpha = Math.min(0.35, baseAlpha + 0.08);
       baseColor = 0x1e293b;
-    } else if (weather === 'heavy_rain' || weather === 'typhoon') {
-      baseAlpha = Math.min(0.48, baseAlpha + 0.14);
+    } else if (weather === 'heavy_rain') {
+      baseAlpha = Math.min(0.44, baseAlpha + 0.14);
       baseColor = 0x0f172a;
+    } else if (weather === 'typhoon') {
+      baseAlpha = Math.min(0.56, baseAlpha + 0.24);
+      baseColor = 0x030712; // 暴風雨の暗雲
+    } else if (weather === 'blizzard') {
+      baseAlpha = Math.min(0.32, Math.max(0.18, baseAlpha));
+      baseColor = 0x94a3b8; // 吹雪の冷たい青灰色
+    } else if (weather === 'heavy_snow') {
+      baseAlpha = Math.min(0.24, Math.max(0.10, baseAlpha));
+      baseColor = 0xcfd8dc; // 降雪の静寂な白灰色
     } else if (weather === 'fog') {
-      baseAlpha = Math.min(0.25, baseAlpha + 0.06);
+      baseAlpha = Math.min(0.28, baseAlpha + 0.08);
       baseColor = 0x64748b;
     }
 
@@ -1844,7 +1859,7 @@ export class PixiWorldRenderer implements IRenderer {
     const time = w.environment.time ?? 12.0;
     const weather = this.currentWeather;
     const isNight = time >= 17.0 || time < 6.0;
-    const isDarkWeather = weather === 'rain' || weather === 'heavy_rain' || weather === 'typhoon';
+    const isDarkWeather = weather === 'rain' || weather === 'heavy_rain' || weather === 'typhoon' || weather === 'blizzard';
 
     if (!isNight && !isDarkWeather) return;
 
@@ -1960,7 +1975,7 @@ export class PixiWorldRenderer implements IRenderer {
       .fill({ color: 0xffffff, alpha });
   }
 
-  // 🌧️ 天候レンダリング（雨・大雨・台風・雪・落雷）
+  // 🌧️ 天候レンダリング（雨・大雨・台風・雪・大雪・吹雪・落雷）
   private renderWeather(weather: WeatherType, dt: number = 0.016) {
     if (weather === 'clear' || (weather as string) === 'sunset') {
       if (this.lastRenderedWeather !== 'clear') {
@@ -1973,17 +1988,18 @@ export class PixiWorldRenderer implements IRenderer {
     this.lastRenderedWeather = weather;
     this.weatherGraphics.clear();
 
-    const particles = this.isLowPerformanceMode
-      ? this.weatherParticles.slice(0, 45)
-      : this.weatherParticles;
+    const isLow = this.isLowPerformanceMode;
+    const totalCount = this.weatherParticles.length;
 
     if (weather === 'rain') {
-      // しとしと雨
-      for (const p of particles) {
+      // 🌧️ しとしと雨 (約80本)
+      const rainCount = isLow ? 40 : Math.min(85, totalCount);
+      for (let i = 0; i < rainCount; i++) {
+        const p = this.weatherParticles[i];
         p.y += p.speed;
         p.x -= p.speed * 0.25;
-        if (p.y > 1200) p.y = -50;
-        if (p.x < -300) p.x = 2400;
+        if (p.y > 1400) p.y = -50;
+        if (p.x < -400) p.x = 2400;
 
         this.weatherGraphics
           .moveTo(p.x, p.y)
@@ -1991,62 +2007,144 @@ export class PixiWorldRenderer implements IRenderer {
           .stroke({ color: 0x93c5fd, width: 1.4, alpha: 0.55 });
       }
     } else if (weather === 'heavy_rain') {
-      // ⛈️ 大雨（激しい雨足）
+      // ⛈️ 大雨（雨足が大量に激しく降り注ぐ、暗雲オーバーレイ＋着水水しぶき）
       this.weatherGraphics
         .rect(-2000, -2000, 6000, 6000)
-        .fill({ color: 0x0f172a, alpha: 0.22 }); // 薄暗い雨空
+        .fill({ color: 0x0f172a, alpha: 0.26 });
 
-      for (const p of particles) {
-        p.y += p.speed * 1.55;
+      const rainCount = isLow ? 80 : Math.min(210, totalCount);
+      for (let i = 0; i < rainCount; i++) {
+        const p = this.weatherParticles[i];
+        p.y += p.speed * 1.65;
         p.x -= p.speed * 0.65;
-        if (p.y > 1200) p.y = -50;
-        if (p.x < -300) p.x = 2400;
+        if (p.y > 1400) p.y = -50;
+        if (p.x < -400) p.x = 2400;
 
         this.weatherGraphics
           .moveTo(p.x, p.y)
-          .lineTo(p.x - 7, p.y + p.length * 1.5)
-          .stroke({ color: 0xa5b4fc, width: 2.0, alpha: 0.72 });
+          .lineTo(p.x - 6, p.y + p.length * 1.6)
+          .stroke({ color: 0x93c5fd, width: 2.0, alpha: 0.75 });
+
+        // 地面着水リップル（ランダムな水たまりの飛沫）
+        if (i % 6 === 0 && p.y > 400 && p.y < 1200) {
+          const rippleR = 2 + (p.y % 4);
+          this.weatherGraphics
+            .ellipse(p.x, p.y, rippleR * 1.8, rippleR * 0.7)
+            .stroke({ color: 0xbfdbfe, width: 1.0, alpha: 0.35 });
+        }
       }
     } else if (weather === 'typhoon') {
-      // 🌀 台風（暴風・超大雨・突風・落雷）
+      // 🌀 台風（大雨より更に強い雨足・猛烈な暴風雨＋雷鳴落雷フラッシュ＋唸る突風）
       this.weatherGraphics
         .rect(-2000, -2000, 6000, 6000)
-        .fill({ color: 0x030712, alpha: 0.42 }); // 荒れ狂う暗黒空
+        .fill({ color: 0x030712, alpha: 0.45 });
 
-      // 台風時の不定期落雷フラッシュトリガー（毎秒約1.5%確率）
-      if (Math.random() < 0.008) {
+      // 台風時の落雷閃光トリガー（毎秒約1.2%の確率で空が光り雷鳴が轟く）
+      if (Math.random() < 0.012) {
         this.triggerThunderFlash();
       }
 
-      for (const p of particles) {
-        p.y += p.speed * 1.85;
-        p.x -= p.speed * 1.45; // 強烈な横殴りの風
-        if (p.y > 1200) p.y = -50;
-        if (p.x < -300) p.x = 2400;
+      const stormCount = isLow ? 110 : totalCount;
+      for (let i = 0; i < stormCount; i++) {
+        const p = this.weatherParticles[i];
+        p.y += p.speed * 2.15;
+        p.x -= p.speed * 1.65; // 強烈な横殴りの突風雨
+        if (p.y > 1400) p.y = -50;
+        if (p.x < -500) p.x = 2500;
 
         this.weatherGraphics
           .moveTo(p.x, p.y)
-          .lineTo(p.x - 14, p.y + p.length * 1.8)
-          .stroke({ color: 0xc7d2fe, width: 2.4, alpha: 0.85 });
+          .lineTo(p.x - 16, p.y + p.length * 2.0)
+          .stroke({ color: 0xc7d2fe, width: 2.6, alpha: 0.88 });
       }
 
-      // 唸る風のうねりライン
-      const windY1 = (this.waterAnimationTime * 180) % 1000;
-      this.weatherGraphics
-        .moveTo(2200, windY1)
-        .lineTo(-200, windY1 + 120)
-        .stroke({ color: 0xffffff, width: 1.5, alpha: 0.22 });
+      // 唸る暴風のストリーク線（画面を切り裂く突風）
+      const t = this.waterAnimationTime * 220;
+      for (let w = 0; w < 3; w++) {
+        const windY = (t + w * 320) % 1200;
+        this.weatherGraphics
+          .moveTo(2400, windY)
+          .lineTo(-300, windY + 140)
+          .stroke({ color: 0xffffff, width: 1.8, alpha: 0.28 });
+      }
     } else if (weather === 'snow') {
-      for (const p of particles) {
-        p.y += p.speed * 0.4;
-        p.x += Math.sin(p.y * 0.05) * 0.8;
-        if (p.y > 1200) p.y = -50;
-        if (p.x < -300) p.x = 2400;
+      // ❄️ 雪（ふんわり優雅に舞い散る）
+      const snowCount = isLow ? 40 : Math.min(85, totalCount);
+      for (let i = 0; i < snowCount; i++) {
+        const p = this.weatherParticles[i];
+        p.y += p.speed * 0.42;
+        p.x += Math.sin(p.y * 0.04 + i) * 0.85;
+        if (p.y > 1400) p.y = -50;
+        if (p.x < -400) p.x = 2400;
 
         this.weatherGraphics
-          .circle(p.x, p.y, 2)
-          .fill({ color: 0xffffff, alpha: 0.75 });
+          .circle(p.x, p.y, 2.0)
+          .fill({ color: 0xffffff, alpha: 0.80 });
       }
+    } else if (weather === 'heavy_snow') {
+      // 🌨️ 大雪（視界いっぱいに大量の大粒ぼたん雪が舞い積もる）
+      this.weatherGraphics
+        .rect(-2000, -2000, 6000, 6000)
+        .fill({ color: 0xf1f5f9, alpha: 0.12 }); // 雪雲の白い霞み
+
+      const snowCount = isLow ? 80 : Math.min(220, totalCount);
+      for (let i = 0; i < snowCount; i++) {
+        const p = this.weatherParticles[i];
+        p.y += p.speed * 0.55;
+        p.x += Math.sin(p.y * 0.035 + i * 0.7) * 1.4;
+        if (p.y > 1400) p.y = -50;
+        if (p.x < -400) p.x = 2400;
+
+        // 大小さまざまなぼたん雪
+        const r = (i % 4 === 0) ? 3.8 : (i % 2 === 0 ? 2.6 : 1.8);
+        const alpha = (i % 4 === 0) ? 0.92 : 0.75;
+        this.weatherGraphics
+          .circle(p.x, p.y, r)
+          .fill({ color: 0xffffff, alpha });
+      }
+    } else if (weather === 'blizzard') {
+      // 🌬️ 吹雪（猛烈なスピードで吹きすさぶ横殴りの猛吹雪・ホワイトアウト演出）
+      this.weatherGraphics
+        .rect(-2000, -2000, 6000, 6000)
+        .fill({ color: 0xe2e8f0, alpha: 0.28 }); // 視界を奪う猛吹雪の白煙
+
+      const blizzardCount = isLow ? 110 : totalCount;
+      for (let i = 0; i < blizzardCount; i++) {
+        const p = this.weatherParticles[i];
+        p.y += p.speed * 2.3;
+        p.x -= p.speed * 2.0; // 超高速な斜め猛吹雪
+        if (p.y > 1400) p.y = -50;
+        if (p.x < -500) p.x = 2500;
+
+        // 吹きすさぶ氷雪の鋭いストリーク
+        const streakLen = 12 + (i % 12);
+        this.weatherGraphics
+          .moveTo(p.x, p.y)
+          .lineTo(p.x - streakLen, p.y + streakLen * 0.6)
+          .stroke({ color: 0xffffff, width: 2.2, alpha: 0.85 });
+
+        // 氷粒の散乱
+        if (i % 3 === 0) {
+          this.weatherGraphics
+            .circle(p.x, p.y, 2.5)
+            .fill({ color: 0xf8fafc, alpha: 0.90 });
+        }
+      }
+
+      // 吹き荒れるホワイトアウト雪風
+      const t = this.waterAnimationTime * 300;
+      for (let b = 0; b < 4; b++) {
+        const blizzardY = (t + b * 260) % 1200;
+        this.weatherGraphics
+          .moveTo(2500, blizzardY)
+          .lineTo(-400, blizzardY + 220)
+          .stroke({ color: 0xffffff, width: 3.0, alpha: 0.35 });
+      }
+    } else if (weather === 'fog') {
+      // 🌫️ 霧（幻想的な白靄）
+      this.weatherGraphics
+        .rect(-2000, -2000, 6000, 6000)
+        .fill({ color: 0xe2e8f0, alpha: 0.24 });
     }
   }
 

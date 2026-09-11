@@ -187,6 +187,8 @@ export class ChangeWeatherCommand implements IWorldCommand {
       heavy_rain: '大雨',
       typhoon: '台風（超大雨・落雷）',
       snow: '雪',
+      heavy_snow: '大雪',
+      blizzard: '吹雪（猛雪・暴風）',
       fog: '霧',
       sunset: '夕焼け',
     };
