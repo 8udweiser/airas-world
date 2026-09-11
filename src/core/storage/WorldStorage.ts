@@ -76,6 +76,14 @@ export class WorldStorage {
           saved.environment.weather = 'clear';
           sanitized = true;
         }
+        if (saved.entities) {
+          for (const ent of Object.values(saved.entities)) {
+            if (ent && ent.name === '黄色いランボルギーニ') {
+              ent.name = 'ランボルギーニ';
+              sanitized = true;
+            }
+          }
+        }
         if (sanitized) {
           console.log('[WorldStorage] 🧹 汚染タイル/旧天候設定をサニタイズ・修復しました');
           WorldStorage.saveImmediate(saved).catch(() => {});

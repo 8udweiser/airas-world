@@ -1151,7 +1151,7 @@ export const App: React.FC = () => {
           <span className="text-2xl">🏎️</span>
           <div>
             <div className="text-xs font-bold text-white">
-              <span className="text-amber-300">{nearbyVehicle.name}</span>
+              <span className="text-amber-300">{nearbyVehicle.name.replace('黄色い', '')}</span>
             </div>
             <div className="text-[10px] text-slate-400">近づいて乗車できます</div>
           </div>
