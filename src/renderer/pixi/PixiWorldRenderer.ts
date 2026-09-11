@@ -32,9 +32,6 @@ export class PixiWorldRenderer implements IRenderer {
   private entitySprites: Map<string, Sprite> = new Map();
   private textureCache: Map<string, Texture> = new Map();
 
-  // クリック・タップ移動（目的地自動歩行）
-  public targetMovePos: { x: number; y: number } | null = null;
-
   // カメラ状態 (広大な街が見渡せるよう初期ズームは 1.05x)
   private cameraX: number = 0;
   private cameraY: number = 0;
@@ -103,6 +100,7 @@ export class PixiWorldRenderer implements IRenderer {
 
   // 操作モード
   public isPlayMode: boolean = true; // デフォルトは快適な探索モード
+  public isSnapToGrid: boolean = true; // デフォルトはマス吸着ON (32pxスナップ)
 
   public setLowPerformanceMode(enabled: boolean) {
     this.isLowPerformanceMode = enabled;
@@ -416,24 +414,6 @@ export class PixiWorldRenderer implements IRenderer {
     if (isDown) dy += 1;
     if (isLeft) dx -= 1;
     if (isRight) dx += 1;
-
-    // キー入力があればクリック移動は即キャンセル
-    if (isUp || isDown || isLeft || isRight) {
-      this.targetMovePos = null;
-    }
-
-    // 🎯 クリック・タップ目的地への自動歩行 (Auto-Walk)
-    if (this.targetMovePos && dx === 0 && dy === 0) {
-      const tdx = this.targetMovePos.x - this.playerState.x;
-      const tdy = this.targetMovePos.y - this.playerState.y;
-      const dist = Math.hypot(tdx, tdy);
-      if (dist < 10) {
-        this.targetMovePos = null; // 目的地到着
-      } else {
-        dx = tdx / dist;
-        dy = tdy / dist;
-      }
-    }
 
     const isMoving = dx !== 0 || dy !== 0;
     this.playerState.isMoving = isMoving;
@@ -1606,22 +1586,25 @@ export class PixiWorldRenderer implements IRenderer {
       }
 
       // 🎯 左クリック / タッチ操作
-      // 1. オブジェクト判定: 画面のどこにあるオブジェクトでもタッチ・ドラッグ可能！
-      const hitId = this.getEntityAtScreen(screenX, screenY);
-      if (hitId) {
-        this.draggingEntityId = hitId;
-        const sprite = this.entitySprites.get(hitId)!;
-        this.dragOffset = {
-          x: worldPos.x - sprite.x,
-          y: worldPos.y - sprite.y,
-        };
-        this.dragStartEntityPos = { x: sprite.x, y: sprite.y };
-        return;
+      // 1. 編集モード（!this.isPlayMode）の場合のみ、オブジェクト判定とドラッグを有効化
+      // 探索モード（this.isPlayMode）の時はオブジェクトを掴まず、オブジェクト上からでもスムーズにスワイプ移動できる
+      if (!this.isPlayMode) {
+        const hitId = this.getEntityAtScreen(screenX, screenY);
+        if (hitId) {
+          this.draggingEntityId = hitId;
+          const sprite = this.entitySprites.get(hitId)!;
+          this.dragOffset = {
+            x: worldPos.x - sprite.x,
+            y: worldPos.y - sprite.y,
+          };
+          this.dragStartEntityPos = { x: sprite.x, y: sprite.y };
+          return;
+        }
       }
 
-      // 2. オブジェクト以外の地面・空間:
+      // 2. オブジェクト以外の地面・空間（または探索モード中のオブジェクト上）:
       if (e.pointerType === 'touch') {
-        // 🏃💨 タッチ端末での全画面スワイプ移動開始（左・右・中央どこからでもスワイプ可能）
+        // 🏃💨 タッチ端末での全画面スワイプ移動開始（画面のどこからでもスワイプ可能）
         this.isSwipingMovement = true;
         this.swipePointerId = e.pointerId;
         this.swipeStartPos = { x: e.clientX, y: e.clientY };
@@ -1650,15 +1633,26 @@ export class PixiWorldRenderer implements IRenderer {
         return;
       }
 
-      // 2. オブジェクトドラッグ (画面のどこにあるオブジェクトでも自由にドラッグ移動！)
+      // 2. オブジェクトドラッグ (編集モード時: 画面のどこにあるオブジェクトでも自由にドラッグ移動！)
       if (this.draggingEntityId) {
         const rect = canvas.getBoundingClientRect();
         const screenX = e.clientX - rect.left;
         const screenY = e.clientY - rect.top;
         const worldPos = this.screenToWorld(screenX, screenY);
 
-        const newX = Math.round(worldPos.x - this.dragOffset.x);
-        const newY = Math.round(worldPos.y - this.dragOffset.y);
+        const rawX = worldPos.x - this.dragOffset.x;
+        const rawY = worldPos.y - this.dragOffset.y;
+
+        let newX = Math.round(rawX);
+        let newY = Math.round(rawY);
+
+        // 🧲 グリッド吸着（マス吸着ON時は32px単位にスナップ）
+        if (this.isSnapToGrid) {
+          const tileSize = 32;
+          newX = Math.round(rawX / tileSize) * tileSize;
+          newY = Math.round(rawY / tileSize) * tileSize;
+        }
+
         const sprite = this.entitySprites.get(this.draggingEntityId);
         if (sprite) {
           sprite.x = newX;
@@ -1713,13 +1707,12 @@ export class PixiWorldRenderer implements IRenderer {
         this.swipePointerId = null;
         this.clearDirectionKeys();
 
-        // ほとんど動かさずにタップしただけなら地面クリック（歩行目標設定またはタイル配置）
+        // タップ時の処理（クリック自動歩行 targetMovePos は完全廃止）
         if (!hasMovedSignificantly && e.button === 0) {
           const rect = canvas.getBoundingClientRect();
           const screenX = e.clientX - rect.left;
           const screenY = e.clientY - rect.top;
           const worldPos = this.screenToWorld(screenX, screenY);
-          this.targetMovePos = { x: Math.round(worldPos.x), y: Math.round(worldPos.y) };
           this.onMapClick?.(worldPos.x, worldPos.y);
         }
       }
@@ -1750,7 +1743,6 @@ export class PixiWorldRenderer implements IRenderer {
           const screenX = e.clientX - rect.left;
           const screenY = e.clientY - rect.top;
           const worldPos = this.screenToWorld(screenX, screenY);
-          this.targetMovePos = { x: Math.round(worldPos.x), y: Math.round(worldPos.y) };
           this.onMapClick?.(worldPos.x, worldPos.y);
         }
         this.isDraggingCamera = false;

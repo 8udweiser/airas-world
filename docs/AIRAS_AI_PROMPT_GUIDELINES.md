@@ -330,3 +330,92 @@ Negative prompt: flat side profile, direct front view, cyclist, rider, 3D photo 
 ドットの輪郭がシャープ、HD-2Dピクセルアート、ゲーム用乗り物素材。
 背景は純粋な白一色（#FFFFFFの単色ベタ塗り）、影なし、切り抜き用。
 ```
+
+---
+
+## 8. 公園ベンチ・街路ファニチャー生成プロンプト＆自動着席設計
+
+### 🛡️ 透過色（クロマキー）の「穴あき・色被り」完全防止ルール
+ゲームエンジンがアセット画像を透過する際、背景色のピクセル値（または左上ピクセル近似色）を透明化（Alpha=0）します。
+**背景色とアセット本体に同じ色（または同系色）が含まれると、ベンチの座面や脚まで透明にくり抜かれて「虫食い・穴あき」バグが発生します。**
+
+| 背景色 | アセットに使ってよい色 | ⚠️ 絶対に使ってはいけない色（禁止） |
+| :--- | :--- | :--- |
+| **マゼンタ (`#FF00FF`)** | オーク・マホガニー等の木材（茶色・橙褐色・黄褐色）、ダーク鋳鉄・真鍮（黒・チャコールグレー・銀・金色） | **ピンク、紫、マゼンタ、赤紫、薄ピンク** |
+| **ライムグリーン (`#00FF00`)** | オーク木材、金属フレーム、白、赤、青、黒 | **黄緑、明るい緑、エメラルドグリーン** |
+| **ホワイト (`#FFFFFF`)** | 濃い木材、ダークフレーム、黒アウトライン | **白、淡いクリーム色、極薄いグレー** |
+
+> **💡 ベストプラクティス**:
+> 木造・鋳鉄のベンチには **「純粋なマゼンタ背景（#FF00FF）」** が最も安全で高精度です。木目（茶色）や金属（黒）にマゼンタが含まれることは自然にはないため、エッジまで1ピクセルも欠けずに完璧にくり抜くことができます。
+
+---
+
+### 🪑 自動着席仕様とアセットサイズ規定
+- **全体サイズ**: 幅 48〜64px（約1.5〜2マス） × 高さ 28〜32px（1マス）
+- **座面高さ**: 地面から約 12〜16px の高さに座面スノコ板を配置
+- **ゲーム連動**: プレイヤーがベンチの周囲 55px 以内でしゃがみ（Shiftキー / スマホしゃがみボタン）を行うと、自動でベンチ座面中央に吸着して腰掛けポーズに移行します。
+
+---
+
+### ① 【斜め前 単体特化】クラシック公園ベンチ（マゼンタ背景・色被り防止）
+
+ユーザー検証済みで圧倒的な美しさを実証した、オーク材＋黒鋳鉄アームのクォータービューベンチ。
+
+#### 日本語プロンプト:
+```text
+16bitレトロゲーム風のドット絵。公園や街路に置かれるクラシックな木製ベンチ。無人のベンチ単体。
+斜め右前を向いたクォータービュー（アイソメトリック見下ろしアングル）。
+温かみのあるオーク木材のすのこ板（座面と背もたれ、色は茶色・オレンジブラウン）、頑丈な黒い鋳鉄製のアームレストと脚（色はダークチャコールグレーとブラック）。
+ドットの輪郭がシャープ、クッキリした黒のアウトライン、HD-2Dピクセルアート。
+背景は純粋なマゼンタ色（#FF00FFの完全単色ベタ塗り）、接地影やドロップシャドウは一切なし、ゲーム素材切り抜き用。
+注意：ベンチ本体やハイライトにマゼンタ色やピンク色は絶対に使用しないこと。純粋な木目ブラウンと黒い金属のみで描画。
+ネガティブ：人物、座っている人、背景グラデーション、3Dリアル写真、ぼやけた輪郭、ピンクの反射光。
+```
+
+#### 英語プロンプト (Nano Banana 2 / Imagen 3 推奨):
+```text
+16-bit retro pixel art game sprite, single empty park bench.
+Isometric 3/4 quarter view facing diagonally front-right.
+Warm oak wood planks for seat and backrest (rich natural brown tones), heavy ornate dark cast-iron armrests and curved legs (charcoal black).
+Crisp sharp pixel contours, clear black outlines, clean HD-2D retro game aesthetic.
+Solid pure magenta background (#FF00FF only), absolutely no shadows, no gradients, ready for chroma-key cutout.
+Strict instruction: No magenta, pink, or purple pixels within the bench. Use only authentic wood browns and dark iron greys.
+Negative prompt: people, sitting characters, drop shadow, soft edges, 3D photo realistic render.
+```
+
+---
+
+### ② 【全8方向対応・横一列5ポーズ】公園ベンチスプライトシート
+
+ゲームエンジン側で左右反転（Mirroring）を行うことで、全8方向（東・西・南・北・南東・南西・北東・北西）を完全に網羅できる横一列5コマの完璧なスプライトシート。
+
+#### 日本語プロンプト:
+```text
+16bitレトロゲーム風のドット絵スプライトシート。クラシックな木製公園ベンチ。無人のベンチ。
+1枚の画像に横一列（左から右へ5コマ均等配置）で並んだ多方向スプライト：
+1. 正面向き（南向き、背もたれが奥、座面が手前、フロントビュー）
+2. 背面向き（北向き、背もたれの裏側と脚が見える、リアビュー）
+3. 右側面向き（東向き、横から見たアームレストとL字断面、サイドビュー）
+4. 斜め右前向き（南東向き、座面と背もたれが斜め右手前に向いたクォータービュー）
+5. 斜め右後向き（北東向き、背もたれ裏面が斜め右奥を向いた斜めリアビュー）
+全コマのスケール統一、座面高さ統一、ドットの輪郭がシャープ、HD-2Dピクセルアート。
+オーク木材の茶色と黒鋳鉄金具。
+背景は純粋なマゼンタ色（#FF00FFの完全単色ベタ塗り）、影なし、等間隔に配置。
+注意：ベンチ内部にマゼンタ色やピンク色は絶対に使用しないこと。
+ネガティブ：左向きのコマ（エンジンで反転するため不要）、重複コマ、人物、ぼかし。
+```
+
+#### 英語プロンプト:
+```text
+16-bit retro pixel art sprite sheet of a classic wooden park bench with dark cast-iron frame, empty unoccupied.
+A single horizontal row of 5 evenly spaced directions from left to right:
+1. Front-facing view (South, seat in front, backrest behind)
+2. Back-facing view (North, rear of backrest visible)
+3. Right side profile view (East, side profile showing L-shape silhouette and armrest)
+4. Isometric diagonal front-right (South-East, 3/4 quarter view)
+5. Isometric diagonal back-right (North-East, diagonal rear angle)
+Consistent scale and seat height across all 5 frames. Crisp pixel art outlines.
+Solid pure magenta background (#FF00FF), completely flat, no cast shadows.
+Strict rule: Zero magenta or purple color inside the bench itself. Warm oak wood brown and charcoal black iron only.
+Negative prompt: left-facing duplicates, extra frames, sitting people, blurry edges.
+```

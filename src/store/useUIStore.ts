@@ -13,6 +13,7 @@ interface UIStoreState {
   notification: string | null;
   fps: number;
   isMuted: boolean;
+  isSnapToGrid: boolean;
 
   // アクション
   setSelectedEntityId: (id: string | null) => void;
@@ -26,6 +27,8 @@ interface UIStoreState {
   setFps: (fps: number) => void;
   toggleMute: () => void;
   setMuted: (muted: boolean) => void;
+  toggleSnapToGrid: () => void;
+  setSnapToGrid: (snap: boolean) => void;
 }
 
 export const useUIStore = create<UIStoreState>((set) => ({
@@ -39,6 +42,7 @@ export const useUIStore = create<UIStoreState>((set) => ({
   notification: null,
   fps: 60,
   isMuted: false,
+  isSnapToGrid: true, // デフォルトはマス吸着ON (32pxスナップ)
 
   setSelectedEntityId: (id) => set({ selectedEntityId: id }),
   setActiveMode: (mode) => set({ activeMode: mode, selectedEntityId: null, placingAssetId: null }),
@@ -50,6 +54,8 @@ export const useUIStore = create<UIStoreState>((set) => ({
   setFps: (fps) => set({ fps }),
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
   setMuted: (muted) => set({ isMuted: muted }),
+  toggleSnapToGrid: () => set((state) => ({ isSnapToGrid: !state.isSnapToGrid })),
+  setSnapToGrid: (snap) => set({ isSnapToGrid: snap }),
   showNotification: (msg) => {
     set({ notification: msg });
     setTimeout(() => {

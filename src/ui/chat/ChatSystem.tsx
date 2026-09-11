@@ -199,11 +199,13 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
     setInputText('');
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ctrl + Enter または Cmd + Enter で送信
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       handleSend();
     }
+    // 通常のEnterキーは自然に改行される
   };
 
   return (
@@ -306,16 +308,16 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
               <div ref={messagesEndRef} />
             </div>
 
-            {/* 入力欄 */}
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                type="text"
+            {/* 入力欄 (Enterで改行、Ctrl+Enterまたは送信ボタンで送信) */}
+            <div className="flex items-end gap-2 pt-1">
+              <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="メッセージを入力... (Enterで送信)"
-                className="flex-1 bg-black/50 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition-all"
-                maxLength={100}
+                placeholder="メッセージを入力... (Ctrl+Enter で送信)"
+                rows={1}
+                className="flex-1 bg-black/50 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition-all resize-none min-h-[38px] max-h-[80px]"
+                maxLength={200}
               />
               <button
                 onClick={handleSend}
@@ -324,7 +326,8 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
                   e.stopPropagation();
                   handleSend();
                 }}
-                className="px-3.5 py-2 rounded-xl bg-cyan-500/40 hover:bg-cyan-500/60 active:bg-cyan-400 border border-cyan-400/60 text-cyan-100 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer flex items-center justify-center min-h-[36px]"
+                className="px-3.5 py-2 rounded-xl bg-cyan-500/40 hover:bg-cyan-500/60 active:bg-cyan-400 border border-cyan-400/60 text-cyan-100 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer flex items-center justify-center min-h-[38px]"
+                title="送信 (Ctrl+Enter)"
               >
                 <Send className="w-3.5 h-3.5" />
               </button>

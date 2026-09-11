@@ -48,6 +48,7 @@ export const App: React.FC = () => {
     showNotification,
     isMuted,
     toggleMute,
+    isSnapToGrid,
   } = useUIStore();
 
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -112,6 +113,7 @@ export const App: React.FC = () => {
     rendererRef.current = renderer;
     (window as any).__renderer = renderer;
     renderer.isPlayMode = activeMode === 'play';
+    renderer.isSnapToGrid = isSnapToGrid;
 
     renderer.init(canvasContainerRef.current).then(() => {
       // 初期描画
@@ -392,12 +394,13 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // 2. モード変更の同期
+  // 2. モード変更・グリッド吸着の同期
   useEffect(() => {
     if (rendererRef.current) {
       rendererRef.current.isPlayMode = activeMode === 'play';
+      rendererRef.current.isSnapToGrid = isSnapToGrid;
     }
-  }, [activeMode]);
+  }, [activeMode, isSnapToGrid]);
 
   // 3. ワールドデータ変更時のみ再描画（エンティティ追加・天候変更時）
   useEffect(() => {

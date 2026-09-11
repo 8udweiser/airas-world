@@ -34,7 +34,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({
   multiplayerSlot,
 }) => {
   const { world, canUndo, canRedo, undo, redo, setWeather, setTime } = useWorldStore();
-  const { isAIPanelOpen, setAIPanelOpen, activeMode, setActiveMode, isMuted, toggleMute } = useUIStore();
+  const { isAIPanelOpen, setAIPanelOpen, activeMode, setActiveMode, isMuted, toggleMute, isSnapToGrid, toggleSnapToGrid } = useUIStore();
 
   const weatherIcons: Record<WeatherType, { icon: React.ReactNode; label: string }> = {
     clear: { icon: <Sun className="w-4 h-4 text-amber-400" />, label: '快晴' },
@@ -141,10 +141,10 @@ export const TopHUD: React.FC<TopHUDProps> = ({
           </div>
         </div>
 
-        {/* 2段目: 探索 / 編集 モード切替 & F3 (左) ｜ 待受中 / ポータル / キャラ変更 (右) */}
+        {/* 2段目: 探索 / 編集 モード切替 & (編集時: グリッド吸着 & Undo/Redo) & F3 (左) ｜ 待受中 / ポータル / キャラ変更 (右) */}
         <div className="flex items-center justify-between gap-1 w-full pointer-events-auto">
-          {/* 左: 探索 / 編集 / F3 */}
-          <div className="flex items-center p-0.5 bg-slate-950/85 backdrop-blur-md rounded-xl border border-white/15 shadow-md">
+          {/* 左: 探索 / 編集 / (編集時のみ: 🧲吸着 & Undo & Redo) / F3 */}
+          <div className="flex items-center p-0.5 bg-slate-950/85 backdrop-blur-md rounded-xl border border-white/15 shadow-md gap-0.5">
             <button
               onClick={() => setActiveMode('play')}
               onTouchEnd={(e) => {
@@ -177,6 +177,71 @@ export const TopHUD: React.FC<TopHUDProps> = ({
               <Wrench className="w-3.5 h-3.5 text-amber-400" />
               <span>編集</span>
             </button>
+
+            {/* 🛠️ 編集モード時のみ表示: マス吸着トグル & Undo / Redo */}
+            {activeMode === 'edit' && (
+              <>
+                <div className="w-[1px] h-3.5 bg-white/15 mx-0.5" />
+                {/* 🧲 マス吸着トグル (デフォルトON) */}
+                <button
+                  onClick={() => toggleSnapToGrid()}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleSnapToGrid();
+                  }}
+                  className={`px-1.5 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95 cursor-pointer flex items-center gap-0.5 ${
+                    isSnapToGrid
+                      ? 'bg-amber-500/40 text-amber-200 border border-amber-400/50'
+                      : 'text-slate-400 bg-black/30 border border-white/5'
+                  }`}
+                  title={isSnapToGrid ? 'マス吸着: ON (32px)' : 'マス吸着: OFF (自由移動)'}
+                >
+                  <span>🧲</span>
+                  <span className="text-[9px]">{isSnapToGrid ? '吸着' : '自由'}</span>
+                </button>
+
+                {/* 元に戻す (Undo) */}
+                <button
+                  onClick={() => undo()}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    undo();
+                  }}
+                  disabled={!canUndo}
+                  className={`p-1 rounded-lg transition-all active:scale-95 cursor-pointer ${
+                    canUndo
+                      ? 'text-cyan-200 bg-cyan-950/40 border border-cyan-500/30'
+                      : 'opacity-30 text-slate-500 border border-transparent'
+                  }`}
+                  title="元に戻す"
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                </button>
+
+                {/* やり直す (Redo) */}
+                <button
+                  onClick={() => redo()}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    redo();
+                  }}
+                  disabled={!canRedo}
+                  className={`p-1 rounded-lg transition-all active:scale-95 cursor-pointer ${
+                    canRedo
+                      ? 'text-cyan-200 bg-cyan-950/40 border border-cyan-500/30'
+                      : 'opacity-30 text-slate-500 border border-transparent'
+                  }`}
+                  title="やり直す"
+                >
+                  <Redo2 className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
+
+            <div className="w-[1px] h-3.5 bg-white/15 mx-0.5" />
             <button
               onClick={onToggleF3}
               onTouchEnd={(e) => {
@@ -251,7 +316,7 @@ export const TopHUD: React.FC<TopHUDProps> = ({
               </button>
             </div>
 
-            {/* PC向け: Undo / Redo */}
+            {/* PC向け: Undo / Redo & マス吸着トグル */}
             <div className="flex items-center gap-1">
               <div className="w-[1px] h-4 bg-white/10 mr-1" />
               <button
@@ -277,6 +342,20 @@ export const TopHUD: React.FC<TopHUDProps> = ({
                 title="やり直す (Ctrl+Y)"
               >
                 <Redo2 className="w-3.5 h-3.5" />
+              </button>
+
+              {/* 🧲 マス吸着トグル */}
+              <button
+                onClick={() => toggleSnapToGrid()}
+                className={`px-2 py-1 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer ${
+                  isSnapToGrid
+                    ? 'bg-amber-500/30 text-amber-200 border-amber-400/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white border-transparent hover:bg-white/10'
+                }`}
+                title={isSnapToGrid ? 'マス吸着: ON (32pxグリッドにスナップ)' : 'マス吸着: OFF (ピクセル単位の自由配置)'}
+              >
+                <span>🧲</span>
+                <span>{isSnapToGrid ? 'マス吸着' : '自由配置'}</span>
               </button>
             </div>
 
