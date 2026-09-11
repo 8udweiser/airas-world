@@ -11,6 +11,8 @@
  * 6. オフライン/未ロード時も完全動作するハイブリッド・プロシージャルフォールバック
  */
 
+import { resolveAssetUrl } from '../core/utils/url';
+
 export type SurfaceType = 'grass' | 'stone' | 'road' | 'wood' | 'water';
 
 export interface BGMTrack {
@@ -190,7 +192,8 @@ class AudioManager {
 
     for (const url of sampleUrls) {
       try {
-        const res = await fetch(url);
+        const resolvedUrl = resolveAssetUrl(url);
+        const res = await fetch(resolvedUrl);
         if (res.ok) {
           const ab = await res.arrayBuffer();
           if (this.ctx) {
@@ -317,8 +320,9 @@ class AudioManager {
         });
       }
 
-      if (!this.bgmAudio.src.endsWith(encodeURI(track.url)) || this.bgmAudio.paused) {
-        this.bgmAudio.src = track.url;
+      const resolvedUrl = resolveAssetUrl(track.url);
+      if (!this.bgmAudio.src.endsWith(encodeURI(resolvedUrl)) || this.bgmAudio.paused) {
+        this.bgmAudio.src = resolvedUrl;
         this.bgmAudio.volume = this._isMuted ? 0 : this.bgmVolume * this._masterVolume;
         this.bgmAudio.muted = this._isMuted;
 

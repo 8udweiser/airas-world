@@ -4,6 +4,7 @@ import { AirasAsset } from '../../core/types/asset';
 import { IRenderer, RendererGhostEntity } from '../IRenderer';
 import { audioManager, SurfaceType } from '../../audio/AudioManager';
 import { RemotePlayerInfo } from '../../core/multiplayer/MultiplayerManager';
+import { resolveAssetUrl } from '../../core/utils/url';
 
 export const ROTATION_DIRECTIONS: Direction[] = [
   'down',        // 0: 下 (正面)
@@ -957,14 +958,15 @@ export class PixiWorldRenderer implements IRenderer {
   }
 
   private async getTexture(url: string): Promise<Texture> {
-    if (this.textureCache.has(url)) {
-      return this.textureCache.get(url)!;
+    const targetUrl = resolveAssetUrl(url);
+    if (this.textureCache.has(targetUrl)) {
+      return this.textureCache.get(targetUrl)!;
     }
-    const texture = await Assets.load(url);
+    const texture = await Assets.load(targetUrl);
     if (texture.source) {
       texture.source.scaleMode = 'nearest';
     }
-    this.textureCache.set(url, texture);
+    this.textureCache.set(targetUrl, texture);
     return texture;
   }
 
