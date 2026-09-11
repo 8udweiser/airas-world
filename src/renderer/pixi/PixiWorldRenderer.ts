@@ -1597,9 +1597,22 @@ export class PixiWorldRenderer implements IRenderer {
       baseColor = 0xd97706;
       baseAlpha = 0.07;
     } else {
-      // 🌙 夜 (19:00〜4:30): 落ち着いた夜空トーン（ドット絵がくっきり見える適度な深み）
-      baseColor = 0x0f172a;
-      baseAlpha = 0.20;
+      // 🌙 夜 (19:00〜4:30): しっとりとした静寂とロマンチックなムードの夜空
+      // 時間帯によって宵の口から真夜中、夜明け前へと自然に暗さが変化
+      baseColor = 0x070c1b; // 深みのある澄んだミッドナイトインディゴ
+      if (time >= 19.0 && time < 21.0) {
+        // 宵の口 (19:00〜21:00): 0.22 〜 0.38 へ徐々に深まる
+        const progress = (time - 19.0) / 2.0;
+        baseAlpha = 0.22 + progress * 0.16;
+      } else if (time >= 21.0 || time < 3.5) {
+        // 真夜中 (21:00〜3:30): しっかりとした夜の静けさと街灯が美しく映えるムードの深み
+        // ドット絵の視認性を保ちながらコントラストとロマンチックな雰囲気が最高潮に
+        baseAlpha = 0.42;
+      } else {
+        // 明け方前 (3:30〜4:30): 0.42 から 0.18 へ徐々に明るくなる
+        const progress = (time - 3.5) / 1.0;
+        baseAlpha = 0.42 - progress * 0.24;
+      }
     }
 
     // 悪天候による微補正（暗すぎないよう調整）
@@ -1621,7 +1634,7 @@ export class PixiWorldRenderer implements IRenderer {
     }
   }
 
-  // 💡 街灯の環境光：ドット絵を隠す巨大な円盤は完全廃止し、街灯足元のごく微細で上品な灯りのみに限定
+  // 💡 街灯・自販機・喫茶店の夜景環境光：ふんわりと足元を照らす上品なムードライティング
   public renderStaticLighting(world?: AirasWorldData) {
     const w = world || this.currentWorld;
     if (!w) return;
@@ -1637,21 +1650,93 @@ export class PixiWorldRenderer implements IRenderer {
     for (const ent of Object.values(w.entities)) {
       const assetId = ent.assetId.toLowerCase();
 
-      // 街灯のみ、電球部分と足元をほんのり小さく自然に灯す (巨大な円盤は排除！)
+      // 1. 街灯：電球の温かい光 ＆ 足元の柔らかな照り返しグラデーション
       if (assetId.includes('lamp') || assetId.includes('light')) {
         const lx = ent.position.x;
         const ly = ent.position.y - 18;
-        // 電球の小さな温光
+
+        // 電球部分の温光（中心は明るく、外側へ滑らかにフェード）
         this.staticLightingGraphics
-          .circle(lx, ly, 10).fill({ color: 0xffedd5, alpha: 0.30 })
-          .circle(lx, ly, 24).fill({ color: 0xfef08a, alpha: 0.10 });
+          .circle(lx, ly, 6).fill({ color: 0xfffbeb, alpha: 0.50 })
+          .circle(lx, ly, 14).fill({ color: 0xfef08a, alpha: 0.25 })
+          .circle(lx, ly, 28).fill({ color: 0xf59e0b, alpha: 0.10 })
+          .circle(lx, ly, 46).fill({ color: 0xd97706, alpha: 0.03 });
+
+        // 足元の地面への照り返し（夜の街灯の下に立っている感覚を演出）
+        const groundY = ent.position.y + 12;
+        this.staticLightingGraphics
+          .ellipse(lx, groundY, 24, 10).fill({ color: 0xfef08a, alpha: 0.14 })
+          .ellipse(lx, groundY, 42, 16).fill({ color: 0xf59e0b, alpha: 0.05 });
+      }
+      // 2. 🥤 自販機 (vending): 夜道に浮かぶクールでエモい電光パネルの明かり
+      else if (assetId.includes('vending')) {
+        const vx = ent.position.x;
+        const vy = ent.position.y + 12;
+        this.staticLightingGraphics
+          .ellipse(vx, vy, 18, 8).fill({ color: 0xbae6fd, alpha: 0.12 })
+          .ellipse(vx, vy, 32, 14).fill({ color: 0x38bdf8, alpha: 0.04 });
+      }
+      // 3. ☕ 喫茶店・カフェ・住宅: 窓辺から漏れる温もりあるオレンジ光
+      else if (assetId.includes('cafe') || assetId.includes('coffee') || assetId.includes('house') || assetId.includes('shop')) {
+        const hx = ent.position.x;
+        const hy = ent.position.y + 16;
+        this.staticLightingGraphics
+          .ellipse(hx, hy, 28, 12).fill({ color: 0xfef08a, alpha: 0.10 })
+          .ellipse(hx, hy, 46, 18).fill({ color: 0xf59e0b, alpha: 0.04 });
       }
     }
   }
 
-  // 💡 街灯・環境ライティング（人物自身は発光させず、街灯に照らされるリアルな表現に統一）
+  // 💡 動的ライティング（夜間の車両ヘッドライト等）
   private renderLighting() {
     this.lightingGraphics.clear();
+
+    const time = this.currentWorld?.environment.time ?? 12.0;
+    const isNight = time >= 17.5 || time < 6.0;
+    if (!isNight) return;
+
+    // 🚗 車両乗車時のリアルなヘッドライト照射
+    if (this.playerState.isDriving) {
+      const px = this.playerState.x;
+      const py = this.playerState.y;
+      const dir = this.playerState.direction;
+
+      let offsetX = 0;
+      let offsetY = 0;
+      let radiusX = 35;
+      let radiusY = 20;
+
+      if (dir === 'down' || dir === 'down-left' || dir === 'down-right') {
+        offsetX = 0;
+        offsetY = 36;
+        radiusX = 38;
+        radiusY = 22;
+      } else if (dir === 'up' || dir === 'up-left' || dir === 'up-right') {
+        offsetX = 0;
+        offsetY = -34;
+        radiusX = 38;
+        radiusY = 20;
+      } else if (dir === 'right') {
+        offsetX = 45;
+        offsetY = 2;
+        radiusX = 46;
+        radiusY = 22;
+      } else if (dir === 'left') {
+        offsetX = -45;
+        offsetY = 2;
+        radiusX = 46;
+        radiusY = 22;
+      }
+
+      const hx = px + offsetX;
+      const hy = py + offsetY;
+
+      // ヘッドライトの柔らかいビーム照射
+      this.lightingGraphics
+        .ellipse(hx, hy, radiusX * 0.5, radiusY * 0.5).fill({ color: 0xfffbeb, alpha: 0.28 })
+        .ellipse(hx, hy, radiusX, radiusY).fill({ color: 0xfef08a, alpha: 0.14 })
+        .ellipse(hx, hy, radiusX * 1.4, radiusY * 1.3).fill({ color: 0xf59e0b, alpha: 0.04 });
+    }
   }
 
   // ⚡ 落雷ホワイトフラッシュの更新
