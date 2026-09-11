@@ -576,13 +576,13 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
     type: 'object',
     category: 'furniture',
     sprite: {
-      url: svgToUri(vendingMachineSvg),
-      width: 32,
-      height: 56,
+      url: resolveAssetUrl('/assets/buildings/vending_machine_retro_1.png'),
+      width: 36,
+      height: 62,
       pixelArt: true,
     },
-    anchor: { x: 16, y: 54 },
-    collision: { enabled: true, type: 'box', offsetX: -14, offsetY: -12, width: 28, height: 12 },
+    anchor: { x: 18, y: 60 },
+    collision: { enabled: true, type: 'box', offsetX: -16, offsetY: -16, width: 32, height: 16 },
     depth: { enabled: true, offsetY: 0 },
     interactions: [
       {
@@ -605,13 +605,13 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
     type: 'building_part',
     category: 'structure',
     sprite: {
-      url: svgToUri(retroCafeSvg),
-      width: 64,
-      height: 64,
+      url: resolveAssetUrl('/assets/buildings/cafe_retro.png'),
+      width: 132,
+      height: 90,
       pixelArt: true,
     },
-    anchor: { x: 32, y: 62 },
-    collision: { enabled: true, type: 'box', offsetX: -28, offsetY: -20, width: 56, height: 20 },
+    anchor: { x: 66, y: 86 },
+    collision: { enabled: true, type: 'box', offsetX: -60, offsetY: -24, width: 120, height: 24 },
     depth: { enabled: true, offsetY: 0 },
     interactions: [
       {
@@ -637,13 +637,13 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
     type: 'building_part',
     category: 'structure',
     sprite: {
-      url: svgToUri(retroStationSvg),
-      width: 80,
-      height: 64,
+      url: resolveAssetUrl('/assets/buildings/station_wooden.png'),
+      width: 152,
+      height: 90,
       pixelArt: true,
     },
-    anchor: { x: 40, y: 62 },
-    collision: { enabled: true, type: 'box', offsetX: -36, offsetY: -24, width: 72, height: 24 },
+    anchor: { x: 76, y: 86 },
+    collision: { enabled: true, type: 'box', offsetX: -70, offsetY: -24, width: 140, height: 24 },
     depth: { enabled: true, offsetY: 0 },
     interactions: [
       {
@@ -660,6 +660,70 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
       createdAt: Date.now(),
       source: 'preset',
       description: '瓦屋根と木の香りが漂うノスタルジックな駅舎。',
+    },
+  },
+
+  dagashi_shop: {
+    id: 'dagashi_shop',
+    name: '昭和レトロ駄菓子屋',
+    type: 'building_part',
+    category: 'structure',
+    sprite: {
+      url: resolveAssetUrl('/assets/buildings/dagashi_shop.png'),
+      width: 138,
+      height: 90,
+      pixelArt: true,
+    },
+    anchor: { x: 69, y: 86 },
+    collision: { enabled: true, type: 'box', offsetX: -64, offsetY: -24, width: 128, height: 24 },
+    depth: { enabled: true, offsetY: 0 },
+    interactions: [
+      {
+        type: 'buy',
+        label: '駄菓子を買う (右クリック)',
+        dialogue: [
+          'おばちゃん「いらっしゃい！きなこ棒とラムネ、どれにするかい？」',
+          '色とりどりのガラス瓶に懐かしいお菓子がいっぱい詰まっている。',
+        ],
+      },
+    ],
+    metadata: {
+      tags: ['駄菓子屋', '昭和', 'レトロ', '建物', '商店街'],
+      createdAt: Date.now(),
+      source: 'preset',
+      description: '昭和の懐かしい佇まいを残す路地裏の駄菓子屋さん。',
+    },
+  },
+
+  phone_booth_retro: {
+    id: 'phone_booth_retro',
+    name: '昭和レトロ赤電話ボックス',
+    type: 'object',
+    category: 'furniture',
+    sprite: {
+      url: resolveAssetUrl('/assets/buildings/phone_booth_retro.png'),
+      width: 36,
+      height: 76,
+      pixelArt: true,
+    },
+    anchor: { x: 18, y: 74 },
+    collision: { enabled: true, type: 'box', offsetX: -16, offsetY: -16, width: 32, height: 16 },
+    depth: { enabled: true, offsetY: 0 },
+    interactions: [
+      {
+        type: 'inspect',
+        label: '公衆電話を使う (右クリック)',
+        dialogue: [
+          'チャリン... ツー... ツー...',
+          '懐かしい緑の公衆電話から受話器の電子音が聞こえる。',
+        ],
+      },
+    ],
+    metadata: {
+      tags: ['電話ボックス', '公衆電話', '昭和', 'レトロ', '街並み'],
+      createdAt: Date.now(),
+      source: 'preset',
+      description: '赤い屋根とガラス扉がノスタルジックな昭和の公衆電話ボックス。',
     },
   },
 

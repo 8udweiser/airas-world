@@ -488,7 +488,17 @@ export const App: React.FC = () => {
       const res = await renderer.exitVehicle();
       setIsDriving(false);
       if (res && res.entityId) {
-        moveObject(res.entityId, res.x, res.y);
+        updateObjectPositionDirect(res.entityId, res.x, res.y, res.direction);
+        const curEnt = useWorldStore.getState().world.entities[res.entityId];
+        if (curEnt) {
+          commitMoveObject(
+            res.entityId,
+            { x: curEnt.position.x, y: curEnt.position.y },
+            { x: res.x, y: res.y },
+            curEnt.direction,
+            res.direction
+          );
+        }
         setTimeout(() => {
           renderer.renderStaticShadows();
         }, 50);

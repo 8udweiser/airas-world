@@ -6,6 +6,7 @@ import { audioManager, SurfaceType } from '../../audio/AudioManager';
 import { RemotePlayerInfo } from '../../core/multiplayer/MultiplayerManager';
 import { resolveAssetUrl } from '../../core/utils/url';
 import { WaterPhysicsEngine } from '../../core/physics/WaterPhysicsEngine';
+import { DEFAULT_ASSETS } from '../../core/asset/defaultAssets';
 
 export const ROTATION_DIRECTIONS: Direction[] = [
   'down',        // 0: 下 (正面)
@@ -243,6 +244,7 @@ export class PixiWorldRenderer implements IRenderer {
 
   async init(container: HTMLElement): Promise<void> {
     this.container = container;
+    this.currentAssets = DEFAULT_ASSETS;
     const app = new Application();
     
     await app.init({
@@ -868,34 +870,23 @@ export class PixiWorldRenderer implements IRenderer {
       } else {
         const deg = (this.currentMoveAngle * 180) / Math.PI;
 
-        if (this.playerState.isDriving) {
-          if (deg >= -45 && deg <= 45) {
-            this.playerState.direction = 'right';
-          } else if (deg >= 135 || deg <= -135) {
-            this.playerState.direction = 'left';
-          } else if (deg > 45 && deg < 135) {
-            this.playerState.direction = 'down';
-          } else {
-            this.playerState.direction = 'up';
-          }
-        } else {
-          if (deg >= -22.5 && deg < 22.5) {
-            this.playerState.direction = 'right';
-          } else if (deg >= 22.5 && deg < 67.5) {
-            this.playerState.direction = 'down-right';
-          } else if (deg >= 67.5 && deg < 112.5) {
-            this.playerState.direction = 'down';
-          } else if (deg >= 112.5 && deg < 157.5) {
-            this.playerState.direction = 'down-left';
-          } else if (deg >= 157.5 || deg < -157.5) {
-            this.playerState.direction = 'left';
-          } else if (deg >= -157.5 && deg < -112.5) {
-            this.playerState.direction = 'up-left';
-          } else if (deg >= -112.5 && deg < -67.5) {
-            this.playerState.direction = 'up';
-          } else if (deg >= -67.5 && deg < -22.5) {
-            this.playerState.direction = 'up-right';
-          }
+        // 8方向判定（歩行・運転共通で全8方向に対応）
+        if (deg >= -22.5 && deg < 22.5) {
+          this.playerState.direction = 'right';
+        } else if (deg >= 22.5 && deg < 67.5) {
+          this.playerState.direction = 'down-right';
+        } else if (deg >= 67.5 && deg < 112.5) {
+          this.playerState.direction = 'down';
+        } else if (deg >= 112.5 && deg < 157.5) {
+          this.playerState.direction = 'down-left';
+        } else if (deg >= 157.5 || deg < -157.5) {
+          this.playerState.direction = 'left';
+        } else if (deg >= -157.5 && deg < -112.5) {
+          this.playerState.direction = 'up-left';
+        } else if (deg >= -112.5 && deg < -67.5) {
+          this.playerState.direction = 'up';
+        } else if (deg >= -67.5 && deg < -22.5) {
+          this.playerState.direction = 'up-right';
         }
       }
 
@@ -1200,18 +1191,20 @@ export class PixiWorldRenderer implements IRenderer {
   }
 
   // 🏎️ 乗り物から降りる
-  public async exitVehicle(): Promise<{ entityId: string | null; x: number; y: number } | null> {
+  public async exitVehicle(): Promise<{ entityId: string | null; x: number; y: number; direction: Direction } | null> {
     if (!this.playerState.isDriving) return null;
     const entityId = this.playerState.drivingEntityId;
+    const vehicleAssetId = this.playerState.drivingVehicleAssetId || 'vehicle_lamborghini';
     const originalAvatar = this.playerState.originalAvatarId || 'character_schoolgirl';
     const currentX = this.playerState.x;
     const currentY = this.playerState.y;
+    const stoppedDir: Direction = this.playerState.direction; // 🛑 停止した時の向きをそのまま保持！
 
     // 降車SE再生
     audioManager.playVehicleExit();
 
     // 降車位置（車の横に降りる）
-    const exitOffsetX = this.playerState.direction === 'left' ? 46 : -46;
+    const exitOffsetX = (stoppedDir === 'left' || stoppedDir === 'up-left' || stoppedDir === 'down-left') ? 46 : -46;
     const exitX = currentX + exitOffsetX;
     const exitY = currentY;
 
@@ -1224,8 +1217,26 @@ export class PixiWorldRenderer implements IRenderer {
     this.playerState.x = exitX;
     this.playerState.y = exitY;
 
-    // 車両スプライトを現在位置（停車位置）に再表示
+    // 車両スプライトを現在位置（停車位置）および停車した時の向きで即時再描画＆再表示
     if (entityId) {
+      if (this.currentWorld?.entities[entityId]) {
+        this.currentWorld.entities[entityId].position.x = currentX;
+        this.currentWorld.entities[entityId].position.y = currentY;
+        this.currentWorld.entities[entityId].direction = stoppedDir;
+      }
+      const vehicleAsset = this.currentAssets?.[vehicleAssetId] || DEFAULT_ASSETS[vehicleAssetId];
+      if (vehicleAsset) {
+        await this.updateEntitySprite(
+          entityId,
+          vehicleAsset,
+          currentX,
+          currentY,
+          0,
+          1.0,
+          false,
+          stoppedDir
+        );
+      }
       const vehicleSprite = this.entitySprites.get(entityId);
       if (vehicleSprite) {
         vehicleSprite.visible = true;
@@ -1240,7 +1251,7 @@ export class PixiWorldRenderer implements IRenderer {
     // 🏛️ 静的接地影を即時再描画（降車位置に影を正しく再配置）
     this.renderStaticShadows();
 
-    return { entityId, x: currentX, y: currentY };
+    return { entityId, x: currentX, y: currentY, direction: stoppedDir };
   }
 
   private async getTexture(url: string): Promise<Texture> {

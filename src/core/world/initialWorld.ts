@@ -130,13 +130,27 @@ export function createInitialWorld(): AirasWorldData {
         position: { x: 580, y: 185, z: 0 },
       },
 
-      // 2. 商店街北側: 昭和純喫茶 & 自販機 & 電柱列 & 街灯
+      // 2. 商店街北側: 昭和純喫茶 & 駄菓子屋 & 自販機 & 電話ボックス & 電柱列 & 街灯
       cafe_1: {
         id: 'cafe_1',
         assetId: 'retro_cafe',
         name: '昭和純喫茶「あいらす」',
         type: 'building',
         position: { x: 620, y: 310, z: 0 },
+      },
+      dagashi_1: {
+        id: 'dagashi_1',
+        assetId: 'dagashi_shop',
+        name: '昭和レトロ駄菓子屋',
+        type: 'building',
+        position: { x: 440, y: 310, z: 0 },
+      },
+      phone_booth_1: {
+        id: 'phone_booth_1',
+        assetId: 'phone_booth_retro',
+        name: '昭和レトロ赤電話ボックス',
+        type: 'object',
+        position: { x: 230, y: 320, z: 0 },
       },
       vending_machine_1: {
         id: 'vending_machine_1',
@@ -150,7 +164,7 @@ export function createInitialWorld(): AirasWorldData {
         assetId: 'vending_machine_retro',
         name: '昭和レトロ自販機（喫茶横）',
         type: 'object',
-        position: { x: 700, y: 320, z: 0 },
+        position: { x: 710, y: 320, z: 0 },
       },
       pole_1: {
         id: 'pole_1',

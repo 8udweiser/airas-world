@@ -517,6 +517,22 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
 if (typeof window !== 'undefined') {
   WorldStorage.loadLocalWorld().then((saved) => {
     if (saved) {
+      const initial = createInitialWorld();
+      // 🛡️ 初期配置エンティティ（ランボルギーニ、駄菓子屋、赤電話ボックス、駅舎等）が欠落していれば補完
+      if (!saved.entities) saved.entities = {};
+      
+      const keyPresets = ['lamborghini_1', 'dagashi_1', 'phone_booth_1', 'cafe_1', 'station_building_1'];
+      for (const key of keyPresets) {
+        if (!saved.entities[key] && initial.entities[key]) {
+          saved.entities[key] = { ...initial.entities[key] };
+        }
+      }
+
+      // ランボルギーニのassetIdとプロパティを保証
+      if (saved.entities['lamborghini_1']) {
+        saved.entities['lamborghini_1'].assetId = 'vehicle_lamborghini';
+      }
+
       useWorldStore.getState().loadSavedWorld(saved);
     } else {
       useWorldStore.setState({ isSaveLoaded: true });
