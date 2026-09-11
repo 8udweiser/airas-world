@@ -19,9 +19,10 @@ export const PortalLandingModal: React.FC<PortalLandingModalProps> = ({ isOpen, 
 
   if (!isOpen) return null;
 
-  const localIp = '192.168.0.16';
+  const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  const currentBaseUrl = typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}` : 'https://8udweiser.github.io/airas-world/';
   const port = typeof window !== 'undefined' ? window.location.port || '5173' : '5173';
-  const mobileAccessUrl = `http://${localIp}:${port}/`;
+  const mobileAccessUrl = isProduction ? currentBaseUrl : `http://192.168.0.16:${port}/`;
   const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(mobileAccessUrl)}&bgcolor=0f172a&color=38bdf8`;
 
   const handleCopyLink = () => {
