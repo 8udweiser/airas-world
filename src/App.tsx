@@ -695,12 +695,21 @@ export const App: React.FC = () => {
         onTogglePerfMode={handleTogglePerfMode}
       />
 
-      {/* 右上操作ボタン群 (P2P同期状況 / ポータル / アバター切り替え) */}
-      <div className="absolute top-16 right-4 z-30 flex items-center gap-2">
+      {/* 右上操作ボタン群 (P2P同期状況 / ポータル / アバター切り替え: z-40で最前面・スマホタップ即応) */}
+      <div
+        className="absolute top-16 right-3 sm:right-4 z-40 flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end pointer-events-auto"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         {/* 🟢 リアルタイムマルチプレイヤー同期バッジ */}
         <button
           onClick={() => setIsPortalOpen(true)}
-          className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-cyan-400/40 text-xs shadow-lg transition-all cursor-pointer bg-slate-950/70 hover:border-cyan-300 backdrop-blur-md"
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsPortalOpen(true);
+          }}
+          className="glass-panel px-2.5 sm:px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-cyan-400/40 text-xs shadow-lg transition-all cursor-pointer bg-slate-950/80 hover:border-cyan-300 backdrop-blur-md active:scale-95"
           title={`ルーム: ${multiplayerManager.roomId} (${multiplayerManager.isHost ? 'ホスト' : 'クライアント'}) - クリックでQRコード表示`}
         >
           <span
@@ -710,7 +719,7 @@ export const App: React.FC = () => {
                 : 'bg-cyan-400'
             }`}
           />
-          <span className="font-extrabold text-[11px] text-white tracking-tight">
+          <span className="font-extrabold text-[10px] sm:text-[11px] text-white tracking-tight">
             {remotePlayers.length > 0
               ? `同期中 (${remotePlayers.length + 1}人)`
               : multiplayerManager.isHost
@@ -721,26 +730,39 @@ export const App: React.FC = () => {
 
         <button
           onClick={() => setIsPortalOpen(true)}
-          className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-indigo-400/40 text-xs text-indigo-200 hover:text-white hover:border-indigo-400 shadow-lg hover:shadow-indigo-500/20 transition-all cursor-pointer bg-indigo-950/40"
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsPortalOpen(true);
+          }}
+          className="glass-panel px-2.5 sm:px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-indigo-400/40 text-xs text-indigo-200 hover:text-white hover:border-indigo-400 shadow-lg hover:shadow-indigo-500/20 transition-all cursor-pointer bg-indigo-950/60 active:scale-95"
           title="スマホ接続・公開ポータル"
         >
           <Globe className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-          <span>公開ポータル</span>
+          <span className="text-[10px] sm:text-xs">公開ポータル</span>
         </button>
 
         <div className="relative">
           <button
             onClick={() => setIsAvatarPickerOpen((prev) => !prev)}
-            className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-2 border border-white/15 text-xs text-slate-200 hover:text-white hover:border-cyan-400/50 shadow-lg transition-all cursor-pointer"
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsAvatarPickerOpen((prev) => !prev);
+            }}
+            className="glass-panel px-2.5 sm:px-3 py-1.5 rounded-2xl flex items-center gap-1.5 sm:gap-2 border border-white/15 text-xs text-slate-200 hover:text-white hover:border-cyan-400/50 shadow-lg transition-all cursor-pointer active:scale-95 bg-slate-900/80"
             title="アバター変更"
           >
             <Users className="w-3.5 h-3.5 text-cyan-400" />
-            <span>キャラ変更</span>
+            <span className="text-[10px] sm:text-xs">キャラ変更</span>
           </button>
 
           {/* アバター選択ポップオーバー */}
           {isAvatarPickerOpen && (
-            <div className="absolute top-full right-0 mt-2 w-56 glass-panel rounded-2xl border border-cyan-400/40 p-2 space-y-1 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150 z-40">
+            <div
+              className="absolute top-full right-0 mt-2 w-56 glass-panel rounded-2xl border border-cyan-400/40 p-2 space-y-1 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150 z-50 bg-slate-950/95 backdrop-blur-xl"
+              onTouchStart={(e) => e.stopPropagation()}
+            >
               <div className="text-[10px] text-slate-400 px-2 py-1 font-semibold uppercase tracking-wider">
                 操作キャラクター選択
               </div>
@@ -836,7 +858,7 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* 🛋️ ベンチ着席中 HUD */}
+      {/* 🛋️ ベンチ休憩中 HUD */}
       {isSitting && (
         <div className="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-2xl glass-panel border border-emerald-400/50 text-emerald-200 shadow-2xl flex items-center gap-4 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
           <span className="text-2xl">🛋️</span>
@@ -849,9 +871,14 @@ export const App: React.FC = () => {
           </div>
           <button
             onClick={handleToggleSit}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleToggleSit();
+            }}
             className="px-3.5 py-1.5 rounded-xl bg-emerald-500/30 hover:bg-emerald-500/50 border border-emerald-400/50 text-emerald-100 text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
           >
-            <span className="px-1.5 py-0.5 rounded bg-black/40 text-[9px] font-mono text-emerald-200 border border-emerald-400/30">F</span>
+            <span className="px-1.5 py-0.5 rounded bg-black/40 text-[9px] font-mono text-emerald-200 border border-emerald-400/30 hidden md:inline">F</span>
             <span>立ち上がる</span>
           </button>
         </div>
@@ -870,17 +897,22 @@ export const App: React.FC = () => {
           </div>
           <button
             onClick={() => handleToggleSleep()}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleToggleSleep();
+            }}
             className="px-3.5 py-1.5 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/50 border border-indigo-400/50 text-indigo-100 text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
           >
-            <span className="px-1.5 py-0.5 rounded bg-black/40 text-[9px] font-mono text-indigo-200 border border-indigo-400/30">F</span>
+            <span className="px-1.5 py-0.5 rounded bg-black/40 text-[9px] font-mono text-indigo-200 border border-indigo-400/30 hidden md:inline">F</span>
             <span>起きる</span>
           </button>
         </div>
       )}
 
-      {/* 🚗 周囲に乗り物がある時の乗車プロンプト */}
+      {/* 🚗 周囲に乗り物がある時の乗車プロンプト (スマホでは専用ボタンがあるためPC専用) */}
       {nearbyVehicle && !isDriving && !isSitting && !isSleeping && (
-        <div className="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-cyan-400/50 text-cyan-100 shadow-2xl flex items-center gap-3.5 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
+        <div className="hidden md:flex fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-cyan-400/50 text-cyan-100 shadow-2xl items-center gap-3.5 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
           <span className="text-2xl">🏎️</span>
           <div>
             <div className="text-xs font-bold text-white">
@@ -898,9 +930,9 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* 🛋️ 周囲にベンチがある時の着席プロンプト */}
+      {/* 🛋️ 周囲にベンチがある時の着席プロンプト (PC専用) */}
       {nearbyBench && !isSitting && !isDriving && !isSleeping && !nearbyVehicle && (
-        <div className="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-emerald-400/50 text-emerald-100 shadow-2xl flex items-center gap-3.5 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
+        <div className="hidden md:flex fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-emerald-400/50 text-emerald-100 shadow-2xl items-center gap-3.5 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
           <span className="text-2xl">🛋️</span>
           <div>
             <div className="text-xs font-bold text-white">
@@ -918,9 +950,9 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* 🛏️ 周囲にベッドがある時の就寝プロンプト */}
+      {/* 🛏️ 周囲にベッドがある時の就寝プロンプト (PC専用) */}
       {nearbyBed && !isSleeping && !isSitting && !isDriving && !nearbyVehicle && !nearbyBench && (
-        <div className="fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-indigo-400/50 text-indigo-100 shadow-2xl flex items-center gap-3.5 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
+        <div className="hidden md:flex fixed bottom-36 md:bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl glass-panel border border-indigo-400/50 text-indigo-100 shadow-2xl items-center gap-3.5 transition-all duration-200 whitespace-nowrap max-w-[92vw]">
           <span className="text-2xl">🛏️</span>
           <div>
             <div className="text-xs font-bold text-white">

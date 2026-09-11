@@ -215,10 +215,10 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-40 select-none touch-none">
-      {/* 📱 画面左側65%: スワイプ＆バーチャルパッド受容エリア (タッチのCanvas貫通を100%遮断) */}
+    <div className="fixed inset-0 pointer-events-none z-10 select-none touch-none">
+      {/* 📱 画面左側スワイプ受容エリア (上部HUDと左下チャットボタンを避けた安全領域) */}
       <div
-        className="absolute left-0 top-0 w-[65%] h-full pointer-events-auto touch-none"
+        className="absolute left-0 top-20 bottom-24 w-[60%] pointer-events-auto touch-none z-10"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -226,10 +226,10 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
       >
         {/* 初回ガイドヒント (操作開始でフェードアウト) */}
         {!hasInteracted && !joystickActive && (
-          <div className="absolute left-6 bottom-24 pointer-events-none animate-bounce">
-            <div className="glass-panel px-4 py-2.5 rounded-2xl border border-cyan-400/50 shadow-2xl flex items-center gap-2 text-cyan-200 text-xs font-semibold backdrop-blur-md">
+          <div className="absolute left-6 bottom-6 pointer-events-none animate-bounce">
+            <div className="glass-panel px-4 py-2 rounded-2xl border border-cyan-400/50 shadow-2xl flex items-center gap-2 text-cyan-200 text-xs font-semibold backdrop-blur-md">
               <Navigation className="w-4 h-4 text-cyan-400 animate-spin" />
-              <span>画面をスワイプで歩き / 素早くスワイプでダッシュ</span>
+              <span>画面をスワイプで歩き / 素早くダッシュ</span>
             </div>
           </div>
         )}

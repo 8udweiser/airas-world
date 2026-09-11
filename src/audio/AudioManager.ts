@@ -1067,23 +1067,25 @@ class AudioManager {
    */
   public playChatTick() {
     if (!this.ctx || !this.sfxGain || this._isMuted) return;
-    const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
+    try {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
 
-    // 微かにランダムなピッチで人間の抑揚をつける (480Hz 〜 620Hz)
-    const pitch = 520 + (Math.random() - 0.5) * 120;
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(pitch, t);
-    osc.frequency.exponentialRampToValueAtTime(pitch * 0.85, t + 0.035);
+      // 微かにランダムなピッチで人間の抑揚をつける (480Hz 〜 620Hz)
+      const pitch = 520 + (Math.random() - 0.5) * 120;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(pitch, t);
+      osc.frequency.exponentialRampToValueAtTime(pitch * 0.85, t + 0.035);
 
-    gain.gain.setValueAtTime(0.05, t);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
+      gain.gain.setValueAtTime(0.05, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
 
-    osc.connect(gain);
-    gain.connect(this.sfxGain);
-    osc.start(t);
-    osc.stop(t + 0.04);
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.04);
+    } catch (_) {}
   }
 
   /**

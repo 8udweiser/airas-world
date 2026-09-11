@@ -219,22 +219,32 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
           <FloatingRemoteHUD key={p.id} player={p} renderer={renderer} />
         ))}
 
-      {/* チャットトグルボタン (左下HUD上) */}
-      <div className="fixed bottom-14 left-4 z-30">
+      {/* チャットトグルボタン & モーダル (z-50で最前面・タッチイベント伝播保護) */}
+      <div
+        className="fixed bottom-14 left-4 z-50 pointer-events-auto"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+      >
         {!isOpen ? (
           <button
             onClick={() => setIsOpen(true)}
-            className="glass-panel px-3 py-2 rounded-2xl flex items-center gap-2 border border-white/15 text-xs text-slate-200 hover:text-white hover:border-cyan-400/60 shadow-xl transition-all cursor-pointer group"
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsOpen(true);
+            }}
+            className="glass-panel px-3.5 py-2.5 rounded-2xl flex items-center gap-2 border border-white/20 text-xs text-slate-200 hover:text-white hover:border-cyan-400 shadow-2xl active:scale-95 transition-all cursor-pointer group bg-slate-900/80 backdrop-blur-md"
             title="チャットを開く (Enter)"
           >
             <MessageSquare className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
-            <span className="font-medium">チャット</span>
+            <span className="font-semibold tracking-wide">チャット</span>
             {messages.length > 0 && (
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
             )}
           </button>
         ) : (
-          <div className="w-80 sm:w-96 glass-panel rounded-2xl border border-cyan-400/40 p-3 shadow-2xl flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="w-[calc(100vw-2rem)] max-w-sm sm:w-96 glass-panel rounded-2xl border border-cyan-400/50 p-3 shadow-2xl flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-150 bg-slate-950/90 backdrop-blur-xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-2">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-cyan-400" />
@@ -247,14 +257,20 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all cursor-pointer"
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsOpen(false);
+                }}
+                className="p-2 rounded-xl hover:bg-white/15 text-slate-400 hover:text-white transition-all cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center"
+                title="閉じる"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* チャット履歴 */}
-            <div className="h-40 overflow-y-auto space-y-2 pr-1 text-xs">
+            <div className="h-36 sm:h-40 overflow-y-auto space-y-2 pr-1 text-xs">
               {messages.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-slate-500 text-[11px]">
                   メッセージはありません。話しかけてみよう！
@@ -296,12 +312,17 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="メッセージを入力... (Enterで送信)"
-                className="flex-1 bg-black/40 border border-white/15 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400/70 transition-all"
+                className="flex-1 bg-black/50 border border-white/20 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition-all"
                 maxLength={100}
               />
               <button
                 onClick={handleSend}
-                className="px-3 py-1.5 rounded-xl bg-cyan-500/30 hover:bg-cyan-500/50 border border-cyan-400/60 text-cyan-200 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer flex items-center gap-1"
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSend();
+                }}
+                className="px-3.5 py-2 rounded-xl bg-cyan-500/40 hover:bg-cyan-500/60 active:bg-cyan-400 border border-cyan-400/60 text-cyan-100 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer flex items-center justify-center min-h-[36px]"
               >
                 <Send className="w-3.5 h-3.5" />
               </button>
