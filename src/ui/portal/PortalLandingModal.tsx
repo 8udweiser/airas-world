@@ -12,11 +12,14 @@ export const PortalLandingModal: React.FC<PortalLandingModalProps> = ({ isOpen, 
 
   if (!isOpen) return null;
 
-  const currentUrl = typeof window !== 'undefined' ? window.location.href : 'http://localhost:5173/';
+  const localIp = '192.168.0.16';
+  const port = typeof window !== 'undefined' ? window.location.port || '5173' : '5173';
+  const mobileAccessUrl = `http://${localIp}:${port}/`;
+  const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(mobileAccessUrl)}&bgcolor=0f172a&color=38bdf8`;
 
   const handleCopyLink = () => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(currentUrl);
+      navigator.clipboard.writeText(mobileAccessUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     }
@@ -59,17 +62,45 @@ export const PortalLandingModal: React.FC<PortalLandingModalProps> = ({ isOpen, 
             </span>
           </div>
           <p className="text-xs text-slate-300 leading-relaxed">
-            同じWi-Fi内、またはオンラインで以下のURLをスマホのブラウザで開くだけで、画面上にもう一人のキャラが現れ、リアルタイムに一緒に歩き回れます！
+            スマホのブラウザで開くだけで、画面上に二人目のキャラクターが現れてリアルタイム同期します！
+            <span className="block mt-1 text-[11px] text-amber-300/90 font-medium">
+              ※ スマホとPCが同じWi-Fiに接続されている必要があります（「localhost」はスマホ自身を指してしまうため繋がりません）。
+            </span>
           </p>
-          <div className="flex items-center gap-2 bg-black/50 p-2 rounded-xl border border-white/10 text-xs font-mono text-cyan-300">
-            <span className="flex-1 truncate">{currentUrl}</span>
-            <button
-              onClick={handleCopyLink}
-              className="px-3 py-1.5 rounded-lg bg-cyan-500/30 hover:bg-cyan-500/50 border border-cyan-400/50 text-white font-sans font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? 'コピー完了！' : 'URLコピー'}</span>
-            </button>
+
+          <div className="flex flex-col sm:flex-row items-center gap-4 bg-black/40 p-4 rounded-2xl border border-white/10">
+            {/* 📷 QRコード */}
+            <div className="flex flex-col items-center gap-1.5 p-2 bg-slate-900 rounded-xl border border-cyan-400/40 shadow-inner">
+              <img
+                src={qrCodeApiUrl}
+                alt="スマホ接続用QRコード"
+                className="w-28 h-28 rounded-lg"
+                loading="lazy"
+              />
+              <span className="text-[10px] text-cyan-300 font-semibold flex items-center gap-1">
+                <QrCode className="w-3 h-3" /> カメラで読み取り
+              </span>
+            </div>
+
+            {/* 🔗 手動入力 / コピー */}
+            <div className="flex-1 w-full space-y-2">
+              <div className="text-[11px] text-slate-400 font-medium">
+                または以下のURLをスマホのブラウザに入力：
+              </div>
+              <div className="flex items-center gap-2 bg-black/60 p-2.5 rounded-xl border border-cyan-500/30 text-xs font-mono text-cyan-300 select-all">
+                <span className="flex-1 truncate font-bold">{mobileAccessUrl}</span>
+                <button
+                  onClick={handleCopyLink}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-500/30 hover:bg-cyan-500/50 border border-cyan-400/50 text-white font-sans font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'コピー完了！' : 'URLコピー'}</span>
+                </button>
+              </div>
+              <div className="text-[10px] text-slate-400">
+                LAN内IP: <span className="font-mono text-slate-300">192.168.0.16</span> | ポート: <span className="font-mono text-slate-300">5173</span>
+              </div>
+            </div>
           </div>
         </div>
 

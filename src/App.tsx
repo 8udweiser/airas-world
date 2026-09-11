@@ -473,9 +473,9 @@ export const App: React.FC = () => {
         return;
       }
 
-      // レンダラーへキー押下を直接伝播 (0ms遅延)
+      // レンダラーへキー押下を直接伝播 (0ms遅延 & ダブルタップダッシュ判定)
       if (rendererRef.current) {
-        rendererRef.current.keys[e.code] = true;
+        rendererRef.current.onKeyDown(e.code);
         rendererRef.current.keys[e.key] = true;
       }
 
@@ -593,7 +593,7 @@ export const App: React.FC = () => {
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (rendererRef.current) {
-        rendererRef.current.keys[e.code] = false;
+        rendererRef.current.onKeyUp(e.code);
         rendererRef.current.keys[e.key] = false;
       }
     };

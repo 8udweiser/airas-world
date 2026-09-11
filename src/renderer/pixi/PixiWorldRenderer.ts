@@ -65,6 +65,40 @@ export class PixiWorldRenderer implements IRenderer {
 
   // 入力キー状態
   public keys: { [key: string]: boolean } = {};
+  private lastTapKey: string | null = null;
+  private lastTapTime: number = 0;
+  public isDoubleTapSprinting: boolean = false;
+
+  public onKeyDown(code: string) {
+    this.keys[code] = true;
+
+    // 移動キー (WASD / 矢印キー) のダブルタップ判定 (320ms以内の連打でダッシュ発動)
+    const isMoveKey = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code);
+    if (isMoveKey) {
+      const now = performance.now();
+      if (this.lastTapKey === code && now - this.lastTapTime < 320) {
+        this.isDoubleTapSprinting = true;
+      }
+      this.lastTapKey = code;
+      this.lastTapTime = now;
+    }
+  }
+
+  public onKeyUp(code: string) {
+    this.keys[code] = false;
+
+    // 移動キーがすべて離されたらダブルタップダッシュをリセット
+    const k = this.keys;
+    const isAnyMoveKeyPressed = Boolean(
+      k['KeyW'] || k['ArrowUp'] || k['w'] || k['W'] ||
+      k['KeyS'] || k['ArrowDown'] || k['s'] || k['S'] ||
+      k['KeyA'] || k['ArrowLeft'] || k['a'] || k['A'] ||
+      k['KeyD'] || k['ArrowRight'] || k['d'] || k['D']
+    );
+    if (!isAnyMoveKeyPressed) {
+      this.isDoubleTapSprinting = false;
+    }
+  }
 
   // 操作モード
   public isPlayMode: boolean = true; // デフォルトは快適な探索モード
@@ -359,7 +393,7 @@ export class PixiWorldRenderer implements IRenderer {
     const isDown = Boolean(k['KeyS'] || k['ArrowDown'] || k['s'] || k['S']);
     const isLeft = Boolean(k['KeyA'] || k['ArrowLeft'] || k['a'] || k['A']);
     const isRight = Boolean(k['KeyD'] || k['ArrowRight'] || k['d'] || k['D']);
-    const isSprint = Boolean(k['ControlLeft'] || k['ControlRight'] || k['Control']);
+    const isSprint = Boolean(k['ControlLeft'] || k['ControlRight'] || k['Control'] || this.isDoubleTapSprinting);
     const isSneak = Boolean(k['ShiftLeft'] || k['ShiftRight'] || k['Shift']);
     const isJump = Boolean(k['Space'] || k[' ']);
 
@@ -1308,16 +1342,9 @@ export class PixiWorldRenderer implements IRenderer {
     }
   }
 
-  // 🔦 プレイヤーの足元ランタンのみ毎フレーム描画 (CPU使用率ほぼ0.0%)
+  // 💡 街灯・環境ライティング（人物自身は発光させず、街灯に照らされるリアルな表現に統一）
   private renderLighting() {
     this.lightingGraphics.clear();
-    const weather = this.currentWeather;
-    const isDarkWeather = weather === 'sunset' || weather === 'rain' || weather === 'heavy_rain' || weather === 'typhoon';
-    if (!isDarkWeather) return;
-
-    this.lightingGraphics
-      .circle(this.playerState.x, this.playerState.y - 10, 52)
-      .fill({ color: 0xfef08a, alpha: 0.15 });
   }
 
   // ⚡ 落雷ホワイトフラッシュの更新
