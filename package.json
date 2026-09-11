@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
+    "preview": "npm run build && wrangler dev",
     "deploy:cloudflare": "npm run build && npx -y wrangler pages deploy dist --project-name airas-world",
     "deploy:firebase": "npm run build && npx -y firebase-tools deploy",
-    "deploy:gh-pages": "npm run build && npx -y gh-pages -d dist"
+    "deploy:gh-pages": "npm run build && npx -y gh-pages -d dist",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -23,6 +24,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.54.7",
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
@@ -31,6 +33,7 @@
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
-    "vite": "^6.1.0"
+    "vite": "^6.1.0",
+    "wrangler": "^4.131.0"
   }
 }

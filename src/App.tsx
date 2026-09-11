@@ -99,7 +99,11 @@ export const App: React.FC = () => {
   const [remotePlayers, setRemotePlayers] = useState<RemotePlayerInfo[]>([]);
   const [peerOnlineInfo, setPeerOnlineInfo] = useState<{ count: number; isOnline: boolean }>({ count: 0, isOnline: false });
   const [playerScreenPos, setPlayerScreenPos] = useState<{ x: number; y: number } | null>(null);
-  const [isLowPerfMode, setIsLowPerfMode] = useState(false);
+  const [isLowPerfMode, setIsLowPerfMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    const saved = localStorage.getItem('airas_low_perf_mode');
+    return saved !== null ? saved === 'true' : true; // ⚡ デフォルトで低負荷モードON！
+  });
   const [bgmTrackInfo, setBgmTrackInfo] = useState<{ title: string; isPlaying: boolean }>(() => {
     const cur = audioManager.getCurrentBgmTrack();
     return { title: cur.track.title, isPlaying: cur.isPlaying };
@@ -147,6 +151,12 @@ export const App: React.FC = () => {
     renderer.isSnapToGrid = isSnapToGrid;
 
     renderer.init(canvasContainerRef.current).then(async () => {
+      // ⚡ 低負荷モードの初期適用 (デフォルトONで起動直後から最高に軽快)
+      renderer.setLowPerformanceMode(isLowPerfMode);
+      if (typeof document !== 'undefined' && isLowPerfMode) {
+        document.body.classList.add('perf-mode');
+      }
+
       // 初期描画
       await renderer.render(world, assets, selectedEntityId, ghostEntities);
       await renderer.setPlayerAvatar(currentAvatarId);
@@ -750,6 +760,9 @@ export const App: React.FC = () => {
     setIsLowPerfMode((prev) => {
       const next = !prev;
       rendererRef.current?.setLowPerformanceMode(next);
+      try {
+        localStorage.setItem('airas_low_perf_mode', String(next));
+      } catch {}
       if (typeof document !== 'undefined') {
         document.body.classList.toggle('perf-mode', next);
       }

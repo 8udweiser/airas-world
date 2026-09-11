@@ -36,8 +36,18 @@ export const TopHUD: React.FC<TopHUDProps> = ({
   const { world, canUndo, canRedo, undo, redo, setWeather, setTime } = useWorldStore();
   const { isAIPanelOpen, setAIPanelOpen, activeMode, setActiveMode, isMuted, toggleMute, isSnapToGrid, toggleSnapToGrid } = useUIStore();
 
-  // 🕒 リアルタイム自動同期フラグ (デフォルトで現実のPC/スマホ時刻と自動連動)
-  const [isRealtimeSync, setIsRealtimeSync] = useState<boolean>(true);
+  // 🕒 時間連動フラグ (ユーザーが自由にON/OFF可能、LocalStorage保存、初期値は手動OFFで自由に切り替え可能)
+  const [isRealtimeSync, setIsRealtimeSync] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('airas_time_sync') === 'true';
+  });
+
+  const timePresets = [
+    { label: '早朝', time: 6.0, icon: '🌅' },
+    { label: '昼', time: 12.0, icon: '☀️' },
+    { label: '夕方', time: 17.5, icon: '🌇' },
+    { label: '夜', time: 21.0, icon: '🌙' },
+  ];
 
   // 現実世界の現在時刻を算出して world.environment.time に反映
   const syncToCurrentRealTime = useCallback(() => {
@@ -49,10 +59,25 @@ export const TopHUD: React.FC<TopHUDProps> = ({
     setTime(Math.round(timeVal * 100) / 100);
   }, [setTime]);
 
-  // 初回マウント時に現実時刻を適用
+  const handleToggleSync = () => {
+    setIsRealtimeSync((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('airas_time_sync', String(next));
+      } catch {}
+      if (next) {
+        syncToCurrentRealTime();
+      }
+      return next;
+    });
+  };
+
+  // 初回マウント時: 連動ONの場合のみ現実時刻を適用
   useEffect(() => {
-    syncToCurrentRealTime();
-  }, [syncToCurrentRealTime]);
+    if (isRealtimeSync) {
+      syncToCurrentRealTime();
+    }
+  }, [isRealtimeSync, syncToCurrentRealTime]);
 
   // リアルタイム同期ON時の定期タイマー (15秒ごとに時刻チェックし分が変われば自動反映・CPU負荷ゼロ)
   useEffect(() => {
@@ -308,24 +333,47 @@ export const TopHUD: React.FC<TopHUDProps> = ({
               F3
             </button>
 
-            {/* 📱 モバイル用 時間・時間帯表示バッジ (タップで現実時刻に再同期) */}
+            {/* 📱 モバイル用 時間・時間帯表示バッジ (タップで昼・夕方・夜・早朝・連動を切替) */}
             <div className="w-[1px] h-3.5 bg-white/15 mx-0.5" />
             <button
               onClick={() => {
-                setIsRealtimeSync(true);
-                syncToCurrentRealTime();
+                if (isRealtimeSync) {
+                  setIsRealtimeSync(false);
+                  try { localStorage.setItem('airas_time_sync', 'false'); } catch {}
+                  setTime(12.0);
+                } else if (world.environment.time < 10) {
+                  setTime(12.0);
+                } else if (world.environment.time < 16) {
+                  setTime(17.5);
+                } else if (world.environment.time < 20) {
+                  setTime(21.0);
+                } else {
+                  handleToggleSync();
+                }
               }}
               onTouchEnd={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setIsRealtimeSync(true);
-                syncToCurrentRealTime();
+                if (isRealtimeSync) {
+                  setIsRealtimeSync(false);
+                  try { localStorage.setItem('airas_time_sync', 'false'); } catch {}
+                  setTime(12.0);
+                } else if (world.environment.time < 10) {
+                  setTime(12.0);
+                } else if (world.environment.time < 16) {
+                  setTime(17.5);
+                } else if (world.environment.time < 20) {
+                  setTime(21.0);
+                } else {
+                  handleToggleSync();
+                }
               }}
               className={`px-1.5 py-0.5 rounded-lg text-[10px] font-mono flex items-center gap-1 border transition-all active:scale-95 cursor-pointer ${periodInfo.bg} ${periodInfo.color}`}
-              title="タップで現実の現在時刻に自動同期"
+              title="タップで時間帯切替 (昼/夕/夜/早朝/連動)"
             >
               <span>{periodInfo.icon}</span>
               <span className="font-semibold">{formatTime(world.environment.time)}</span>
+              <span className="text-[9px] opacity-70">({isRealtimeSync ? '連動' : '手動'})</span>
             </button>
           </div>
 
@@ -510,6 +558,44 @@ export const TopHUD: React.FC<TopHUDProps> = ({
             <div className="w-[1px] h-4 bg-white/10" />
 
             <div className="flex items-center gap-1.5 text-xs font-mono text-slate-300">
+              {/* 🕒 時間連動 ON/OFF トグルスイッチ */}
+              <button
+                onClick={handleToggleSync}
+                className={`px-2 py-1 rounded-xl text-[10px] font-bold font-sans transition-all active:scale-95 cursor-pointer border flex items-center gap-1 ${
+                  isRealtimeSync
+                    ? 'bg-cyan-500/25 text-cyan-200 border-cyan-400/50 shadow-sm ring-1 ring-cyan-400/30'
+                    : 'text-slate-400 bg-white/5 border-white/10 hover:text-white hover:bg-white/10'
+                }`}
+                title={isRealtimeSync ? '時間連動: ON (現実時刻と自動同期中・クリックで手動に切替)' : '時間連動: OFF (手動モード・クリックで現実連動ON)'}
+              >
+                <span>🕒</span>
+                <span>{isRealtimeSync ? '連動:ON' : '手動'}</span>
+              </button>
+
+              {/* 手動モード時のクイック時間帯ボタン (早朝・昼・夕方・夜) */}
+              {!isRealtimeSync && (
+                <div className="flex items-center gap-0.5 bg-black/40 p-0.5 rounded-xl border border-white/10">
+                  {timePresets.map((preset) => {
+                    const isActive = Math.abs(world.environment.time - preset.time) < 1.8;
+                    return (
+                      <button
+                        key={preset.label}
+                        onClick={() => setTime(preset.time)}
+                        className={`px-1.5 py-0.5 rounded-lg text-[10px] font-sans font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-0.5 ${
+                          isActive
+                            ? 'bg-amber-500/35 text-amber-200 border border-amber-400/50 shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                        }`}
+                        title={`${preset.label} (${preset.time}:00) に切替`}
+                      >
+                        <span>{preset.icon}</span>
+                        <span>{preset.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* 🌅 時間帯バッジ */}
               <span
                 className={`px-1.5 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 shadow-sm ${periodInfo.bg} ${periodInfo.color}`}
@@ -519,9 +605,9 @@ export const TopHUD: React.FC<TopHUDProps> = ({
                 <span>{periodInfo.label}</span>
               </span>
 
-              <span className="font-semibold text-slate-200">{formatTime(world.environment.time)}</span>
+              <span className="font-semibold text-slate-200 font-mono">{formatTime(world.environment.time)}</span>
 
-              {/* 時刻スライダー (操作で手動モードに切替) */}
+              {/* 時刻スライダー */}
               <input
                 type="range"
                 min="0"
@@ -529,28 +615,15 @@ export const TopHUD: React.FC<TopHUDProps> = ({
                 step="0.25"
                 value={world.environment.time}
                 onChange={(e) => {
-                  setIsRealtimeSync(false);
+                  if (isRealtimeSync) {
+                    setIsRealtimeSync(false);
+                    try { localStorage.setItem('airas_time_sync', 'false'); } catch {}
+                  }
                   setTime(parseFloat(e.target.value));
                 }}
                 className="w-14 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-400"
                 title="時刻調整（ドラッグで手動変更）"
               />
-
-              {/* 🕒 現実時刻同期トグルボタン */}
-              <button
-                onClick={() => {
-                  setIsRealtimeSync(true);
-                  syncToCurrentRealTime();
-                }}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-sans font-medium transition-all active:scale-95 cursor-pointer border ${
-                  isRealtimeSync
-                    ? 'bg-cyan-500/25 text-cyan-300 border-cyan-400/50 shadow-sm'
-                    : 'text-slate-400 bg-white/5 border-white/10 hover:text-white hover:bg-white/10'
-                }`}
-                title={isRealtimeSync ? '現在時刻と自動同期中（クリックで手動保持）' : 'クリックで現実の現在時刻に自動同期'}
-              >
-                {isRealtimeSync ? '● 現実連動' : '🕒 現実同期'}
-              </button>
             </div>
           </div>
 

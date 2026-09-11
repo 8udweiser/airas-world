@@ -735,22 +735,26 @@ export class PixiWorldRenderer implements IRenderer {
         this.getTexture(dirUrl).then((tex) => {
           if (sprite && !sprite.destroyed) {
             sprite.texture = tex;
+            if (this.playerState.isDriving) {
+              const aspect = tex.height > 0 ? tex.width / tex.height : 1.5;
+              const targetH = 36;
+              sprite.height = targetH;
+              sprite.width = Math.round(targetH * aspect);
+            }
           }
         });
       }
 
       if (this.playerState.isDriving) {
-        // 車両のダイナミック比率対応 (左右向きはロングボディ)
-        const isHorizontal = this.playerState.direction === 'left' || this.playerState.direction === 'right';
-        if (isHorizontal) {
-          sprite.width = 110;
-          sprite.height = 34;
-          sprite.anchor.set(0.5, 0.85);
-        } else {
-          sprite.width = 58;
-          sprite.height = 38;
-          sprite.anchor.set(0.5, 0.85);
-        }
+        // 🚗 車両の自然なアスペクト比を動的計算（スマホの斜め入力や横向きでも絶対に潰れない！）
+        const tex = sprite.texture;
+        const texW = tex?.width || 58;
+        const texH = tex?.height || 38;
+        const aspect = texH > 0 ? texW / texH : 1.5;
+        const targetH = 36;
+        sprite.height = targetH;
+        sprite.width = Math.round(targetH * aspect);
+        sprite.anchor.set(0.5, 0.85);
       } else {
         if (this.playerState.isSneaking) {
           // 🏃 しゃがみ（愛らしく腰を落として低姿勢になる）
@@ -1137,11 +1141,22 @@ export class PixiWorldRenderer implements IRenderer {
         sprite.texture = texture;
       }
 
-      const ax = asset.sprite.width > 0 ? asset.anchor.x / asset.sprite.width : 0.5;
-      const ay = asset.sprite.height > 0 ? asset.anchor.y / asset.sprite.height : 1.0;
-      sprite.anchor.set(ax, ay);
-      sprite.width = asset.sprite.width;
-      sprite.height = asset.sprite.height;
+      if (p.isDriving) {
+        const tex = sprite.texture;
+        const texW = tex?.width || 58;
+        const texH = tex?.height || 38;
+        const aspect = texH > 0 ? texW / texH : 1.5;
+        const targetH = 36;
+        sprite.height = targetH;
+        sprite.width = Math.round(targetH * aspect);
+        sprite.anchor.set(0.5, 0.85);
+      } else {
+        const ax = asset.sprite.width > 0 ? asset.anchor.x / asset.sprite.width : 0.5;
+        const ay = asset.sprite.height > 0 ? asset.anchor.y / asset.sprite.height : 1.0;
+        sprite.anchor.set(ax, ay);
+        sprite.width = asset.sprite.width;
+        sprite.height = asset.sprite.height;
+      }
 
       // 歩行ボビング
       const bobY = p.isMoving ? Math.sin(Date.now() / 120) * 2 : 0;
@@ -1550,78 +1565,53 @@ export class PixiWorldRenderer implements IRenderer {
     this.renderStaticLighting(this.currentWorld || undefined);
   }
 
-  // 🌅 時間帯に応じた環境色オーバーレイ（早朝・朝・昼・夕方・夜）
+  // 🌅 時間帯に応じた環境色オーバーレイ（早朝・朝・昼・夕方・夜：透明感重視でドット絵を一切邪魔しない）
   private renderAmbientLighting(time: number, weather: WeatherType) {
     this.ambientLightingGraphics.clear();
 
-    // マップ全体を覆う広大領域
     const bgX = -3000;
     const bgY = -3000;
     const bgW = 9000;
     const bgH = 9000;
 
-    // 1. 時間帯別の基本色と透明度の算出
     let baseColor = 0x000000;
     let baseAlpha = 0;
 
     if (weather === 'sunset') {
-      // 天候が「夕焼け」の場合は強制的に美しい茜色
-      baseColor = 0xf97316;
-      baseAlpha = 0.26;
+      // 夕焼け天候: 柔らかな琥珀ゴールド
+      baseColor = 0xd97706;
+      baseAlpha = 0.08;
     } else if (time >= 4.5 && time < 7.0) {
-      // 🌄 早朝 (4:30〜7:00): 藍紫〜朝焼けのグラデーション
-      const t = (time - 4.5) / 2.5; // 0.0 -> 1.0
-      if (t < 0.5) {
-        baseColor = 0x312e81; // 深紫紺
-        baseAlpha = 0.48 * (1 - t * 1.2);
-      } else {
-        baseColor = 0x4338ca; // 藍色〜朝焼け
-        baseAlpha = 0.25 * (1 - (t - 0.5) * 1.5);
-      }
+      // 🌄 早朝 (4:30〜7:00): 澄んだ清涼感のある薄青紫
+      baseColor = 0x4338ca;
+      baseAlpha = 0.08;
     } else if (time >= 7.0 && time < 11.0) {
-      // ☀️ 朝 (7:00〜11:00): 爽やかな黄金色の光
-      const t = (time - 7.0) / 4.0;
+      // ☀️ 朝 (7:00〜11:00): 爽やかな朝の淡い黄金光
       baseColor = 0xfef08a;
-      baseAlpha = Math.max(0.01, 0.07 * (1 - t));
+      baseAlpha = 0.03;
     } else if (time >= 11.0 && time < 16.5) {
-      // 🌤️ 昼 (11:00〜16:30): 澄んだ自然光 (フィルターなし)
+      // 🌤️ 昼 (11:00〜16:30): 自然光 (透明)
       baseAlpha = 0;
     } else if (time >= 16.5 && time < 19.0) {
-      // 🌇 夕方 (16:30〜19:00): 暖かな茜色〜ドラマチックなマジックアワー
-      const t = (time - 16.5) / 2.5; // 0.0 -> 1.0
-      if (t < 0.4) {
-        baseColor = 0xf97316; // 黄金オレンジ
-        baseAlpha = 0.12 + t * 0.25;
-      } else {
-        baseColor = 0xe11d48; // 深みのある茜色
-        baseAlpha = 0.22 + (t - 0.4) * 0.25;
-      }
+      // 🌇 夕方 (16:30〜19:00): オブジェクトがはっきり見える温かい琥珀色（濁りを完全排除）
+      baseColor = 0xd97706;
+      baseAlpha = 0.07;
     } else {
-      // 🌙 夜 (19:00〜4:30): 静寂な深青暗夜
-      baseColor = 0x020617; // Slate-950 深青黒
-      if (time >= 19.0 && time < 20.5) {
-        const t = (time - 19.0) / 1.5;
-        baseAlpha = 0.35 + t * 0.25; // 0.35 -> 0.60
-      } else if (time >= 3.5 && time < 4.5) {
-        const t = (time - 3.5) / 1.0;
-        baseAlpha = 0.60 - t * 0.12; // 0.60 -> 0.48
-      } else {
-        baseAlpha = 0.60; // 深夜
-      }
+      // 🌙 夜 (19:00〜4:30): 落ち着いた夜空トーン（ドット絵がくっきり見える適度な深み）
+      baseColor = 0x0f172a;
+      baseAlpha = 0.20;
     }
 
-    // 2. 悪天候による暗がり補正
+    // 悪天候による微補正（暗すぎないよう調整）
     if (weather === 'rain') {
-      baseAlpha = Math.min(0.75, baseAlpha + 0.14);
-      if (baseColor === 0x000000 || baseAlpha <= 0.15) {
-        baseColor = 0x1e293b;
-      }
+      baseAlpha = Math.min(0.28, baseAlpha + 0.08);
+      baseColor = 0x1e293b;
     } else if (weather === 'heavy_rain' || weather === 'typhoon') {
-      baseAlpha = Math.min(0.85, baseAlpha + 0.28);
+      baseAlpha = Math.min(0.38, baseAlpha + 0.14);
       baseColor = 0x0f172a;
     } else if (weather === 'fog') {
-      baseAlpha = Math.min(0.50, baseAlpha + 0.18);
-      baseColor = 0x94a3b8;
+      baseAlpha = Math.min(0.20, baseAlpha + 0.06);
+      baseColor = 0x64748b;
     }
 
     if (baseAlpha > 0.005) {
@@ -1631,7 +1621,7 @@ export class PixiWorldRenderer implements IRenderer {
     }
   }
 
-  // 💡 街灯・自販機・喫茶店・車の夜景環境光：夜間または悪天候時に輝く
+  // 💡 街灯の環境光：ドット絵を隠す巨大な円盤は完全廃止し、街灯足元のごく微細で上品な灯りのみに限定
   public renderStaticLighting(world?: AirasWorldData) {
     const w = world || this.currentWorld;
     if (!w) return;
@@ -1639,70 +1629,22 @@ export class PixiWorldRenderer implements IRenderer {
 
     const time = w.environment.time ?? 12.0;
     const weather = this.currentWeather;
-    const isNight = time >= 16.8 || time < 6.8;
+    const isNight = time >= 17.5 || time < 6.0;
     const isDarkWeather = weather === 'sunset' || weather === 'rain' || weather === 'heavy_rain' || weather === 'typhoon';
 
     if (!isNight && !isDarkWeather) return;
 
-    // 点灯強度スケール (16:48〜19:30 や 5:00〜6:48 の薄暗い時間帯は徐々に点灯)
-    let intensity = 1.0;
-    if (isNight && !isDarkWeather) {
-      if (time >= 16.8 && time < 19.5) {
-        intensity = Math.min(1.0, 0.4 + ((time - 16.8) / 2.7) * 0.6);
-      } else if (time >= 5.0 && time < 6.8) {
-        intensity = Math.max(0.3, 1.0 - ((time - 5.0) / 1.8) * 0.7);
-      }
-    }
-
     for (const ent of Object.values(w.entities)) {
       const assetId = ent.assetId.toLowerCase();
 
-      // 1. 街灯 (street_lamp / light)
+      // 街灯のみ、電球部分と足元をほんのり小さく自然に灯す (巨大な円盤は排除！)
       if (assetId.includes('lamp') || assetId.includes('light')) {
         const lx = ent.position.x;
         const ly = ent.position.y - 18;
+        // 電球の小さな温光
         this.staticLightingGraphics
-          .circle(lx, ly, 32).fill({ color: 0xffedd5, alpha: 0.42 * intensity })
-          .circle(lx, ly, 80).fill({ color: 0xfde047, alpha: 0.22 * intensity })
-          .circle(lx, ly, 150).fill({ color: 0xf59e0b, alpha: 0.10 * intensity });
-      }
-
-      // 2. 昭和レトロ自販機 (vending_machine)
-      if (assetId.includes('vending')) {
-        const vx = ent.position.x;
-        const vy = ent.position.y - 12;
-        this.staticLightingGraphics
-          .circle(vx, vy, 45).fill({ color: 0x38bdf8, alpha: 0.28 * intensity })
-          .circle(vx, vy, 85).fill({ color: 0x0284c7, alpha: 0.12 * intensity });
-      }
-
-      // 3. 昭和純喫茶・駅舎・店舗・住宅 (cafe / station / shop / house)
-      if (assetId.includes('cafe') || assetId.includes('station') || assetId.includes('shop') || assetId.includes('house')) {
-        const cx = ent.position.x;
-        const cy = ent.position.y - 6;
-        this.staticLightingGraphics
-          .circle(cx, cy, 100).fill({ color: 0xfbbf24, alpha: 0.20 * intensity })
-          .circle(cx, cy, 160).fill({ color: 0xf59e0b, alpha: 0.08 * intensity });
-      }
-
-      // 4. 車両・スーパーカー (vehicle / car / lamborghini)
-      if (assetId.includes('car') || assetId.includes('vehicle') || assetId.includes('lamborghini')) {
-        const cx = ent.position.x;
-        const cy = ent.position.y;
-        // 車両のヘッドライト（前方）＆テールランプ（後方）
-        this.staticLightingGraphics
-          .circle(cx, cy - 20, 55).fill({ color: 0xfffbeb, alpha: 0.35 * intensity })
-          .circle(cx, cy - 20, 95).fill({ color: 0xfef08a, alpha: 0.14 * intensity })
-          .circle(cx, cy + 18, 30).fill({ color: 0xef4444, alpha: 0.30 * intensity });
-      }
-
-      // 5. 公園の噴水 (fountain)
-      if (assetId.includes('fountain')) {
-        const fx = ent.position.x;
-        const fy = ent.position.y;
-        this.staticLightingGraphics
-          .circle(fx, fy, 70).fill({ color: 0x22d3ee, alpha: 0.22 * intensity })
-          .circle(fx, fy, 120).fill({ color: 0x0891b2, alpha: 0.09 * intensity });
+          .circle(lx, ly, 10).fill({ color: 0xffedd5, alpha: 0.30 })
+          .circle(lx, ly, 24).fill({ color: 0xfef08a, alpha: 0.10 });
       }
     }
   }
@@ -2144,11 +2086,19 @@ export class PixiWorldRenderer implements IRenderer {
       }
 
       // 📦 オブジェクト操作終了処理
+      // ⚠️ マルチタッチ保護: オブジェクトを掴んだ特定のポインタ（指・マウスクリック）が離されるまで絶対に離さない！
+      // 別の指で画面をタップして離しても、掴んでいる指を離すまで維持する！
       if (this.draggingEntityId) {
-        const isDragPointer = this.dragPointerId === null || this.dragPointerId === e.pointerId;
-        const isMouseRelease = e.pointerType === 'mouse' && (e.button === 0 || (e.buttons & 1) === 0);
-        if (isDragPointer || isMouseRelease) {
-          finishEntityDrag(e);
+        if (e.pointerType === 'mouse') {
+          // マウスの場合: 左クリック（0）が離された場合、またはどのボタンも押されていない場合のみ終了
+          if (e.button === 0 || (e.buttons & 1) === 0) {
+            finishEntityDrag(e);
+          }
+        } else {
+          // タッチの場合: 掴んだ指（dragPointerId）そのものが離された時のみ終了！
+          if (this.dragPointerId !== null && e.pointerId === this.dragPointerId) {
+            finishEntityDrag(e);
+          }
         }
       }
 
@@ -2167,9 +2117,12 @@ export class PixiWorldRenderer implements IRenderer {
 
     window.addEventListener('pointerup', handlePointerUp);
     window.addEventListener('pointercancel', (e: PointerEvent) => {
-      handlePointerUp(e);
-      if (this.draggingEntityId) {
+      // 掴んでいる指以外のポインタのキャンセルは完全無視！
+      if (this.draggingEntityId && this.dragPointerId !== null && e.pointerId === this.dragPointerId) {
         finishEntityDrag(e);
+      }
+      if (this.isSwipingMovement && this.swipePointerId !== null && e.pointerId === this.swipePointerId) {
+        handlePointerUp(e);
       }
     });
 
