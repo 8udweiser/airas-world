@@ -45,11 +45,16 @@ export class PixiWorldRenderer implements IRenderer {
   private remoteShadowGraphics: Graphics = new Graphics(); // 👥 リモートプレイヤー動的接地影
   private selectionGraphics: Graphics = new Graphics();
   private depthContainer: Container = new Container();
+  private ambientLightingGraphics: Graphics = new Graphics(); // 🌅 早朝・朝・夕方・夜のリアルタイム環境光オーバーレイ
   private particleGraphics: Graphics = new Graphics(); // ダッシュ土煙 & 水しぶき
-  private staticLightingGraphics: Graphics = new Graphics(); // 街灯・自販機・喫茶店の静的環境光（キャッシュ）
+  private staticLightingGraphics: Graphics = new Graphics(); // 💡 街灯・自販機・喫茶店・車の夜景環境光（キャッシュ）
   private lightingGraphics: Graphics = new Graphics(); // プレイヤー動的ランタン
   private weatherGraphics: Graphics = new Graphics();
   private thunderFlashGraphics: Graphics = new Graphics(); // 落雷閃光スクリーンフラッシュ
+
+  // 環境ライティングキャッシュ (無駄な再描画を完全防止)
+  private lastRenderedLightingTime: number = -999;
+  private lastRenderedLightingWeather: WeatherType | null = null;
 
   // キャッシュ
   private entitySprites: Map<string, Sprite> = new Map();
@@ -248,8 +253,9 @@ export class PixiWorldRenderer implements IRenderer {
     this.stageContainer.addChild(this.remoteShadowGraphics); // 👥 リモートプレイヤー動的接地影
     this.stageContainer.addChild(this.selectionGraphics);
     this.stageContainer.addChild(this.depthContainer); // Yソート
+    this.stageContainer.addChild(this.ambientLightingGraphics); // 🌅 早朝・朝・夕方・夜の環境光オーバーレイ
     this.stageContainer.addChild(this.particleGraphics); // ダッシュ土煙 & 水しぶき
-    this.stageContainer.addChild(this.staticLightingGraphics); // 💡 街灯・自販機・喫茶店の静的環境光 (CPU負荷ゼロ)
+    this.stageContainer.addChild(this.staticLightingGraphics); // 💡 街灯・自販機・喫茶店・車の夜景環境光 (CPU負荷ゼロ)
     this.stageContainer.addChild(this.lightingGraphics); // 🔦 プレイヤー足元ランタン
     this.stageContainer.addChild(this.weatherGraphics);
     this.stageContainer.addChild(this.thunderFlashGraphics); // ⚡ 落雷ホワイトフラッシュ
@@ -316,7 +322,8 @@ export class PixiWorldRenderer implements IRenderer {
       // 5. 👤 光源連動リアル動的投影影
       this.renderDynamicShadows();
 
-      // 6. 💡 夜の街灯ライティング
+      // 6. 💡 🌅 時間帯別環境光 ＆ 夜の街灯・夜景ライティング
+      this.updateAmbientAndNightLighting();
       this.renderLighting();
 
       // 7. パーティクル & 天候アニメーション
@@ -1520,36 +1527,182 @@ export class PixiWorldRenderer implements IRenderer {
     }
   }
 
-  // 💡 街灯・自販機・喫茶店の静的環境光：天候・配置変更時のみ描画
+  // 💡 🌅 時間帯別環境光 ＆ 夜景ライティングの統合更新（差分時のみ再描画でCPU負荷ゼロ）
+  private updateAmbientAndNightLighting() {
+    const time = this.currentWorld?.environment.time ?? 12.0;
+    const weather = this.currentWeather;
+
+    // 0.01時間（約36秒）以上の変化、または天候変更時のみ再計算
+    if (
+      Math.abs(time - this.lastRenderedLightingTime) < 0.01 &&
+      weather === this.lastRenderedLightingWeather
+    ) {
+      return;
+    }
+
+    this.lastRenderedLightingTime = time;
+    this.lastRenderedLightingWeather = weather;
+
+    // 1. 環境光（空の色・早朝/朝/昼/夕方/夜の空気感）を描画
+    this.renderAmbientLighting(time, weather);
+
+    // 2. 街灯・自販機・喫茶店・車の夜景環境光を描画
+    this.renderStaticLighting(this.currentWorld || undefined);
+  }
+
+  // 🌅 時間帯に応じた環境色オーバーレイ（早朝・朝・昼・夕方・夜）
+  private renderAmbientLighting(time: number, weather: WeatherType) {
+    this.ambientLightingGraphics.clear();
+
+    // マップ全体を覆う広大領域
+    const bgX = -3000;
+    const bgY = -3000;
+    const bgW = 9000;
+    const bgH = 9000;
+
+    // 1. 時間帯別の基本色と透明度の算出
+    let baseColor = 0x000000;
+    let baseAlpha = 0;
+
+    if (weather === 'sunset') {
+      // 天候が「夕焼け」の場合は強制的に美しい茜色
+      baseColor = 0xf97316;
+      baseAlpha = 0.26;
+    } else if (time >= 4.5 && time < 7.0) {
+      // 🌄 早朝 (4:30〜7:00): 藍紫〜朝焼けのグラデーション
+      const t = (time - 4.5) / 2.5; // 0.0 -> 1.0
+      if (t < 0.5) {
+        baseColor = 0x312e81; // 深紫紺
+        baseAlpha = 0.48 * (1 - t * 1.2);
+      } else {
+        baseColor = 0x4338ca; // 藍色〜朝焼け
+        baseAlpha = 0.25 * (1 - (t - 0.5) * 1.5);
+      }
+    } else if (time >= 7.0 && time < 11.0) {
+      // ☀️ 朝 (7:00〜11:00): 爽やかな黄金色の光
+      const t = (time - 7.0) / 4.0;
+      baseColor = 0xfef08a;
+      baseAlpha = Math.max(0.01, 0.07 * (1 - t));
+    } else if (time >= 11.0 && time < 16.5) {
+      // 🌤️ 昼 (11:00〜16:30): 澄んだ自然光 (フィルターなし)
+      baseAlpha = 0;
+    } else if (time >= 16.5 && time < 19.0) {
+      // 🌇 夕方 (16:30〜19:00): 暖かな茜色〜ドラマチックなマジックアワー
+      const t = (time - 16.5) / 2.5; // 0.0 -> 1.0
+      if (t < 0.4) {
+        baseColor = 0xf97316; // 黄金オレンジ
+        baseAlpha = 0.12 + t * 0.25;
+      } else {
+        baseColor = 0xe11d48; // 深みのある茜色
+        baseAlpha = 0.22 + (t - 0.4) * 0.25;
+      }
+    } else {
+      // 🌙 夜 (19:00〜4:30): 静寂な深青暗夜
+      baseColor = 0x020617; // Slate-950 深青黒
+      if (time >= 19.0 && time < 20.5) {
+        const t = (time - 19.0) / 1.5;
+        baseAlpha = 0.35 + t * 0.25; // 0.35 -> 0.60
+      } else if (time >= 3.5 && time < 4.5) {
+        const t = (time - 3.5) / 1.0;
+        baseAlpha = 0.60 - t * 0.12; // 0.60 -> 0.48
+      } else {
+        baseAlpha = 0.60; // 深夜
+      }
+    }
+
+    // 2. 悪天候による暗がり補正
+    if (weather === 'rain') {
+      baseAlpha = Math.min(0.75, baseAlpha + 0.14);
+      if (baseColor === 0x000000 || baseAlpha <= 0.15) {
+        baseColor = 0x1e293b;
+      }
+    } else if (weather === 'heavy_rain' || weather === 'typhoon') {
+      baseAlpha = Math.min(0.85, baseAlpha + 0.28);
+      baseColor = 0x0f172a;
+    } else if (weather === 'fog') {
+      baseAlpha = Math.min(0.50, baseAlpha + 0.18);
+      baseColor = 0x94a3b8;
+    }
+
+    if (baseAlpha > 0.005) {
+      this.ambientLightingGraphics
+        .rect(bgX, bgY, bgW, bgH)
+        .fill({ color: baseColor, alpha: baseAlpha });
+    }
+  }
+
+  // 💡 街灯・自販機・喫茶店・車の夜景環境光：夜間または悪天候時に輝く
   public renderStaticLighting(world?: AirasWorldData) {
     const w = world || this.currentWorld;
     if (!w) return;
     this.staticLightingGraphics.clear();
 
+    const time = w.environment.time ?? 12.0;
     const weather = this.currentWeather;
+    const isNight = time >= 16.8 || time < 6.8;
     const isDarkWeather = weather === 'sunset' || weather === 'rain' || weather === 'heavy_rain' || weather === 'typhoon';
-    if (!isDarkWeather) return;
+
+    if (!isNight && !isDarkWeather) return;
+
+    // 点灯強度スケール (16:48〜19:30 や 5:00〜6:48 の薄暗い時間帯は徐々に点灯)
+    let intensity = 1.0;
+    if (isNight && !isDarkWeather) {
+      if (time >= 16.8 && time < 19.5) {
+        intensity = Math.min(1.0, 0.4 + ((time - 16.8) / 2.7) * 0.6);
+      } else if (time >= 5.0 && time < 6.8) {
+        intensity = Math.max(0.3, 1.0 - ((time - 5.0) / 1.8) * 0.7);
+      }
+    }
 
     for (const ent of Object.values(w.entities)) {
-      if (ent.assetId.includes('lamp') || ent.assetId.includes('light')) {
+      const assetId = ent.assetId.toLowerCase();
+
+      // 1. 街灯 (street_lamp / light)
+      if (assetId.includes('lamp') || assetId.includes('light')) {
         const lx = ent.position.x;
         const ly = ent.position.y - 18;
         this.staticLightingGraphics
-          .circle(lx, ly, 30).fill({ color: 0xffedd5, alpha: 0.32 })
-          .circle(lx, ly, 75).fill({ color: 0xfde047, alpha: 0.18 })
-          .circle(lx, ly, 135).fill({ color: 0xf59e0b, alpha: 0.08 });
+          .circle(lx, ly, 32).fill({ color: 0xffedd5, alpha: 0.42 * intensity })
+          .circle(lx, ly, 80).fill({ color: 0xfde047, alpha: 0.22 * intensity })
+          .circle(lx, ly, 150).fill({ color: 0xf59e0b, alpha: 0.10 * intensity });
       }
 
-      if (ent.assetId.includes('vending')) {
+      // 2. 昭和レトロ自販機 (vending_machine)
+      if (assetId.includes('vending')) {
         const vx = ent.position.x;
         const vy = ent.position.y - 12;
-        this.staticLightingGraphics.circle(vx, vy, 45).fill({ color: 0x38bdf8, alpha: 0.18 });
+        this.staticLightingGraphics
+          .circle(vx, vy, 45).fill({ color: 0x38bdf8, alpha: 0.28 * intensity })
+          .circle(vx, vy, 85).fill({ color: 0x0284c7, alpha: 0.12 * intensity });
       }
 
-      if (ent.assetId.includes('cafe')) {
+      // 3. 昭和純喫茶・駅舎・店舗・住宅 (cafe / station / shop / house)
+      if (assetId.includes('cafe') || assetId.includes('station') || assetId.includes('shop') || assetId.includes('house')) {
+        const cx = ent.position.x;
+        const cy = ent.position.y - 6;
+        this.staticLightingGraphics
+          .circle(cx, cy, 100).fill({ color: 0xfbbf24, alpha: 0.20 * intensity })
+          .circle(cx, cy, 160).fill({ color: 0xf59e0b, alpha: 0.08 * intensity });
+      }
+
+      // 4. 車両・スーパーカー (vehicle / car / lamborghini)
+      if (assetId.includes('car') || assetId.includes('vehicle') || assetId.includes('lamborghini')) {
         const cx = ent.position.x;
         const cy = ent.position.y;
-        this.staticLightingGraphics.circle(cx, cy, 90).fill({ color: 0xfbbf24, alpha: 0.14 });
+        // 車両のヘッドライト（前方）＆テールランプ（後方）
+        this.staticLightingGraphics
+          .circle(cx, cy - 20, 55).fill({ color: 0xfffbeb, alpha: 0.35 * intensity })
+          .circle(cx, cy - 20, 95).fill({ color: 0xfef08a, alpha: 0.14 * intensity })
+          .circle(cx, cy + 18, 30).fill({ color: 0xef4444, alpha: 0.30 * intensity });
+      }
+
+      // 5. 公園の噴水 (fountain)
+      if (assetId.includes('fountain')) {
+        const fx = ent.position.x;
+        const fy = ent.position.y;
+        this.staticLightingGraphics
+          .circle(fx, fy, 70).fill({ color: 0x22d3ee, alpha: 0.22 * intensity })
+          .circle(fx, fy, 120).fill({ color: 0x0891b2, alpha: 0.09 * intensity });
       }
     }
   }

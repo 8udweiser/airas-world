@@ -14,6 +14,7 @@ export interface RemotePlayerInfo {
   isDriving: boolean;
   isSitting: boolean;
   isSleeping: boolean;
+  isTyping?: boolean;
   lastSeen: number;
   chatBubble?: { text: string; time: number } | null;
 }
@@ -32,6 +33,7 @@ export interface PlayerPacket {
   isDriving: boolean;
   isSitting: boolean;
   isSleeping: boolean;
+  isTyping?: boolean;
   chatText?: string;
   timestamp: number;
 }
@@ -47,6 +49,7 @@ class MultiplayerManager {
   public isHost: boolean = false;
   private isConnecting: boolean = false;
   private lastSendTime: number = 0;
+  public isTyping: boolean = false;
 
   public remotePlayers: Map<string, RemotePlayerInfo> = new Map();
 
@@ -287,6 +290,7 @@ class MultiplayerManager {
         isDriving: data.isDriving,
         isSitting: data.isSitting,
         isSleeping: data.isSleeping,
+        isTyping: !!data.isTyping,
         lastSeen: now,
         chatBubble: existing?.chatBubble,
       };
@@ -363,6 +367,7 @@ class MultiplayerManager {
       isDriving: state.isDriving,
       isSitting: state.isSitting,
       isSleeping: state.isSleeping,
+      isTyping: this.isTyping,
       timestamp: Date.now(),
     };
 
@@ -379,6 +384,15 @@ class MultiplayerManager {
         } catch (_) {}
       }
     });
+  }
+
+  /**
+   * チャット入力状態（スマホアイコン）の即座ブロードキャスト
+   */
+  public setTypingStatus(isTyping: boolean) {
+    if (this.isTyping === isTyping) return;
+    this.isTyping = isTyping;
+    this.sendMyStateImmediate();
   }
 
   /**

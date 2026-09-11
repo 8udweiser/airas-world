@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Send, X, Trash2 } from 'lucide-react';
+import { MessageSquare, Send, X, Trash2, Smartphone } from 'lucide-react';
 import { multiplayerManager, RemotePlayerInfo } from '../../core/multiplayer/MultiplayerManager';
 import { ChatStorage, SavedChatMessage } from '../../core/storage/ChatStorage';
 
@@ -39,8 +39,8 @@ const FloatingRemoteHUD: React.FC<{
       if (containerRef.current && renderer) {
         const p = playerRef.current;
         const sPos = renderer.worldToScreen(p.x, p.y - p.z);
-        // 👤 キャラクタースプライトの頭上（被らないように -68px にオフセット）
-        containerRef.current.style.transform = `translate3d(${Math.round(sPos.x)}px, ${Math.round(sPos.y - 68)}px, 0)`;
+        // 👤 キャラクタースプライトの真上中心に配置
+        containerRef.current.style.transform = `translate3d(${Math.round(sPos.x)}px, ${Math.round(sPos.y - 70)}px, 0) translate(-50%, -100%)`;
       }
       animId = requestAnimationFrame(updatePos);
     };
@@ -55,11 +55,19 @@ const FloatingRemoteHUD: React.FC<{
   return (
     <div
       ref={containerRef}
-      className="fixed top-0 left-0 pointer-events-none z-30 -translate-x-1/2 -translate-y-full flex flex-col items-center gap-1.5 will-change-transform"
+      className="fixed top-0 left-0 pointer-events-none z-30 flex flex-col items-center gap-1 will-change-transform"
       style={{
-        transform: `translate3d(${Math.round(initialPos.x)}px, ${Math.round(initialPos.y - 68)}px, 0)`,
+        transform: `translate3d(${Math.round(initialPos.x)}px, ${Math.round(initialPos.y - 70)}px, 0) translate(-50%, -100%)`,
       }}
     >
+      {/* 📱 リモートプレイヤー入力中スマホアイコン */}
+      {player.isTyping && (
+        <div className="px-2 py-0.5 rounded-full bg-slate-950/90 border border-amber-400/80 text-amber-300 text-[10px] font-bold shadow-lg flex items-center gap-1 animate-bounce mb-0.5 backdrop-blur-md">
+          <Smartphone className="w-3 h-3 text-amber-300 animate-pulse" />
+          <span>入力中...</span>
+        </div>
+      )}
+
       {/* 💬 チャットフキダシ (1文字ずつタイピング & 2行スクロール & 10秒待機フェード) */}
       {player.chatBubble && (
         <SpeechBubble
@@ -90,13 +98,14 @@ const FloatingRemoteHUD: React.FC<{
 };
 
 /**
- * 👤 60fps/120fps RAF 滑らか追従 自分の頭上フキダシ
+ * 👤 60fps/120fps RAF 滑らか追従 自分の頭上フキダシ & スマホ入力中アイコン
  */
 const FloatingSelfHUD: React.FC<{
   renderer: PixiWorldRenderer | null;
   myBubble: { text: string; time: number } | null;
+  isTyping?: boolean;
   onBubbleFinished: () => void;
-}> = ({ renderer, myBubble, onBubbleFinished }) => {
+}> = ({ renderer, myBubble, isTyping = false, onBubbleFinished }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -107,8 +116,8 @@ const FloatingSelfHUD: React.FC<{
         const py = renderer.playerState.y;
         const pz = renderer.playerState.z;
         const sPos = renderer.worldToScreen(px, py - pz);
-        // 💬 自分のキャラ頭上フキダシ (被らないように -70px にオフセット)
-        containerRef.current.style.transform = `translate3d(${Math.round(sPos.x)}px, ${Math.round(sPos.y - 70)}px, 0)`;
+        // 💬 自分のキャラ頭上中心に配置
+        containerRef.current.style.transform = `translate3d(${Math.round(sPos.x)}px, ${Math.round(sPos.y - 72)}px, 0) translate(-50%, -100%)`;
       }
       animId = requestAnimationFrame(updatePos);
     };
@@ -116,7 +125,7 @@ const FloatingSelfHUD: React.FC<{
     return () => cancelAnimationFrame(animId);
   }, [renderer]);
 
-  if (!myBubble) return null;
+  if (!myBubble && !isTyping) return null;
 
   const initialPos = renderer
     ? renderer.worldToScreen(renderer.playerState.x, renderer.playerState.y - renderer.playerState.z)
@@ -125,18 +134,29 @@ const FloatingSelfHUD: React.FC<{
   return (
     <div
       ref={containerRef}
-      className="fixed top-0 left-0 pointer-events-none z-30 -translate-x-1/2 -translate-y-full will-change-transform"
+      className="fixed top-0 left-0 pointer-events-none z-30 flex flex-col items-center gap-1 will-change-transform"
       style={{
-        transform: `translate3d(${Math.round(initialPos.x)}px, ${Math.round(initialPos.y - 70)}px, 0)`,
+        transform: `translate3d(${Math.round(initialPos.x)}px, ${Math.round(initialPos.y - 72)}px, 0) translate(-50%, -100%)`,
       }}
     >
-      <SpeechBubble
-        key={`self_${myBubble.time}`}
-        text={myBubble.text}
-        timestamp={myBubble.time}
-        isSelf={true}
-        onFinished={onBubbleFinished}
-      />
+      {/* 📱 自分の入力中スマホアイコン */}
+      {isTyping && (
+        <div className="px-2.5 py-0.5 rounded-full bg-slate-950/90 border border-cyan-400/80 text-cyan-300 text-[10px] font-bold shadow-lg flex items-center gap-1 animate-bounce mb-0.5 backdrop-blur-md">
+          <Smartphone className="w-3 h-3 text-cyan-300 animate-pulse" />
+          <span>入力中...</span>
+        </div>
+      )}
+
+      {/* 💬 自分の発言吹き出し */}
+      {myBubble && (
+        <SpeechBubble
+          key={`self_${myBubble.time}`}
+          text={myBubble.text}
+          timestamp={myBubble.time}
+          isSelf={true}
+          onFinished={onBubbleFinished}
+        />
+      )}
     </div>
   );
 };
@@ -148,9 +168,29 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [keepOpenAfterSend, setKeepOpenAfterSend] = useState(() => {
+    try {
+      return localStorage.getItem('airas_chat_keep_open') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [messages, setMessages] = useState<SavedChatMessage[]>([]);
   const [myBubble, setMyBubble] = useState<{ text: string; time: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 📱 入力中判定 (開いていてフォーカス中、または文字入力中)
+  const isSelfTyping = isOpen && (isInputFocused || inputText.trim().length > 0);
+
+  useEffect(() => {
+    multiplayerManager.setTypingStatus(isSelfTyping);
+    return () => {
+      multiplayerManager.setTypingStatus(false);
+    };
+  }, [isSelfTyping]);
 
   // 起動時にIndexedDBから過去ログをロード
   useEffect(() => {
@@ -178,11 +218,30 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
     };
   }, []);
 
+  // チャットを開いた瞬間、上からの流れるスクロールを完全に排除し、即座に1番下の最新ログを表示！
   useEffect(() => {
     if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (chatScrollRef.current) {
+        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      }
+      setTimeout(() => {
+        if (chatScrollRef.current) {
+          chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+        }
+        textareaRef.current?.focus();
+      }, 40);
     }
-  }, [messages, isOpen]);
+  }, [isOpen]);
+
+  // メッセージ追加時のみスムーズスクロール
+  useEffect(() => {
+    if (isOpen && chatScrollRef.current) {
+      chatScrollRef.current.scrollTo({
+        top: chatScrollRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  }, [messages.length]);
 
   const handleSend = () => {
     const text = inputText.trim();
@@ -207,6 +266,17 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
 
     setMyBubble({ text, time: Date.now() });
     setInputText('');
+
+    // 送信後の自動クローズ制御
+    if (!keepOpenAfterSend) {
+      setIsOpen(false);
+      setIsInputFocused(false);
+      multiplayerManager.setTypingStatus(false);
+    } else {
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 40);
+    }
   };
 
   const handleClearHistory = async () => {
@@ -227,10 +297,11 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
 
   return (
     <>
-      {/* 自分の頭上フキダシ (60fps RAF 滑らか追従 & タイピング & 2行スクロール & 10秒待機フェード) */}
+      {/* 自分の頭上フキダシ & スマホ入力中アイコン (60fps RAF 滑らか追従) */}
       <FloatingSelfHUD
         renderer={renderer || null}
         myBubble={myBubble}
+        isTyping={isSelfTyping}
         onBubbleFinished={() => setMyBubble(null)}
       />
 
@@ -310,7 +381,7 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
             </div>
 
             {/* チャット履歴 */}
-            <div className="h-36 sm:h-40 overflow-y-auto allow-scroll space-y-2 pr-1 text-xs">
+            <div ref={chatScrollRef} className="h-36 sm:h-40 overflow-y-auto allow-scroll space-y-2 pr-1 text-xs">
               {messages.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-slate-500 text-[11px]">
                   メッセージはありません。話しかけてみよう！
@@ -347,8 +418,11 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
             {/* 入力欄 (Enterで改行、Ctrl+Enterまたは送信ボタンで送信) */}
             <div className="flex items-end gap-2 pt-1">
               <textarea
+                ref={textareaRef}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => setIsInputFocused(false)}
                 onKeyDown={handleKeyDown}
                 placeholder="メッセージを入力... (Ctrl+Enter で送信)"
                 rows={1}
@@ -367,6 +441,25 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
               >
                 <Send className="w-3.5 h-3.5" />
               </button>
+            </div>
+
+            {/* 送信後もチャット欄を開いたままにする設定 */}
+            <div className="flex items-center justify-between px-1 text-[10px] text-slate-400">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-200 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={keepOpenAfterSend}
+                  onChange={(e) => {
+                    setKeepOpenAfterSend(e.target.checked);
+                    try {
+                      localStorage.setItem('airas_chat_keep_open', String(e.target.checked));
+                    } catch (_) {}
+                  }}
+                  className="rounded border-white/20 bg-slate-900 text-cyan-500 focus:ring-0 w-3 h-3 accent-cyan-500 cursor-pointer"
+                />
+                <span>送信後もチャット欄を開いたままにする</span>
+              </label>
+              <span className="text-[9px] text-slate-500 hidden sm:inline">Ctrl+Enterで即送信</span>
             </div>
           </div>
         )}

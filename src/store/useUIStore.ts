@@ -2,6 +2,36 @@ import { create } from 'zustand';
 
 export type EditorTool = 'select' | 'place' | 'delete';
 
+// 🎒 デフォルトのホットバー10スロット (1〜9, 0)
+export const DEFAULT_HOTBAR_SLOTS: string[] = [
+  'vending_machine_retro', // 1: 昭和レトロ自販機
+  'retro_cafe',            // 2: 昭和純喫茶「あいらす」
+  'street_lamp_warm',       // 3: 温光の街灯
+  'vehicle_lamborghini',   // 4: ランボルギーニ
+  'park_fountain',         // 5: 公園の噴水
+  'npc_cat',               // 6: 三毛猫ミケ
+  'retro_bench',           // 7: 木製ベンチ
+  'tree_sakura_dome',      // 8: 満開の桜
+  'telegraph_pole',        // 9: 電柱
+  'furniture_bed_double',  // 0: 昭和レトロベッド
+];
+
+function loadSavedHotbar(): string[] {
+  if (typeof window === 'undefined') return DEFAULT_HOTBAR_SLOTS;
+  try {
+    const saved = localStorage.getItem('airas_hotbar_slots');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length === 10) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load saved hotbar slots', e);
+  }
+  return DEFAULT_HOTBAR_SLOTS;
+}
+
 interface UIStoreState {
   selectedEntityId: string | null;
   activeMode: 'play' | 'edit';
@@ -14,6 +44,10 @@ interface UIStoreState {
   fps: number;
   isMuted: boolean;
   isSnapToGrid: boolean;
+
+  // 🎒 マイクラ風インベントリ ＆ 10枠固定ホットバー
+  hotbarSlots: string[];
+  isInventoryOpen: boolean;
 
   // アクション
   setSelectedEntityId: (id: string | null) => void;
@@ -29,6 +63,12 @@ interface UIStoreState {
   setMuted: (muted: boolean) => void;
   toggleSnapToGrid: () => void;
   setSnapToGrid: (snap: boolean) => void;
+
+  // 🎒 ホットバー＆インベントリ操作
+  setHotbarSlot: (index: number, assetId: string) => void;
+  resetHotbarSlots: () => void;
+  setIsInventoryOpen: (open: boolean) => void;
+  toggleInventory: () => void;
 }
 
 export const useUIStore = create<UIStoreState>((set) => ({
@@ -43,6 +83,10 @@ export const useUIStore = create<UIStoreState>((set) => ({
   fps: 60,
   isMuted: false,
   isSnapToGrid: true, // デフォルトはマス吸着ON (32pxスナップ)
+
+  // 🎒 10枠固定ホットバー＆インベントリ
+  hotbarSlots: loadSavedHotbar(),
+  isInventoryOpen: false,
 
   setSelectedEntityId: (id) => set({ selectedEntityId: id }),
   setActiveMode: (mode) => set({ activeMode: mode, selectedEntityId: null, placingAssetId: null }),
@@ -62,4 +106,26 @@ export const useUIStore = create<UIStoreState>((set) => ({
       set((state) => (state.notification === msg ? { notification: null } : state));
     }, 3000);
   },
+
+  // 🎒 ホットバー操作
+  setHotbarSlot: (index, assetId) => {
+    set((state) => {
+      const next = [...state.hotbarSlots];
+      if (index >= 0 && index < 10) {
+        next[index] = assetId;
+        try {
+          localStorage.setItem('airas_hotbar_slots', JSON.stringify(next));
+        } catch {}
+      }
+      return { hotbarSlots: next };
+    });
+  },
+  resetHotbarSlots: () => {
+    try {
+      localStorage.setItem('airas_hotbar_slots', JSON.stringify(DEFAULT_HOTBAR_SLOTS));
+    } catch {}
+    set({ hotbarSlots: DEFAULT_HOTBAR_SLOTS });
+  },
+  setIsInventoryOpen: (open) => set({ isInventoryOpen: open }),
+  toggleInventory: () => set((state) => ({ isInventoryOpen: !state.isInventoryOpen })),
 }));

@@ -11,6 +11,7 @@ import { DialogueModal } from './ui/components/DialogueModal';
 import { HelpModal } from './ui/components/HelpModal';
 import { SettingsModal } from './ui/components/SettingsModal';
 import { DebugOverlayF3 } from './ui/hud/DebugOverlayF3';
+import { InventoryModal } from './ui/editor/InventoryModal';
 import { RendererGhostEntity } from './renderer/IRenderer';
 import { Bell, Users, Globe, Bed, BookOpen } from 'lucide-react';
 import { audioManager } from './audio/AudioManager';
@@ -53,6 +54,8 @@ export const App: React.FC = () => {
     isMuted,
     toggleMute,
     isSnapToGrid,
+    hotbarSlots,
+    toggleInventory,
   } = useUIStore();
 
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -626,20 +629,23 @@ export const App: React.FC = () => {
         return;
       }
 
-      // E: パレット開閉トグル
+      // E: マイクラ風インベントリ開閉トグル
       if ((e.code === 'KeyE' || e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey) {
-        setIsPaletteOpen((prev) => !prev);
+        toggleInventory();
         return;
       }
 
-      // 1 〜 9: パレットアイテム選択
-      if (['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9'].includes(e.code)) {
-        const slotIdx = parseInt(e.code.replace('Digit', ''), 10) - 1;
-        const placeableAssets = Object.values(assets).filter((a) => a.type !== 'tile');
-        if (placeableAssets[slotIdx]) {
-          const selectedAsset = placeableAssets[slotIdx];
+      // 1 〜 9, 0: ホットバースロットアイテム選択
+      if (['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0'].includes(e.code)) {
+        const digitStr = e.code.replace('Digit', '');
+        const slotIdx = digitStr === '0' ? 9 : parseInt(digitStr, 10) - 1;
+        const targetAssetId = hotbarSlots[slotIdx];
+        if (targetAssetId && assets[targetAssetId]) {
+          const selectedAsset = assets[targetAssetId];
           setPlacingAssetId(selectedAsset.id);
-          showNotification(`スロット ${slotIdx + 1}:「${selectedAsset.name}」を選択`);
+          showNotification(`スロット [${digitStr}]:「${selectedAsset.name}」を選択`);
+        } else {
+          showNotification(`スロット [${digitStr}] は空です (Eキーでアイテムをセット)`);
         }
         return;
       }
@@ -976,8 +982,11 @@ export const App: React.FC = () => {
       {/* コンテキストUI (オブジェクト選択時) */}
       <ObjectContextMenu />
 
-      {/* アセット配置バー (Eキーで開閉) */}
+      {/* アセット配置バー */}
       <AssetPaletteBar isVisible={isPaletteOpen} />
+
+      {/* 🎒 Minecraft風 クリエイティブインベントリ画面 (Eキーで開閉) */}
+      <InventoryModal />
 
       {/* AIワールド生成 & Gemini画像創出パネル */}
       <AIPanelModal

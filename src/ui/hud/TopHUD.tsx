@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useWorldStore } from '../../store/useWorldStore';
 import { useUIStore } from '../../store/useUIStore';
 import { Undo2, Redo2, Sun, CloudRain, Snowflake, Sunset, Clock, Sparkles, HelpCircle, Compass, Wrench, Terminal, Key, Volume2, VolumeX, Music, SkipForward, Zap, CloudLightning } from 'lucide-react';
@@ -36,6 +36,33 @@ export const TopHUD: React.FC<TopHUDProps> = ({
   const { world, canUndo, canRedo, undo, redo, setWeather, setTime } = useWorldStore();
   const { isAIPanelOpen, setAIPanelOpen, activeMode, setActiveMode, isMuted, toggleMute, isSnapToGrid, toggleSnapToGrid } = useUIStore();
 
+  // 🕒 リアルタイム自動同期フラグ (デフォルトで現実のPC/スマホ時刻と自動連動)
+  const [isRealtimeSync, setIsRealtimeSync] = useState<boolean>(true);
+
+  // 現実世界の現在時刻を算出して world.environment.time に反映
+  const syncToCurrentRealTime = useCallback(() => {
+    const now = new Date();
+    const realHours = now.getHours();
+    const realMinutes = now.getMinutes();
+    const realSeconds = now.getSeconds();
+    const timeVal = realHours + realMinutes / 60 + realSeconds / 3600;
+    setTime(Math.round(timeVal * 100) / 100);
+  }, [setTime]);
+
+  // 初回マウント時に現実時刻を適用
+  useEffect(() => {
+    syncToCurrentRealTime();
+  }, [syncToCurrentRealTime]);
+
+  // リアルタイム同期ON時の定期タイマー (15秒ごとに時刻チェックし分が変われば自動反映・CPU負荷ゼロ)
+  useEffect(() => {
+    if (!isRealtimeSync) return;
+    const timer = setInterval(() => {
+      syncToCurrentRealTime();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [isRealtimeSync, syncToCurrentRealTime]);
+
   const weatherIcons: Record<WeatherType, { icon: React.ReactNode; label: string }> = {
     clear: { icon: <Sun className="w-4 h-4 text-amber-400" />, label: '快晴' },
     rain: { icon: <CloudRain className="w-4 h-4 text-sky-400" />, label: '雨' },
@@ -51,6 +78,25 @@ export const TopHUD: React.FC<TopHUDProps> = ({
     const minutes = Math.floor((time - hours) * 60);
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
+
+  // 🌅 時間帯（早朝・朝・昼・夕方・夜）の視覚情報ヘルパー
+  const getTimePeriodInfo = (time: number) => {
+    if (time >= 4.5 && time < 7.0) {
+      return { label: '早朝', icon: '🌅', color: 'text-indigo-300', bg: 'bg-indigo-950/70 border-indigo-500/40' };
+    }
+    if (time >= 7.0 && time < 11.0) {
+      return { label: '朝', icon: '☀️', color: 'text-amber-300', bg: 'bg-amber-950/70 border-amber-500/40' };
+    }
+    if (time >= 11.0 && time < 16.5) {
+      return { label: '昼', icon: '🌤️', color: 'text-sky-300', bg: 'bg-sky-950/70 border-sky-500/40' };
+    }
+    if (time >= 16.5 && time < 19.0) {
+      return { label: '夕方', icon: '🌇', color: 'text-orange-300', bg: 'bg-orange-950/70 border-orange-500/40' };
+    }
+    return { label: '夜', icon: '🌙', color: 'text-blue-300', bg: 'bg-blue-950/70 border-blue-500/40' };
+  };
+
+  const periodInfo = getTimePeriodInfo(world.environment.time);
 
   return (
     <>
@@ -261,6 +307,26 @@ export const TopHUD: React.FC<TopHUDProps> = ({
             >
               F3
             </button>
+
+            {/* 📱 モバイル用 時間・時間帯表示バッジ (タップで現実時刻に再同期) */}
+            <div className="w-[1px] h-3.5 bg-white/15 mx-0.5" />
+            <button
+              onClick={() => {
+                setIsRealtimeSync(true);
+                syncToCurrentRealTime();
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsRealtimeSync(true);
+                syncToCurrentRealTime();
+              }}
+              className={`px-1.5 py-0.5 rounded-lg text-[10px] font-mono flex items-center gap-1 border transition-all active:scale-95 cursor-pointer ${periodInfo.bg} ${periodInfo.color}`}
+              title="タップで現実の現在時刻に自動同期"
+            >
+              <span>{periodInfo.icon}</span>
+              <span className="font-semibold">{formatTime(world.environment.time)}</span>
+            </button>
           </div>
 
           {/* 右: マルチプレイヤー・ポータル・アバター (同一フレックス行で絶対に重ならない！) */}
@@ -443,19 +509,48 @@ export const TopHUD: React.FC<TopHUDProps> = ({
 
             <div className="w-[1px] h-4 bg-white/10" />
 
-            <div className="flex items-center gap-2 text-xs font-mono text-slate-300">
-              <Clock className="w-3.5 h-3.5 text-amber-300" />
-              <span>{formatTime(world.environment.time)}</span>
+            <div className="flex items-center gap-1.5 text-xs font-mono text-slate-300">
+              {/* 🌅 時間帯バッジ */}
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 shadow-sm ${periodInfo.bg} ${periodInfo.color}`}
+                title={`現在の時間帯: ${periodInfo.label}`}
+              >
+                <span>{periodInfo.icon}</span>
+                <span>{periodInfo.label}</span>
+              </span>
+
+              <span className="font-semibold text-slate-200">{formatTime(world.environment.time)}</span>
+
+              {/* 時刻スライダー (操作で手動モードに切替) */}
               <input
                 type="range"
                 min="0"
                 max="24"
-                step="0.5"
+                step="0.25"
                 value={world.environment.time}
-                onChange={(e) => setTime(parseFloat(e.target.value))}
-                className="w-16 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-400"
-                title="時刻調整"
+                onChange={(e) => {
+                  setIsRealtimeSync(false);
+                  setTime(parseFloat(e.target.value));
+                }}
+                className="w-14 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                title="時刻調整（ドラッグで手動変更）"
               />
+
+              {/* 🕒 現実時刻同期トグルボタン */}
+              <button
+                onClick={() => {
+                  setIsRealtimeSync(true);
+                  syncToCurrentRealTime();
+                }}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-sans font-medium transition-all active:scale-95 cursor-pointer border ${
+                  isRealtimeSync
+                    ? 'bg-cyan-500/25 text-cyan-300 border-cyan-400/50 shadow-sm'
+                    : 'text-slate-400 bg-white/5 border-white/10 hover:text-white hover:bg-white/10'
+                }`}
+                title={isRealtimeSync ? '現在時刻と自動同期中（クリックで手動保持）' : 'クリックで現実の現在時刻に自動同期'}
+              >
+                {isRealtimeSync ? '● 現実連動' : '🕒 現実同期'}
+              </button>
             </div>
           </div>
 
