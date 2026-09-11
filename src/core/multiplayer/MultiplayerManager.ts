@@ -79,6 +79,14 @@ class MultiplayerManager {
 
   public init() {
     if (this.isStarted || typeof window === 'undefined') return;
+
+    // 🤖 自動テストランナー (Thorium Reviewer / Puppeteer / Playwright等) はマルチプレイヤーから除外
+    // これにより、テスト実行時にテストブラウザが初期位置に居座ってゴーストキャラになるのを100%防止
+    if ((navigator as any).webdriver || window.location.search.includes('nomultiplayer')) {
+      console.log('[Multiplayer] 🤖 自動テスト環境のためマルチプレイヤー接続をスキップします');
+      return;
+    }
+
     this.isStarted = true;
 
     // 1. BroadcastChannel (同一PC複数タブ用: 超爆速 0ms 同期)
@@ -92,12 +100,12 @@ class MultiplayerManager {
     // 2. WebRTC PeerJS (スマホとPC、他端末同士のリアルタイムP2P同期)
     this.startPeerConnection();
 
-    // 3. 一定時間応答のない他プレイヤーの切断チェック (2.8秒無通信で退室判定)
+    // 3. 一定時間応答のない他プレイヤーの切断チェック (2.0秒無通信で即座に退室判定)
     setInterval(() => {
       const now = Date.now();
       let changed = false;
       for (const [id, p] of this.remotePlayers.entries()) {
-        if (now - p.lastSeen > 2800) {
+        if (now - p.lastSeen > 2000) {
           this.remotePlayers.delete(id);
           changed = true;
         }
@@ -105,7 +113,7 @@ class MultiplayerManager {
       if (changed) {
         this.notifyPlayersChange();
       }
-    }, 1000);
+    }, 600);
 
     // 4. タブ閉じ・リロード・画面離脱時の即時退出通知
     if (typeof window !== 'undefined') {

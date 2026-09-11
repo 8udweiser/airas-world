@@ -125,10 +125,14 @@ export const TopHUD: React.FC<TopHUDProps> = ({
 
             {/* ⚡ 低負荷モード */}
             <button
-              onClick={onTogglePerfMode}
+              onClick={(e) => {
+                (e.currentTarget as HTMLElement)?.blur();
+                onTogglePerfMode?.();
+              }}
               onTouchEnd={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                (e.currentTarget as HTMLElement)?.blur();
                 onTogglePerfMode?.();
               }}
               className={`p-1 rounded-lg transition-all active:scale-90 cursor-pointer ${
@@ -289,87 +293,107 @@ export const TopHUD: React.FC<TopHUDProps> = ({
             <div className="w-[1px] h-4 bg-white/10" />
 
             {/* モード切替 (探索 / 編集) */}
-            <div className="flex items-center p-0.5 bg-black/40 rounded-xl border border-white/5">
+            <div className="flex items-center p-0.5 bg-black/40 rounded-xl border border-white/5 shrink-0">
               <button
-                onClick={() => setActiveMode('play')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                onClick={(e) => {
+                  (e.currentTarget as HTMLElement)?.blur();
+                  setActiveMode('play');
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                   activeMode === 'play'
                     ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-400/40 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
                 title="探索モード (WASD移動・Spaceジャンプ・Ctrlダッシュ)"
               >
-                <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                <Compass className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                 <span>探索</span>
               </button>
               <button
-                onClick={() => setActiveMode('edit')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                onClick={(e) => {
+                  (e.currentTarget as HTMLElement)?.blur();
+                  setActiveMode('edit');
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                   activeMode === 'edit'
                     ? 'bg-amber-500/30 text-amber-200 border border-amber-400/40 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
                 title="編集モード (クリック選択・ドラッグ移動・パレット配置)"
               >
-                <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                <Wrench className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span>編集</span>
               </button>
             </div>
 
-            {/* PC向け: Undo / Redo & マス吸着トグル */}
-            <div className="flex items-center gap-1">
-              <div className="w-[1px] h-4 bg-white/10 mr-1" />
-              <button
-                onClick={() => undo()}
-                disabled={!canUndo}
-                className={`p-1.5 rounded-lg border text-xs flex items-center transition-all ${
-                  canUndo
-                    ? 'glass-button text-slate-200 border-white/15 hover:text-white cursor-pointer'
-                    : 'opacity-30 text-slate-500 border-transparent cursor-not-allowed'
-                }`}
-                title="元に戻す (Ctrl+Z)"
-              >
-                <Undo2 className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => redo()}
-                disabled={!canRedo}
-                className={`p-1.5 rounded-lg border text-xs flex items-center transition-all ${
-                  canRedo
-                    ? 'glass-button text-slate-200 border-white/15 hover:text-white cursor-pointer'
-                    : 'opacity-30 text-slate-500 border-transparent cursor-not-allowed'
-                }`}
-                title="やり直す (Ctrl+Y)"
-              >
-                <Redo2 className="w-3.5 h-3.5" />
-              </button>
+            {/* PC向け: 編集モード時のみ Undo/Redo & マス吸着を表示（探索モード時は隠して超スリム＆文字折り返し防止！） */}
+            {activeMode === 'edit' && (
+              <div className="flex items-center gap-1 shrink-0">
+                <div className="w-[1px] h-4 bg-white/10 mr-1 shrink-0" />
+                <button
+                  onClick={(e) => {
+                    (e.currentTarget as HTMLElement)?.blur();
+                    undo();
+                  }}
+                  disabled={!canUndo}
+                  className={`p-1.5 rounded-lg border text-xs flex items-center transition-all shrink-0 ${
+                    canUndo
+                      ? 'glass-button text-slate-200 border-white/15 hover:text-white cursor-pointer'
+                      : 'opacity-30 text-slate-500 border-transparent cursor-not-allowed'
+                  }`}
+                  title="元に戻す (Ctrl+Z)"
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    (e.currentTarget as HTMLElement)?.blur();
+                    redo();
+                  }}
+                  disabled={!canRedo}
+                  className={`p-1.5 rounded-lg border text-xs flex items-center transition-all shrink-0 ${
+                    canRedo
+                      ? 'glass-button text-slate-200 border-white/15 hover:text-white cursor-pointer'
+                      : 'opacity-30 text-slate-500 border-transparent cursor-not-allowed'
+                  }`}
+                  title="やり直す (Ctrl+Y)"
+                >
+                  <Redo2 className="w-3.5 h-3.5" />
+                </button>
 
-              {/* 🧲 マス吸着トグル */}
-              <button
-                onClick={() => toggleSnapToGrid()}
-                className={`px-2 py-1 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer ${
-                  isSnapToGrid
-                    ? 'bg-amber-500/30 text-amber-200 border-amber-400/40 shadow-sm'
-                    : 'text-slate-400 hover:text-white border-transparent hover:bg-white/10'
-                }`}
-                title={isSnapToGrid ? 'マス吸着: ON (32pxグリッドにスナップ)' : 'マス吸着: OFF (ピクセル単位の自由配置)'}
-              >
-                <span>🧲</span>
-                <span>{isSnapToGrid ? 'マス吸着' : '自由配置'}</span>
-              </button>
-            </div>
+                {/* 🧲 マス吸着トグル (編集時のみ表示・横文字コンパクト) */}
+                <button
+                  onClick={(e) => {
+                    (e.currentTarget as HTMLElement)?.blur();
+                    toggleSnapToGrid();
+                  }}
+                  className={`px-2 py-1 rounded-lg border text-[11px] font-medium flex items-center gap-1 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                    isSnapToGrid
+                      ? 'bg-amber-500/30 text-amber-200 border-amber-400/40 shadow-sm'
+                      : 'text-slate-400 hover:text-white border-transparent hover:bg-white/10'
+                  }`}
+                  title={isSnapToGrid ? 'マス吸着: ON (32pxグリッドにスナップ)' : 'マス吸着: OFF (ピクセル単位の自由配置)'}
+                >
+                  <span>🧲</span>
+                  <span>{isSnapToGrid ? '吸着' : '自由'}</span>
+                </button>
+              </div>
+            )}
 
             {/* F3 デバッグ画面トグル */}
             <button
-              onClick={onToggleF3}
-              className={`px-2 py-1 rounded-lg border text-[11px] font-mono flex items-center gap-1 transition-all ${
+              onClick={(e) => {
+                (e.currentTarget as HTMLElement)?.blur();
+                onToggleF3();
+              }}
+              className={`px-2 py-1 rounded-lg border text-[11px] font-mono flex items-center gap-1 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                 isF3Open
                   ? 'bg-amber-500/30 text-amber-300 border-amber-400/40'
                   : 'text-slate-400 hover:text-white border-transparent hover:bg-white/10'
               }`}
               title="Minecraft風 F3 デバッグ情報 (F3キー)"
             >
-              <Terminal className="w-3.5 h-3.5" />
+              <Terminal className="w-3.5 h-3.5 shrink-0" />
               <span>F3</span>
             </button>
           </div>
@@ -462,7 +486,10 @@ export const TopHUD: React.FC<TopHUDProps> = ({
           <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-1 bg-slate-950/80 backdrop-blur-md border border-white/15">
             {/* ⚡ 低負荷モード切り替え */}
             <button
-              onClick={onTogglePerfMode}
+              onClick={(e) => {
+                (e.currentTarget as HTMLElement)?.blur();
+                onTogglePerfMode?.();
+              }}
               className={`p-1.5 rounded-xl transition-all cursor-pointer active:scale-95 ${
                 isLowPerfMode
                   ? 'bg-amber-500/30 text-amber-300 border border-amber-400/40 shadow-sm'

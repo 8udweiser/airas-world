@@ -239,12 +239,16 @@ export const App: React.FC = () => {
 
       // プレイヤー移動時の低頻度通知 (周囲の乗り物・ベンチ・ベッド検知 & F3用FPS通知 & マルチプレイヤー送信)
       let lastTickTime = 0;
+      let lastCheckPx = -9999;
+      let lastCheckPy = -9999;
       let activeVehicleId: string | null = null;
       let activeBenchId: string | null = null;
       let activeBedId: string | null = null;
 
       renderer.onPlayerMoveTick = (px, py, _z, _dir, liveFps) => {
-        // 👥 マルチプレイヤー状態を送信（ジャンプやダッシュ、アクションを瞬時に相手端末へ同期）
+        const isMoving = renderer.playerState.isMoving || renderer.playerState.isJumping;
+
+        // 👥 マルチプレイヤー状態送信 (移動中は高頻度、静止中は低頻度に間引きCPU削減)
         multiplayerManager.sendMyState({
           assetId: renderer.playerState.assetId,
           x: px,
@@ -261,9 +265,6 @@ export const App: React.FC = () => {
         const now = performance.now();
         if (now - lastTickTime < 120) return;
         lastTickTime = now;
-
-        // F3デバッグ用FPS更新
-        useUIStore.getState().setFps(liveFps);
 
         // プレイヤーの画面座標を更新（頭上チャットフキダシ用）
         const sPos = renderer.worldToScreen(px, py - _z);
@@ -285,9 +286,19 @@ export const App: React.FC = () => {
           setNearbyVehicle(null);
           setNearbyBench(null);
           setNearbyBed(null);
-        } else {
-          const currentWorld = useWorldStore.getState().world;
-          const currentAssets = useWorldStore.getState().assets;
+          return;
+        }
+
+        // 🚀 超軽量化: プレイヤーが前回のチェックからほとんど動いていない場合、高コストな全オブジェクト走査を完全スキップ！
+        const movedDist = Math.hypot(px - lastCheckPx, py - lastCheckPy);
+        if (movedDist < 8 && !isMoving) {
+          return;
+        }
+        lastCheckPx = px;
+        lastCheckPy = py;
+
+        const currentWorld = useWorldStore.getState().world;
+        const currentAssets = useWorldStore.getState().assets;
 
           // 🏎️ 車両の検出
           let foundVehicle: { id: string; name: string; assetId: string } | null = null;
@@ -382,9 +393,8 @@ export const App: React.FC = () => {
             activeBedId = null;
             setNearbyBed(null);
           }
-        }
-      };
-    });
+        };
+      });
 
     return () => {
       if (vehicleClearTimer) clearTimeout(vehicleClearTimer);
@@ -512,6 +522,15 @@ export const App: React.FC = () => {
       if (rendererRef.current) {
         rendererRef.current.onKeyDown(e.code);
         rendererRef.current.keys[e.key] = true;
+      }
+
+      // 🦘 Space: ジャンプ（直前にクリックしたボタンがフォーカスされたままでスペースキー再発火する事故を完全防止）
+      if (e.code === 'Space') {
+        const activeEl = document.activeElement as HTMLElement;
+        if (activeEl && activeEl !== document.body && activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA') {
+          activeEl.blur();
+        }
+        e.preventDefault();
       }
 
       // 🛏️ 就寝中の起床判定
@@ -896,8 +915,8 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Minecraft風 F3 デバッグ情報画面 */}
-      <DebugOverlayF3 isOpen={isF3Open} />
+      {/* Minecraft風 F3 デバッグ情報画面 (非表示時は完全アンマウントしCPU負荷ゼロ) */}
+      {isF3Open && <DebugOverlayF3 isOpen={isF3Open} />}
 
       {/* コンテキストUI (オブジェクト選択時) */}
       <ObjectContextMenu />
