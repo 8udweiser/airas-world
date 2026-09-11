@@ -1332,6 +1332,27 @@ class AudioManager {
     osc.start(t);
     osc.stop(t + 0.04);
   }
+
+  /**
+   * 📦 オブジェクト設置・回転音 (心地よいカチッというラチェット音)
+   */
+  public playPlace() {
+    if (!this.ctx || !this.sfxGain || this._isMuted) return;
+    try {
+      const t = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(620, t);
+      osc.frequency.exponentialRampToValueAtTime(840, t + 0.04);
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(t);
+      osc.stop(t + 0.055);
+    } catch (_) {}
+  }
 }
 
 export const audioManager = new AudioManager();

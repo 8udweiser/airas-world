@@ -5,6 +5,28 @@ import { IRenderer, RendererGhostEntity } from '../IRenderer';
 import { audioManager, SurfaceType } from '../../audio/AudioManager';
 import { RemotePlayerInfo } from '../../core/multiplayer/MultiplayerManager';
 
+export const ROTATION_DIRECTIONS: Direction[] = [
+  'down',        // 0: 下 (正面)
+  'down-left',   // 1: 斜め左下
+  'left',        // 2: 左
+  'up-left',     // 3: 左上
+  'up',          // 4: 上 (背面)
+  'up-right',    // 5: 右上
+  'right',       // 6: 右
+  'down-right',  // 7: 右下
+];
+
+export const DIRECTION_LABELS: Record<Direction, string> = {
+  'down': '正面（下）',
+  'down-left': '斜め左下',
+  'left': '左',
+  'up-left': '左上',
+  'up': '背面（上）',
+  'up-right': '右上',
+  'right': '右',
+  'down-right': '右下',
+};
+
 export class PixiWorldRenderer implements IRenderer {
   private app: Application | null = null;
   private container: HTMLElement | null = null;
@@ -123,10 +145,21 @@ export class PixiWorldRenderer implements IRenderer {
   public onEntityClick?: (entityId: string) => void;
   public onEntityRightClick?: (entityId: string) => void;
   public onMapClick?: (worldX: number, worldY: number) => void;
-  public onEntityDrag?: (entityId: string, newWorldX: number, newWorldY: number) => void;
-  public onEntityDragEnd?: (entityId: string, startPos: { x: number; y: number }, endPos: { x: number; y: number }) => void;
+  public onEntityDrag?: (entityId: string, newWorldX: number, newWorldY: number, direction?: Direction) => void;
+  public onEntityRotate?: (entityId: string, newDir: Direction) => void;
+  public onEntityDragEnd?: (
+    entityId: string,
+    startPos: { x: number; y: number },
+    endPos: { x: number; y: number },
+    startDir?: Direction,
+    endDir?: Direction
+  ) => void;
   public onAutoSitTriggered?: (benchId: string) => void;
   public onPlayerMoveTick?: (x: number, y: number, z: number, dir: Direction, fps: number) => void;
+
+  private dragPointerId: number | null = null;
+  private dragStartEntityDirection: Direction = 'down';
+  public currentDraggingDirection: Direction = 'down';
 
   // パーティクル & アニメーション
   private weatherParticles: Array<{ x: number; y: number; speed: number; length: number }> = [];
@@ -919,13 +952,21 @@ export class PixiWorldRenderer implements IRenderer {
       const asset = assets[entity.assetId];
       if (!asset) continue;
 
+      if (asset.sprite.directionalUrls) {
+        for (const url of Object.values(asset.sprite.directionalUrls)) {
+          if (url) await this.getTexture(url);
+        }
+      }
+
       await this.updateEntitySprite(
         entity.id,
         asset,
         entity.position.x,
         entity.position.y,
         entity.position.z,
-        1.0
+        1.0,
+        false,
+        entity.direction
       );
       renderedIds.add(entity.id);
     }
@@ -1109,24 +1150,30 @@ export class PixiWorldRenderer implements IRenderer {
     }
   }
 
-  private async updateEntitySprite(
+  public async updateEntitySprite(
     id: string,
     asset: AirasAsset,
     x: number,
     y: number,
     z: number,
     alpha: number = 1.0,
-    isGhost: boolean = false
+    isGhost: boolean = false,
+    direction?: Direction
   ) {
     let sprite = this.entitySprites.get(id);
     let targetUrl = asset.sprite.url;
-    if (id === 'player_main' && asset.sprite.directionalUrls) {
-      const dir = this.playerState.direction;
+
+    const dir: Direction = (id === 'player_main')
+      ? this.playerState.direction
+      : (direction || this.currentWorld?.entities[id]?.direction || 'down');
+
+    if (asset.sprite.directionalUrls) {
       targetUrl = asset.sprite.directionalUrls[dir]
         || (dir === 'down-right' ? asset.sprite.directionalUrls['right'] || asset.sprite.directionalUrls['down'] : null)
         || (dir === 'down-left' ? asset.sprite.directionalUrls['left'] || asset.sprite.directionalUrls['down'] : null)
         || (dir === 'up-right' ? asset.sprite.directionalUrls['right'] || asset.sprite.directionalUrls['up'] : null)
         || (dir === 'up-left' ? asset.sprite.directionalUrls['left'] || asset.sprite.directionalUrls['up'] : null)
+        || asset.sprite.directionalUrls['down']
         || asset.sprite.url;
     }
     const texture = await this.getTexture(targetUrl);
@@ -1140,11 +1187,19 @@ export class PixiWorldRenderer implements IRenderer {
       sprite.texture = texture;
     }
 
-    const ax = asset.sprite.width > 0 ? asset.anchor.x / asset.sprite.width : 0.5;
-    const ay = asset.sprite.height > 0 ? asset.anchor.y / asset.sprite.height : 1.0;
-    sprite.anchor.set(ax, ay);
-    sprite.width = asset.sprite.width;
-    sprite.height = asset.sprite.height;
+    if (asset.sprite.directionalUrls && id !== 'player_main') {
+      const baseHeight = asset.sprite.height || 36;
+      const aspect = (texture.width || 1) / (texture.height || 1);
+      sprite.height = baseHeight;
+      sprite.width = Math.round(baseHeight * aspect);
+      sprite.anchor.set(0.5, 0.92);
+    } else {
+      const ax = asset.sprite.width > 0 ? asset.anchor.x / asset.sprite.width : 0.5;
+      const ay = asset.sprite.height > 0 ? asset.anchor.y / asset.sprite.height : 1.0;
+      sprite.anchor.set(ax, ay);
+      sprite.width = asset.sprite.width;
+      sprite.height = asset.sprite.height;
+    }
 
     sprite.x = x;
     sprite.y = y - z;
@@ -1586,12 +1641,28 @@ export class PixiWorldRenderer implements IRenderer {
       }
 
       // 🎯 左クリック / タッチ操作
+      // 0. 🔄 すでにオブジェクトを掴んでいる最中に、別の指またはクリックが発生した場合:
+      // オブジェクトを掴みながら画面右側タップで時計回り、画面左側タップで反時計回り回転！
+      if (this.draggingEntityId && (this.dragPointerId === null || e.pointerId !== this.dragPointerId)) {
+        const isRightSide = e.clientX >= window.innerWidth / 2;
+        this.rotateDraggedEntity(isRightSide ? 'cw' : 'ccw');
+        hasMovedSignificantly = true;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
       // 1. 編集モード（!this.isPlayMode）の場合のみ、オブジェクト判定とドラッグを有効化
       // 探索モード（this.isPlayMode）の時はオブジェクトを掴まず、オブジェクト上からでもスムーズにスワイプ移動できる
       if (!this.isPlayMode) {
         const hitId = this.getEntityAtScreen(screenX, screenY);
         if (hitId) {
           this.draggingEntityId = hitId;
+          this.dragPointerId = e.pointerId;
+          const targetEntity = this.currentWorld?.entities[hitId];
+          this.dragStartEntityDirection = targetEntity?.direction || 'down';
+          this.currentDraggingDirection = this.dragStartEntityDirection;
+
           const sprite = this.entitySprites.get(hitId)!;
           this.dragOffset = {
             x: worldPos.x - sprite.x,
@@ -1634,7 +1705,7 @@ export class PixiWorldRenderer implements IRenderer {
       }
 
       // 2. オブジェクトドラッグ (編集モード時: 画面のどこにあるオブジェクトでも自由にドラッグ移動！)
-      if (this.draggingEntityId) {
+      if (this.draggingEntityId && (this.dragPointerId === null || this.dragPointerId === e.pointerId)) {
         const rect = canvas.getBoundingClientRect();
         const screenX = e.clientX - rect.left;
         const screenY = e.clientY - rect.top;
@@ -1659,7 +1730,7 @@ export class PixiWorldRenderer implements IRenderer {
           sprite.y = newY;
           (sprite as any).worldFootY = newY;
         }
-        this.onEntityDrag?.(this.draggingEntityId, newX, newY);
+        this.onEntityDrag?.(this.draggingEntityId, newX, newY, this.currentDraggingDirection);
         return;
       }
 
@@ -1718,21 +1789,25 @@ export class PixiWorldRenderer implements IRenderer {
       }
 
       // 📦 オブジェクト操作終了処理
-      if (this.draggingEntityId) {
+      if (this.draggingEntityId && (this.dragPointerId === null || this.dragPointerId === e.pointerId)) {
         const draggedId = this.draggingEntityId;
         const sprite = this.entitySprites.get(draggedId);
-        if (!hasMovedSignificantly && e.button === 0) {
-          // 動かさずにタップしただけなら選択 / インタラクション
+        const startDir = this.dragStartEntityDirection;
+        const endDir = this.currentDraggingDirection;
+
+        if (!hasMovedSignificantly && startDir === endDir && e.button === 0) {
+          // 動かさずに向きも変えずにタップしただけなら選択 / インタラクション
           this.onEntityClick?.(draggedId);
-        } else if (hasMovedSignificantly && this.dragStartEntityPos && sprite) {
-          // 移動した場合は開始位置から最終位置への単一コミットを発行（1 Undo化）
+        } else if (this.dragStartEntityPos && sprite) {
+          // 移動または向き変更が行われた場合は開始位置から最終位置への単一コミットを発行（1 Undo化）
           const startPos = this.dragStartEntityPos;
           const endPos = { x: Math.round(sprite.x), y: Math.round(sprite.y) };
-          if (startPos.x !== endPos.x || startPos.y !== endPos.y) {
-            this.onEntityDragEnd?.(draggedId, startPos, endPos);
+          if (startPos.x !== endPos.x || startPos.y !== endPos.y || startDir !== endDir) {
+            this.onEntityDragEnd?.(draggedId, startPos, endPos, startDir, endDir);
           }
         }
         this.draggingEntityId = null;
+        this.dragPointerId = null;
         this.dragStartEntityPos = null;
       }
 
@@ -1756,6 +1831,14 @@ export class PixiWorldRenderer implements IRenderer {
       'wheel',
       (e: WheelEvent) => {
         e.preventDefault();
+        // 🔄 オブジェクトドラッグ中のホイール回転: 下スクロールで時計回り、上スクロールで反時計回り
+        if (this.draggingEntityId) {
+          const dir = e.deltaY > 0 ? 'cw' : 'ccw';
+          this.rotateDraggedEntity(dir);
+          hasMovedSignificantly = true;
+          return;
+        }
+
         const rect = canvas.getBoundingClientRect();
         const cx = e.clientX - rect.left;
         const cy = e.clientY - rect.top;
@@ -1765,7 +1848,107 @@ export class PixiWorldRenderer implements IRenderer {
       { passive: false }
     );
 
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      // 🔄 オブジェクトドラッグ中の右クリック: 時計回り回転
+      if (this.draggingEntityId) {
+        this.rotateDraggedEntity('cw');
+        hasMovedSignificantly = true;
+      }
+    });
+
+    window.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (this.draggingEntityId) {
+        if (e.code === 'KeyR' || e.code === 'KeyE') {
+          e.preventDefault();
+          this.rotateDraggedEntity('cw');
+          hasMovedSignificantly = true;
+        } else if (e.code === 'KeyQ') {
+          e.preventDefault();
+          this.rotateDraggedEntity('ccw');
+          hasMovedSignificantly = true;
+        }
+      }
+    });
+  }
+
+  // 🔄 ドラッグ中オブジェクトの回転 (cw: 時計回り, ccw: 反時計回り)
+  public rotateDraggedEntity(directionType: 'cw' | 'ccw' = 'cw') {
+    if (!this.draggingEntityId) return;
+    const currentDir = this.currentDraggingDirection || 'down';
+    const currentIndex = ROTATION_DIRECTIONS.indexOf(currentDir);
+    const validIndex = currentIndex >= 0 ? currentIndex : 0;
+
+    let nextIndex: number;
+    if (directionType === 'cw') {
+      nextIndex = (validIndex + 1) % ROTATION_DIRECTIONS.length;
+    } else {
+      nextIndex = (validIndex - 1 + ROTATION_DIRECTIONS.length) % ROTATION_DIRECTIONS.length;
+    }
+
+    const newDir = ROTATION_DIRECTIONS[nextIndex];
+    this.currentDraggingDirection = newDir;
+
+    // スプライトの向きテクスチャを即時更新
+    const entity = this.currentWorld?.entities[this.draggingEntityId];
+    const asset = this.currentAssets?.[entity?.assetId || ''];
+    const sprite = this.entitySprites.get(this.draggingEntityId);
+    if (asset && sprite) {
+      this.updateEntitySprite(
+        this.draggingEntityId,
+        asset,
+        sprite.x,
+        sprite.y,
+        0,
+        1.0,
+        false,
+        newDir
+      );
+    }
+
+    // 軽やかな設置音・回転フィードバック
+    audioManager.playPlace();
+
+    // コールバック通知
+    this.onEntityRotate?.(this.draggingEntityId, newDir);
+  }
+
+  // 🔄 任意のエンティティの回転（UIボタン等からの呼び出し用）
+  public rotateEntity(entityId: string, directionType: 'cw' | 'ccw' = 'cw'): Direction | null {
+    const entity = this.currentWorld?.entities[entityId];
+    if (!entity) return null;
+    const currentDir = entity.direction || 'down';
+    const currentIndex = ROTATION_DIRECTIONS.indexOf(currentDir);
+    const validIndex = currentIndex >= 0 ? currentIndex : 0;
+
+    let nextIndex: number;
+    if (directionType === 'cw') {
+      nextIndex = (validIndex + 1) % ROTATION_DIRECTIONS.length;
+    } else {
+      nextIndex = (validIndex - 1 + ROTATION_DIRECTIONS.length) % ROTATION_DIRECTIONS.length;
+    }
+
+    const newDir = ROTATION_DIRECTIONS[nextIndex];
+    entity.direction = newDir;
+
+    const asset = this.currentAssets?.[entity.assetId];
+    const sprite = this.entitySprites.get(entityId);
+    if (asset && sprite) {
+      this.updateEntitySprite(
+        entityId,
+        asset,
+        sprite.x,
+        sprite.y,
+        0,
+        1.0,
+        false,
+        newDir
+      );
+    }
+
+    audioManager.playPlace();
+    this.onEntityRotate?.(entityId, newDir);
+    return newDir;
   }
 
   destroy(): void {

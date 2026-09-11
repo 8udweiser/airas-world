@@ -185,6 +185,7 @@ export function createInitialWorld(): AirasWorldData {
         name: '木製ベンチ（商店街通り）',
         type: 'object',
         position: { x: 420, y: 590, z: 0 },
+        direction: 'down',
       },
       bench_south_2: {
         id: 'bench_south_2',
@@ -192,6 +193,7 @@ export function createInitialWorld(): AirasWorldData {
         name: '木製ベンチ（商店街東）',
         type: 'object',
         position: { x: 780, y: 590, z: 0 },
+        direction: 'down',
       },
       tree_street_1: {
         id: 'tree_street_1',
@@ -243,6 +245,7 @@ export function createInitialWorld(): AirasWorldData {
         name: '噴水前の特等席ベンチ',
         type: 'object',
         position: { x: 430, y: 840, z: 0 },
+        direction: 'down',
       },
 
 

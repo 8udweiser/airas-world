@@ -1,12 +1,13 @@
 import React from 'react';
 import { useWorldStore } from '../../store/useWorldStore';
 import { useUIStore } from '../../store/useUIStore';
-import { Sparkles, Trash2, Copy, Move, MessageCircle, ShoppingBag, Armchair, Eye, X } from 'lucide-react';
+import { Sparkles, Trash2, Copy, Move, MessageCircle, ShoppingBag, Armchair, Eye, X, RotateCw, RotateCcw } from 'lucide-react';
 import { CreateObjectCommand } from '../../core/commands/WorldCommands';
-import { WorldEntity } from '../../core/types/world';
+import { WorldEntity, Direction } from '../../core/types/world';
+import { ROTATION_DIRECTIONS, DIRECTION_LABELS } from '../../renderer/pixi/PixiWorldRenderer';
 
 export const ObjectContextMenu: React.FC = () => {
-  const { world, assets, deleteObject, executeCommand } = useWorldStore();
+  const { world, assets, deleteObject, executeCommand, rotateObject } = useWorldStore();
   const { selectedEntityId, setSelectedEntityId, setAIPanelOpen, setDialogue, showNotification } = useUIStore();
 
   if (!selectedEntityId) return null;
@@ -73,6 +74,29 @@ export const ObjectContextMenu: React.FC = () => {
     }
   };
 
+  const currentDir: Direction = entity.direction || 'down';
+
+  // 向き回転 (全8方向)
+  const handleRotate = (delta: 1 | -1) => {
+    const idx = ROTATION_DIRECTIONS.indexOf(currentDir);
+    const validIdx = idx >= 0 ? idx : 0;
+    const nextIdx = (validIdx + delta + ROTATION_DIRECTIONS.length) % ROTATION_DIRECTIONS.length;
+    const nextDir = ROTATION_DIRECTIONS[nextIdx];
+
+    rotateObject(selectedEntityId, nextDir);
+
+    const renderer = (window as any).__renderer;
+    if (renderer) {
+      renderer.rotateEntity(selectedEntityId, delta === 1 ? 'cw' : 'ccw');
+    }
+
+    const label = DIRECTION_LABELS[nextDir] || nextDir;
+    showNotification(`🔄 向きを変更: ${label}`);
+  };
+
+  const currentThumbnailUrl =
+    asset.sprite.directionalUrls?.[currentDir] || asset.sprite.url;
+
   return (
     <div className="absolute right-4 top-20 z-40 w-72 glass-panel rounded-2xl overflow-hidden border border-white/15 shadow-2xl animate-in fade-in slide-in-from-right-4 duration-200">
       {/* ヘッダー */}
@@ -80,7 +104,7 @@ export const ObjectContextMenu: React.FC = () => {
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-slate-800 border border-white/15 flex items-center justify-center overflow-hidden p-1">
             <img
-              src={asset.sprite.url}
+              src={currentThumbnailUrl}
               alt={asset.name}
               className="max-w-full max-h-full pixelated object-contain"
             />
@@ -118,11 +142,43 @@ export const ObjectContextMenu: React.FC = () => {
       )}
 
       {/* アクション一覧 */}
-      <div className="p-2 space-y-1">
+      <div className="p-2 space-y-1.5">
+        {/* 向き回転 (全8方向) */}
+        <div className="p-2 bg-white/5 rounded-xl space-y-1.5 border border-white/5">
+          <div className="flex items-center justify-between text-[11px] text-slate-300">
+            <span className="flex items-center gap-1.5">
+              <RotateCw className="w-3.5 h-3.5 text-amber-400" />
+              向き: <strong className="text-amber-200">{DIRECTION_LABELS[currentDir] || currentDir}</strong>
+            </span>
+            <span className="text-[9px] text-slate-400">8方向対応</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              onClick={() => handleRotate(-1)}
+              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white text-xs font-medium transition-all active:scale-95"
+              title="反時計回りに回転 (ドラッグ中画面左側タップ / Qキー)"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+              <span>⟲ 左回転</span>
+            </button>
+            <button
+              onClick={() => handleRotate(1)}
+              className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white text-xs font-medium transition-all active:scale-95"
+              title="時計回りに回転 (ドラッグ中画面右側タップ / E / Rキー)"
+            >
+              <RotateCw className="w-3.5 h-3.5 text-amber-400" />
+              <span>⟳ 右回転</span>
+            </button>
+          </div>
+        </div>
+
         {/* 移動 */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-300">
-          <Move className="w-4 h-4 text-cyan-400" />
-          <span>ドラッグして位置を移動</span>
+        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl text-[11px] text-slate-400 bg-white/5">
+          <span className="flex items-center gap-1.5">
+            <Move className="w-3.5 h-3.5 text-cyan-400" />
+            ドラッグして位置移動
+          </span>
+          <span className="text-[9px] text-slate-500">左右タップで回転</span>
         </div>
 
         {/* 複製 */}

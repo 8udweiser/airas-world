@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useWorldStore } from './store/useWorldStore';
 import { useUIStore } from './store/useUIStore';
-import { PixiWorldRenderer } from './renderer/pixi/PixiWorldRenderer';
+import { PixiWorldRenderer, DIRECTION_LABELS } from './renderer/pixi/PixiWorldRenderer';
+import { Direction } from './core/types/world';
 import { TopHUD } from './ui/hud/TopHUD';
 import { ObjectContextMenu } from './ui/context/ObjectContextMenu';
 import { AIPanelModal } from './ui/ai-panel/AIPanelModal';
@@ -28,6 +29,7 @@ export const App: React.FC = () => {
     createObject,
     moveObject,
     updateObjectPositionDirect,
+    updateObjectDirectionDirect,
     commitMoveObject,
     undo,
     redo,
@@ -220,14 +222,32 @@ export const App: React.FC = () => {
       };
 
       // オブジェクトドラッグ移動 (ドラッグ中は軽量リアルタイム更新)
-      renderer.onEntityDrag = (entityId: string, newX: number, newY: number) => {
-        updateObjectPositionDirect(entityId, newX, newY);
+      renderer.onEntityDrag = (entityId: string, newX: number, newY: number, direction?: Direction) => {
+        updateObjectPositionDirect(entityId, newX, newY, direction);
+      };
+
+      // オブジェクト回転通知 (ドラッグ中のタップ回転・キー回転)
+      renderer.onEntityRotate = (entityId: string, newDir: Direction) => {
+        updateObjectDirectionDirect(entityId, newDir);
+        const label = DIRECTION_LABELS[newDir] || newDir;
+        showNotification(`🔄 向き: ${label}`);
       };
 
       // オブジェクトドロップ完了 (離した瞬間に開始位置から最終位置への単一コマンドを登録 ➜ 1回のUndoで元の位置に一発復帰！)
-      renderer.onEntityDragEnd = (entityId: string, startPos, endPos) => {
-        commitMoveObject(entityId, startPos, endPos);
-        showNotification('オブジェクトを移動しました');
+      renderer.onEntityDragEnd = (
+        entityId: string,
+        startPos,
+        endPos,
+        startDir?: Direction,
+        endDir?: Direction
+      ) => {
+        commitMoveObject(entityId, startPos, endPos, startDir, endDir);
+        if (startDir !== endDir && startPos.x === endPos.x && startPos.y === endPos.y) {
+          const label = DIRECTION_LABELS[endDir || 'down'] || endDir;
+          showNotification(`🔄 向きを変更しました (${label})`);
+        } else {
+          showNotification('オブジェクトを移動しました');
+        }
       };
 
       // 🛋️ ベンチ自動着席（しゃがみキー/ボタンで自動着席した時のHUD通知）

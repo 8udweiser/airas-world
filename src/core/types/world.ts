@@ -30,6 +30,7 @@ export interface WorldEntity {
     z: number; // 高さ (ピクセル)
   };
   rotation?: number;       // 0, 90, 180, 270 (度)
+  direction?: Direction;   // 8方向向き
   scale?: { x: number; y: number };
   state?: Record<string, any>;
   customProperties?: Record<string, any>;

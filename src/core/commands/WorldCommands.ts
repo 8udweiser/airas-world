@@ -1,4 +1,4 @@
-import { AirasWorldData, WorldEntity, WeatherType } from '../types/world';
+import { AirasWorldData, WorldEntity, WeatherType, Direction } from '../types/world';
 import { IWorldCommand, CommandType, SerializedCommand, CommandExecutionResult } from '../types/command';
 
 // 1. オブジェクト生成コマンド
@@ -47,19 +47,27 @@ export class MoveObjectCommand implements IWorldCommand {
   private entityId: string;
   private fromPos: { x: number; y: number; z: number };
   private toPos: { x: number; y: number; z: number };
+  private fromDir?: Direction;
+  private toDir?: Direction;
   private entityName: string = '';
 
   constructor(
     entityId: string,
     fromPos: { x: number; y: number; z: number },
     toPos: { x: number; y: number; z: number },
-    name?: string
+    name?: string,
+    fromDir?: Direction,
+    toDir?: Direction
   ) {
     this.entityId = entityId;
     this.fromPos = { ...fromPos };
     this.toPos = { ...toPos };
     this.entityName = name || entityId;
-    this.description = `「${this.entityName}」を移動 (${Math.round(toPos.x)}, ${Math.round(toPos.y)})`;
+    this.fromDir = fromDir;
+    this.toDir = toDir;
+    this.description = toDir && fromDir && fromDir !== toDir
+      ? `「${this.entityName}」の向き・位置を変更`
+      : `「${this.entityName}」を移動 (${Math.round(toPos.x)}, ${Math.round(toPos.y)})`;
   }
 
   execute(world: AirasWorldData): CommandExecutionResult {
@@ -69,6 +77,9 @@ export class MoveObjectCommand implements IWorldCommand {
     }
     this.entityName = target.name;
     target.position = { ...this.toPos };
+    if (this.toDir) {
+      target.direction = this.toDir;
+    }
     return {
       success: true,
       affectedEntityIds: [this.entityId],
@@ -82,10 +93,13 @@ export class MoveObjectCommand implements IWorldCommand {
       return { success: false, error: `Entity ${this.entityId} not found` };
     }
     target.position = { ...this.fromPos };
+    if (this.fromDir) {
+      target.direction = this.fromDir;
+    }
     return {
       success: true,
       affectedEntityIds: [this.entityId],
-      message: `「${target.name}」の移動を取り消し`,
+      message: `「${target.name}」の移動・回転を取り消し`,
     };
   }
 
@@ -97,6 +111,8 @@ export class MoveObjectCommand implements IWorldCommand {
         entityId: this.entityId,
         fromPos: this.fromPos,
         toPos: this.toPos,
+        fromDir: this.fromDir,
+        toDir: this.toDir,
         entityName: this.entityName,
       },
       timestamp: Date.now(),

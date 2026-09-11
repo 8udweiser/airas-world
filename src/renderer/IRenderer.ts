@@ -1,4 +1,4 @@
-import { AirasWorldData } from '../core/types/world';
+import { AirasWorldData, Direction } from '../core/types/world';
 import { AirasAsset } from '../core/types/asset';
 
 export interface RendererGhostEntity {
@@ -30,7 +30,14 @@ export interface IRenderer {
   // イベント登録
   onEntityClick?: (entityId: string) => void;
   onMapClick?: (worldX: number, worldY: number) => void;
-  onEntityDrag?: (entityId: string, newWorldX: number, newWorldY: number) => void;
-  onEntityDragEnd?: (entityId: string, startPos: { x: number; y: number }, endPos: { x: number; y: number }) => void;
+  onEntityDrag?: (entityId: string, newWorldX: number, newWorldY: number, direction?: Direction) => void;
+  onEntityRotate?: (entityId: string, newDir: Direction) => void;
+  onEntityDragEnd?: (
+    entityId: string,
+    startPos: { x: number; y: number },
+    endPos: { x: number; y: number },
+    startDir?: Direction,
+    endDir?: Direction
+  ) => void;
   getEntityAtScreen?: (screenX: number, screenY: number) => string | null;
 }

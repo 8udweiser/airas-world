@@ -24,8 +24,16 @@ interface WorldStoreState {
   // オブジェクト操作ショートカット
   createObject: (assetId: string, x: number, y: number) => string;
   moveObject: (entityId: string, toX: number, toY: number) => boolean;
-  updateObjectPositionDirect: (entityId: string, toX: number, toY: number) => void;
-  commitMoveObject: (entityId: string, fromPos: { x: number; y: number; z?: number }, toPos: { x: number; y: number; z?: number }) => boolean;
+  updateObjectPositionDirect: (entityId: string, toX: number, toY: number, direction?: Direction) => void;
+  updateObjectDirectionDirect: (entityId: string, direction: Direction) => void;
+  rotateObject: (entityId: string, toDir: Direction) => boolean;
+  commitMoveObject: (
+    entityId: string,
+    fromPos: { x: number; y: number; z?: number },
+    toPos: { x: number; y: number; z?: number },
+    fromDir?: Direction,
+    toDir?: Direction
+  ) => boolean;
   deleteObject: (entityId: string) => boolean;
   
   // 環境操作
@@ -146,7 +154,7 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
       return executeCommand(cmd);
     },
 
-    updateObjectPositionDirect: (entityId: string, toX: number, toY: number) => {
+    updateObjectPositionDirect: (entityId: string, toX: number, toY: number, direction?: Direction) => {
       const { world } = get();
       const target = world.entities[entityId];
       if (!target) return;
@@ -158,16 +166,53 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
             [entityId]: {
               ...target,
               position: { ...target.position, x: toX, y: toY },
+              direction: direction || target.direction,
             },
           },
         },
       });
     },
 
+    updateObjectDirectionDirect: (entityId: string, direction: Direction) => {
+      const { world } = get();
+      const target = world.entities[entityId];
+      if (!target) return;
+      set({
+        world: {
+          ...world,
+          entities: {
+            ...world.entities,
+            [entityId]: {
+              ...target,
+              direction,
+            },
+          },
+        },
+      });
+    },
+
+    rotateObject: (entityId: string, toDir: Direction) => {
+      const { world, executeCommand } = get();
+      const target = world.entities[entityId];
+      if (!target) return false;
+
+      const cmd = new MoveObjectCommand(
+        entityId,
+        { ...target.position },
+        { ...target.position },
+        target.name,
+        target.direction || 'down',
+        toDir
+      );
+      return executeCommand(cmd);
+    },
+
     commitMoveObject: (
       entityId: string,
       fromPos: { x: number; y: number; z?: number },
-      toPos: { x: number; y: number; z?: number }
+      toPos: { x: number; y: number; z?: number },
+      fromDir?: Direction,
+      toDir?: Direction
     ) => {
       const { world, executeCommand } = get();
       const target = world.entities[entityId];
@@ -177,7 +222,9 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
         entityId,
         { x: fromPos.x, y: fromPos.y, z: fromPos.z ?? target.position.z },
         { x: toPos.x, y: toPos.y, z: toPos.z ?? target.position.z },
-        target.name
+        target.name,
+        fromDir ?? target.direction,
+        toDir ?? target.direction
       );
       return executeCommand(cmd);
     },
