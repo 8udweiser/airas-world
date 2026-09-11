@@ -794,6 +794,9 @@ export class PixiWorldRenderer implements IRenderer {
     if (vehicleSprite) {
       vehicleSprite.visible = false;
     }
+
+    // 🏛️ 静的接地影を即時再描画（元の場所に影が焼き付いて残るのを完全に防ぐ）
+    this.renderStaticShadows();
   }
 
   // 🏎️ 乗り物から降りる
@@ -833,6 +836,10 @@ export class PixiWorldRenderer implements IRenderer {
     }
 
     this.updatePlayerSpriteVisual();
+
+    // 🏛️ 静的接地影を即時再描画（降車位置に影を正しく再配置）
+    this.renderStaticShadows();
+
     return { entityId, x: currentX, y: currentY };
   }
 

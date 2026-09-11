@@ -3,6 +3,7 @@ import { MessageSquare, Send, X } from 'lucide-react';
 import { multiplayerManager, RemotePlayerInfo } from '../../core/multiplayer/MultiplayerManager';
 
 import { PixiWorldRenderer } from '../../renderer/pixi/PixiWorldRenderer';
+import { SpeechBubble } from './SpeechBubble';
 
 interface ChatMessage {
   id: string;
@@ -19,10 +20,127 @@ interface ChatSystemProps {
   renderer?: PixiWorldRenderer | null;
 }
 
+/**
+ * 🏃 60fps/120fps RAF 滑らか追従 リモートプレイヤーHUD
+ * カメラ移動中も1ミリのズレもなく完璧にスプライトに吸い付いてカクつきを完全排除！
+ */
+const FloatingRemoteHUD: React.FC<{
+  player: RemotePlayerInfo;
+  renderer: PixiWorldRenderer | null;
+}> = ({ player, renderer }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef(player);
+  playerRef.current = player;
+
+  useEffect(() => {
+    let animId: number;
+    const updatePos = () => {
+      if (containerRef.current && renderer) {
+        const p = playerRef.current;
+        const sPos = renderer.worldToScreen(p.x, p.y - p.z);
+        containerRef.current.style.transform = `translate3d(${Math.round(sPos.x)}px, ${Math.round(sPos.y - 40)}px, 0)`;
+      }
+      animId = requestAnimationFrame(updatePos);
+    };
+    animId = requestAnimationFrame(updatePos);
+    return () => cancelAnimationFrame(animId);
+  }, [renderer]);
+
+  const initialPos = renderer
+    ? renderer.worldToScreen(player.x, player.y - player.z)
+    : { x: 0, y: 0 };
+
+  return (
+    <div
+      ref={containerRef}
+      className="fixed top-0 left-0 pointer-events-none z-30 -translate-x-1/2 -translate-y-full flex flex-col items-center gap-1.5 will-change-transform"
+      style={{
+        transform: `translate3d(${Math.round(initialPos.x)}px, ${Math.round(initialPos.y - 40)}px, 0)`,
+      }}
+    >
+      {/* 💬 チャットフキダシ (1文字ずつタイピング & 2行スクロール & 10秒待機フェード) */}
+      {player.chatBubble && (
+        <SpeechBubble
+          key={`${player.id}_${player.chatBubble.time}`}
+          text={player.chatBubble.text}
+          timestamp={player.chatBubble.time}
+          isSelf={false}
+        />
+      )}
+
+      {/* 🏷️ ネームタグ & リアルタイムステータスバッジ */}
+      <div className="px-2.5 py-0.5 rounded-full bg-slate-950/90 border border-cyan-400/50 text-[10px] font-extrabold text-white shadow-2xl flex items-center gap-1.5 backdrop-blur-md">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="tracking-tight">{player.name}</span>
+        {player.z > 2 && (
+          <span className="px-1 py-0.2 rounded bg-cyan-500 text-[9px] text-slate-950 font-black animate-bounce">
+            JUMP
+          </span>
+        )}
+        {player.isSprinting && (
+          <span className="px-1 py-0.2 rounded bg-amber-500 text-[9px] text-slate-950 font-black animate-pulse">
+            DASH
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * 👤 60fps/120fps RAF 滑らか追従 自分の頭上フキダシ
+ */
+const FloatingSelfHUD: React.FC<{
+  renderer: PixiWorldRenderer | null;
+  myBubble: { text: string; time: number } | null;
+  onBubbleFinished: () => void;
+}> = ({ renderer, myBubble, onBubbleFinished }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let animId: number;
+    const updatePos = () => {
+      if (containerRef.current && renderer) {
+        const px = renderer.playerState.x;
+        const py = renderer.playerState.y;
+        const pz = renderer.playerState.z;
+        const sPos = renderer.worldToScreen(px, py - pz);
+        containerRef.current.style.transform = `translate3d(${Math.round(sPos.x)}px, ${Math.round(sPos.y - 45)}px, 0)`;
+      }
+      animId = requestAnimationFrame(updatePos);
+    };
+    animId = requestAnimationFrame(updatePos);
+    return () => cancelAnimationFrame(animId);
+  }, [renderer]);
+
+  if (!myBubble) return null;
+
+  const initialPos = renderer
+    ? renderer.worldToScreen(renderer.playerState.x, renderer.playerState.y - renderer.playerState.z)
+    : { x: 0, y: 0 };
+
+  return (
+    <div
+      ref={containerRef}
+      className="fixed top-0 left-0 pointer-events-none z-30 -translate-x-1/2 -translate-y-full will-change-transform"
+      style={{
+        transform: `translate3d(${Math.round(initialPos.x)}px, ${Math.round(initialPos.y - 45)}px, 0)`,
+      }}
+    >
+      <SpeechBubble
+        key={`self_${myBubble.time}`}
+        text={myBubble.text}
+        timestamp={myBubble.time}
+        isSelf={true}
+        onFinished={onBubbleFinished}
+      />
+    </div>
+  );
+};
+
 export const ChatSystem: React.FC<ChatSystemProps> = ({
   onSendMessage,
   remotePlayers,
-  playerScreenPos,
   renderer,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -53,16 +171,6 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen]);
-
-  // 自分のフキダシ消去タイマー
-  useEffect(() => {
-    if (myBubble) {
-      const timer = setTimeout(() => {
-        setMyBubble(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [myBubble]);
 
   const handleSend = () => {
     const text = inputText.trim();
@@ -98,61 +206,18 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
 
   return (
     <>
-      {/* 自分の頭上フキダシ */}
-      {myBubble && playerScreenPos && (
-        <div
-          className="fixed pointer-events-none z-30 -translate-x-1/2 -translate-y-full transition-all duration-150 animate-in fade-in zoom-in-95"
-          style={{
-            left: playerScreenPos.x,
-            top: playerScreenPos.y - 45,
-          }}
-        >
-          <div className="glass-panel px-3.5 py-1.5 rounded-2xl border border-cyan-400/60 shadow-xl text-cyan-100 text-xs font-medium max-w-[200px] text-center break-words">
-            {myBubble.text}
-          </div>
-          <div className="w-2 h-2 bg-slate-900 border-r border-b border-cyan-400/60 rotate-45 mx-auto -mt-1" />
-        </div>
-      )}
+      {/* 自分の頭上フキダシ (60fps RAF 滑らか追従 & タイピング & 2行スクロール & 10秒待機フェード) */}
+      <FloatingSelfHUD
+        renderer={renderer || null}
+        myBubble={myBubble}
+        onBubbleFinished={() => setMyBubble(null)}
+      />
 
-      {/* 👥 リモートプレイヤー（スマホやPCの参加者）の頭上ネームタグ ＆ チャットフキダシ */}
+      {/* 👥 リモートプレイヤー（スマホやPCの参加者）の頭上ネームタグ ＆ チャットフキダシ (60fps RAF 滑らか追従) */}
       {renderer &&
-        remotePlayers.map((p) => {
-          const sPos = renderer.worldToScreen(p.x, p.y - p.z);
-          return (
-            <div
-              key={p.id}
-              className="fixed pointer-events-none z-30 -translate-x-1/2 -translate-y-full transition-all duration-75 flex flex-col items-center gap-1"
-              style={{
-                left: sPos.x,
-                top: sPos.y - 42,
-              }}
-            >
-              {/* チャットフキダシ */}
-              {p.chatBubble && Date.now() - p.chatBubble.time < 5000 && (
-                <div className="glass-panel px-3.5 py-1.5 rounded-2xl border border-amber-400/80 shadow-2xl text-amber-100 text-xs font-bold max-w-[200px] text-center break-words animate-in fade-in zoom-in-95 backdrop-blur-md">
-                  {p.chatBubble.text}
-                  <div className="w-2 h-2 bg-slate-900 border-r border-b border-amber-400/80 rotate-45 mx-auto -mt-1" />
-                </div>
-              )}
-
-              {/* 🏷️ ネームタグ & リアルタイムステータスバッジ */}
-              <div className="px-2.5 py-0.5 rounded-full bg-slate-950/85 border border-cyan-400/50 text-[10px] font-extrabold text-white shadow-xl flex items-center gap-1.5 backdrop-blur-md">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="tracking-tight">{p.name}</span>
-                {p.z > 2 && (
-                  <span className="px-1 py-0.2 rounded bg-cyan-500 text-[9px] text-slate-950 font-black animate-bounce">
-                    JUMP
-                  </span>
-                )}
-                {p.isSprinting && (
-                  <span className="px-1 py-0.2 rounded bg-amber-500 text-[9px] text-slate-950 font-black animate-pulse">
-                    DASH
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        remotePlayers.map((p) => (
+          <FloatingRemoteHUD key={p.id} player={p} renderer={renderer} />
+        ))}
 
       {/* チャットトグルボタン (左下HUD上) */}
       <div className="fixed bottom-14 left-4 z-30">

@@ -393,6 +393,9 @@ export const App: React.FC = () => {
       setIsDriving(false);
       if (res && res.entityId) {
         moveObject(res.entityId, res.x, res.y);
+        setTimeout(() => {
+          renderer.renderStaticShadows();
+        }, 50);
       }
       showNotification('降車しました');
     } else {
