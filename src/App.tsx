@@ -697,7 +697,7 @@ export const App: React.FC = () => {
 
       {/* 右上操作ボタン群 (P2P同期状況 / ポータル / アバター切り替え: z-40で最前面・スマホタップ即応) */}
       <div
-        className="absolute top-16 right-3 sm:right-4 z-40 flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end pointer-events-auto"
+        className="absolute top-[90px] sm:top-16 right-3 sm:right-4 z-40 flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end pointer-events-auto"
         onTouchStart={(e) => e.stopPropagation()}
         onTouchMove={(e) => e.stopPropagation()}
       >
@@ -828,9 +828,9 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* 🏎️ 乗り物運転中 HUD (チカチカしない安定表示) */}
+      {/* 🏎️ 乗り物運転中 HUD (PCのみキー操作説明を表示、スマホでは右下の降りるボタンのみでクリアな視界を確保) */}
       {isDriving && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-2xl glass-panel border border-amber-400/50 text-amber-200 shadow-2xl flex items-center gap-4 transition-all duration-200">
+        <div className="hidden md:flex fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-2xl glass-panel border border-amber-400/50 text-amber-200 shadow-2xl items-center gap-4 transition-all duration-200">
           <div className="flex items-center gap-2.5">
             <span className="text-2xl">🏎️</span>
             <div>

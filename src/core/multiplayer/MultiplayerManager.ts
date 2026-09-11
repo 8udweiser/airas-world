@@ -65,9 +65,15 @@ class MultiplayerManager {
         this.roomId = `airas_room_${room.trim()}`;
       }
 
-      // スマホかどうかの判定で名前をデフォルト決定
-      const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-      this.myName = isMobile ? 'スマホ冒険者' : 'PCプレイヤー';
+      const customName = params.get('name');
+      if (customName) {
+        this.myName = customName.trim();
+      } else {
+        // スマホ実機 (iPhone, iPad, Android) かどうかの厳密な判定
+        const ua = (navigator.userAgent || '').toLowerCase();
+        const isActualMobile = /iphone|ipad|ipod|android|mobile/.test(ua) && window.innerWidth <= 1024;
+        this.myName = isActualMobile ? 'スマホ冒険者' : 'PC冒険者';
+      }
     }
   }
 

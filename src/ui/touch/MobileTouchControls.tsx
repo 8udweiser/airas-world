@@ -35,7 +35,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   const touchStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const isDashLockedRef = useRef<boolean>(false);
 
-  // タッチデバイス判定 (スマホ実機、iPad、またはタッチ対応画面)
+  // タッチデバイス判定 & ブラウザ操作系ジェスチャーの完全無効化
   useEffect(() => {
     const checkTouch = () => {
       const hasTouch =
@@ -46,7 +46,32 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
     };
     checkTouch();
     window.addEventListener('resize', checkTouch);
-    return () => window.removeEventListener('resize', checkTouch);
+
+    // 🚫 スマホのブラウザ操作系ジェスチャー (戻る/進むスワイプ・ピンチズーム・引っ張り更新) 完全無効化
+    const preventBrowserGestures = (e: TouchEvent) => {
+      // 画面左右端からの「戻る/進む」エッジスワイプを防止
+      for (let i = 0; i < e.touches.length; i++) {
+        const t = e.touches[i];
+        if (t.clientX < 25 || t.clientX > window.innerWidth - 25) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    const preventZoom = (e: Event) => {
+      e.preventDefault();
+    };
+
+    window.addEventListener('touchstart', preventBrowserGestures, { passive: false });
+    window.addEventListener('gesturestart', preventZoom, { passive: false });
+    window.addEventListener('gesturechange', preventZoom, { passive: false });
+
+    return () => {
+      window.removeEventListener('resize', checkTouch);
+      window.removeEventListener('touchstart', preventBrowserGestures);
+      window.removeEventListener('gesturestart', preventZoom);
+      window.removeEventListener('gesturechange', preventZoom);
+    };
   }, []);
 
   // キー入力更新
@@ -144,23 +169,17 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
           return;
         }
 
-        // 🏃💨 スワイプ速度 (フリック) ＆ 距離によるダッシュ判定
-        // 要件: 「上にスワイプで歩き、素早くスワイプでダッシュ、そのまま8方向移動出来るスムーズな操作性」
+        // 🏃💨 スワイプ速度 (px/ms) と指の移動距離による動的ダッシュ / 歩行判定
+        // 「上にスワイプで歩き、素早くスワイプでダッシュ、ゆっくりで歩行に戻る」スムーズ操作
         const now = performance.now();
         const elapsed = Math.max(1, now - touchStartTimeRef.current);
-        const velocity = dist / elapsed; // px / ms
+        const velocity = dist / elapsed; // 移動速度 px / ms
 
-        // 素早いスワイプ (開始300ms以内に velocity > 0.32)、または大きくスワイプ (dist >= 36px) でダッシュ発動
-        const isQuickFlick = elapsed < 300 && velocity > 0.32;
-        const isDeepSwipe = dist >= 36;
+        // 素早いフリック (velocity > 0.20) または 大きめのスワイプ (dist >= 28px) でダッシュ発動
+        const isDashingNow = velocity > 0.20 || dist >= 28;
 
-        if (isQuickFlick || isDeepSwipe) {
-          isDashLockedRef.current = true;
-        }
-
-        const dashActive = isDashLockedRef.current;
-        setIsDashing(dashActive);
-        updateKey('ControlLeft', dashActive);
+        setIsDashing(isDashingNow);
+        updateKey('ControlLeft', isDashingNow);
 
         // 🧭 8方向スムーズ角度判定 (-180° 〜 180°)
         const deg = (angle * 180) / Math.PI;
@@ -225,81 +244,19 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         onTouchCancel={handleTouchEnd}
       >
         {/* 初回ガイドヒント (操作開始でフェードアウト) */}
-        {!hasInteracted && !joystickActive && (
-          <div className="absolute left-6 bottom-6 pointer-events-none animate-bounce">
-            <div className="glass-panel px-4 py-2 rounded-2xl border border-cyan-400/50 shadow-2xl flex items-center gap-2 text-cyan-200 text-xs font-semibold backdrop-blur-md">
-              <Navigation className="w-4 h-4 text-cyan-400 animate-spin" />
-              <span>画面をスワイプで歩き / 素早くダッシュ</span>
-            </div>
-          </div>
-        )}
-
-        {/* 💫 バーチャルジョイスティック / スワイプUI */}
-        {joystickActive && (
-          <div
-            className="absolute rounded-full pointer-events-none transition-transform duration-75"
-            style={{
-              left: joystickOrigin.x - 60,
-              top: joystickOrigin.y - 60,
-              width: 120,
-              height: 120,
-            }}
-          >
-            {/* 外周リング */}
-            <div
-              className={`absolute inset-0 rounded-full border-2 transition-colors duration-150 backdrop-blur-md shadow-2xl ${
-                isDashing
-                  ? 'border-amber-400/80 bg-amber-950/40 shadow-amber-500/50 ring-4 ring-amber-500/20'
-                  : 'border-cyan-400/60 bg-slate-900/40 shadow-cyan-500/40'
-              }`}
-            >
-              {/* 方向ガイドライン (8方向) */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-25">
-                <div className="w-full h-[1px] bg-white" />
-                <div className="h-full w-[1px] bg-white absolute" />
-              </div>
-            </div>
-
-            {/* 現在のステータスバッジ（上部に表示） */}
-            <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap">
-              <div
-                className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider shadow-lg flex items-center gap-1 ${
-                  isDashing
-                    ? 'bg-amber-500 text-slate-950 animate-pulse'
-                    : 'bg-cyan-500/80 text-white'
-                }`}
-              >
-                {isDashing && <Zap className="w-3 h-3 fill-current" />}
-                <span>{isDashing ? 'DASH疾走' : 'WALK歩行'}</span>
-                {activeDirectionLabel && <span>({activeDirectionLabel})</span>}
-              </div>
-            </div>
-
-            {/* ジョイスティックノブ (指に追随するつまみ) */}
-            <div
-              className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full shadow-2xl transition-all duration-75 flex items-center justify-center ${
-                isDashing
-                  ? 'w-14 h-14 bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 border-2 border-white shadow-amber-500/70 scale-105'
-                  : 'w-12 h-12 bg-gradient-to-br from-cyan-300 via-cyan-500 to-blue-600 border-2 border-cyan-100 shadow-cyan-500/60'
-              }`}
-              style={{
-                left: knobPos.x - joystickOrigin.x + 60,
-                top: knobPos.y - joystickOrigin.y + 60,
-              }}
-            >
-              {isDashing ? (
-                <Zap className="w-6 h-6 text-white drop-shadow fill-white animate-pulse" />
-              ) : (
-                <div className="w-4 h-4 rounded-full bg-white shadow-inner" />
-              )}
+        {!hasInteracted && (
+          <div className="absolute left-6 bottom-4 pointer-events-none animate-pulse">
+            <div className="glass-panel px-3.5 py-1.5 rounded-xl border border-cyan-400/40 shadow-xl flex items-center gap-2 text-cyan-200 text-[11px] font-semibold backdrop-blur-md bg-slate-950/70">
+              <Navigation className="w-3.5 h-3.5 text-cyan-400" />
+              <span>スワイプで歩き / 素早くダッシュ</span>
             </div>
           </div>
         )}
       </div>
 
       {/* 🎮 画面右下: アクションボタングループ (親は pointer-events-auto) */}
-      <div className="absolute right-4 bottom-8 pointer-events-auto flex flex-col items-end gap-3 touch-none">
-        {/* 🚗 車両 乗車 / 降車ボタン */}
+      <div className="absolute right-4 bottom-8 pointer-events-auto flex flex-col items-end gap-2.5 touch-none z-40">
+        {/* 🚗 車両 乗車 / 降車ボタン (短縮・直感表示) */}
         {(isDriving || nearbyVehicleName) && (
           <button
             onClick={(e) => {
@@ -307,23 +264,23 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
               e.stopPropagation();
               onToggleVehicle();
             }}
-            onTouchStart={(e) => {
+            onTouchEnd={(e) => {
               e.preventDefault();
               e.stopPropagation();
               onToggleVehicle();
             }}
-            className={`px-5 py-3.5 rounded-2xl flex items-center gap-2.5 font-extrabold text-sm shadow-2xl active:scale-90 transition-all border cursor-pointer ${
+            className={`px-4 py-2.5 rounded-2xl flex items-center gap-2 font-black text-xs shadow-2xl active:scale-90 transition-all border cursor-pointer ${
               isDriving
-                ? 'bg-gradient-to-r from-red-600 to-red-700 border-red-300 text-white shadow-red-600/50 animate-pulse'
+                ? 'bg-gradient-to-r from-red-600 to-rose-700 border-red-300 text-white shadow-red-600/50 animate-pulse'
                 : 'bg-gradient-to-r from-amber-500 to-amber-600 border-amber-200 text-white shadow-amber-500/50'
             }`}
           >
-            <Car className="w-5 h-5" />
-            <span>{isDriving ? '降車する' : `${nearbyVehicleName || '車'}に乗る`}</span>
+            <Car className="w-4 h-4" />
+            <span>{isDriving ? '降りる' : '乗る'}</span>
           </button>
         )}
 
-        {/* 🛋️ ベンチ 座る / 立つボタン */}
+        {/* 🛋️ ベンチ 座る / 立つボタン (短縮表示) */}
         {(isSitting || nearbyBenchName) && !isDriving && (
           <button
             onClick={(e) => {
@@ -331,15 +288,15 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
               e.stopPropagation();
               onToggleSit();
             }}
-            onTouchStart={(e) => {
+            onTouchEnd={(e) => {
               e.preventDefault();
               e.stopPropagation();
               onToggleSit();
             }}
-            className="px-5 py-3.5 rounded-2xl flex items-center gap-2.5 font-extrabold text-sm shadow-2xl active:scale-90 transition-all border bg-gradient-to-r from-emerald-500 to-teal-600 border-emerald-200 text-white shadow-emerald-500/50 cursor-pointer"
+            className="px-4 py-2.5 rounded-2xl flex items-center gap-2 font-black text-xs shadow-2xl active:scale-90 transition-all border bg-gradient-to-r from-emerald-500 to-teal-600 border-emerald-200 text-white shadow-emerald-500/50 cursor-pointer"
           >
-            <Armchair className="w-5 h-5" />
-            <span>{isSitting ? '立ち上がる' : `${nearbyBenchName || 'ベンチ'}に座る`}</span>
+            <Armchair className="w-4 h-4" />
+            <span>{isSitting ? '立つ' : '座る'}</span>
           </button>
         )}
 

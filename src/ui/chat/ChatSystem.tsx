@@ -38,7 +38,8 @@ const FloatingRemoteHUD: React.FC<{
       if (containerRef.current && renderer) {
         const p = playerRef.current;
         const sPos = renderer.worldToScreen(p.x, p.y - p.z);
-        containerRef.current.style.transform = `translate3d(${Math.round(sPos.x)}px, ${Math.round(sPos.y - 40)}px, 0)`;
+        // 👤 キャラクタースプライトの頭上（被らないように -68px にオフセット）
+        containerRef.current.style.transform = `translate3d(${Math.round(sPos.x)}px, ${Math.round(sPos.y - 68)}px, 0)`;
       }
       animId = requestAnimationFrame(updatePos);
     };
@@ -55,7 +56,7 @@ const FloatingRemoteHUD: React.FC<{
       ref={containerRef}
       className="fixed top-0 left-0 pointer-events-none z-30 -translate-x-1/2 -translate-y-full flex flex-col items-center gap-1.5 will-change-transform"
       style={{
-        transform: `translate3d(${Math.round(initialPos.x)}px, ${Math.round(initialPos.y - 40)}px, 0)`,
+        transform: `translate3d(${Math.round(initialPos.x)}px, ${Math.round(initialPos.y - 68)}px, 0)`,
       }}
     >
       {/* 💬 チャットフキダシ (1文字ずつタイピング & 2行スクロール & 10秒待機フェード) */}
@@ -105,7 +106,8 @@ const FloatingSelfHUD: React.FC<{
         const py = renderer.playerState.y;
         const pz = renderer.playerState.z;
         const sPos = renderer.worldToScreen(px, py - pz);
-        containerRef.current.style.transform = `translate3d(${Math.round(sPos.x)}px, ${Math.round(sPos.y - 45)}px, 0)`;
+        // 💬 自分のキャラ頭上フキダシ (被らないように -70px にオフセット)
+        containerRef.current.style.transform = `translate3d(${Math.round(sPos.x)}px, ${Math.round(sPos.y - 70)}px, 0)`;
       }
       animId = requestAnimationFrame(updatePos);
     };
@@ -124,7 +126,7 @@ const FloatingSelfHUD: React.FC<{
       ref={containerRef}
       className="fixed top-0 left-0 pointer-events-none z-30 -translate-x-1/2 -translate-y-full will-change-transform"
       style={{
-        transform: `translate3d(${Math.round(initialPos.x)}px, ${Math.round(initialPos.y - 45)}px, 0)`,
+        transform: `translate3d(${Math.round(initialPos.x)}px, ${Math.round(initialPos.y - 70)}px, 0)`,
       }}
     >
       <SpeechBubble
