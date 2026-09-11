@@ -178,7 +178,7 @@ export function createInitialWorld(): AirasWorldData {
         position: { x: 550, y: 480, z: 0 },
       },
 
-      // 3. 商店街南側: ベンチ & 街路樹
+      // 3. 商店街南側: ベンチ & 四季の並木道
       bench_south_1: {
         id: 'bench_south_1',
         assetId: 'retro_bench',
@@ -200,17 +200,47 @@ export function createInitialWorld(): AirasWorldData {
         assetId: 'retro_tree',
         name: 'ケヤキ並木 1',
         type: 'object',
-        position: { x: 260, y: 595, z: 0 },
+        position: { x: 200, y: 585, z: 0 },
+      },
+      tree_street_ginkgo: {
+        id: 'tree_street_ginkgo',
+        assetId: 'tree_ginkgo_flame',
+        name: '黄金色のイチョウ並木',
+        type: 'object',
+        position: { x: 320, y: 585, z: 0 },
       },
       tree_street_2: {
         id: 'tree_street_2',
         assetId: 'retro_tree',
         name: 'ケヤキ並木 2',
         type: 'object',
-        position: { x: 600, y: 595, z: 0 },
+        position: { x: 600, y: 585, z: 0 },
+      },
+      tree_street_maple: {
+        id: 'tree_street_maple',
+        assetId: 'tree_maple_umbrella',
+        name: '商店街通りの深紅もみじ',
+        type: 'object',
+        position: { x: 700, y: 585, z: 0 },
       },
 
-      // 4. 南側大公園: 噴水 & 芝生 & ケヤキ大木 & 猫 & ベンチ
+      // 4. 駅前エリアの桜名木
+      tree_station_sakura: {
+        id: 'tree_station_sakura',
+        assetId: 'tree_sakura_weeping',
+        name: '駅前広場のしだれ桜',
+        type: 'object',
+        position: { x: 260, y: 165, z: 0 },
+      },
+      tree_station_bonsai: {
+        id: 'tree_station_bonsai',
+        assetId: 'tree_sakura_bonsai',
+        name: '駅東の古木一本桜',
+        type: 'object',
+        position: { x: 680, y: 165, z: 0 },
+      },
+
+      // 5. 南側大公園: 噴水 & 芝生 & 四季折々の名木 & 猫 & ベンチ
       fountain_park: {
         id: 'fountain_park',
         assetId: 'park_fountain',
@@ -225,19 +255,44 @@ export function createInitialWorld(): AirasWorldData {
         type: 'npc',
         position: { x: 535, y: 810, z: 0 },
       },
-      tree_park_1: {
-        id: 'tree_park_1',
-        assetId: 'retro_tree',
-        name: '公園のケヤキ大木',
+
+      // 西側広場: 満開の桜・大イチョウ・リンゴ果樹
+      tree_park_sakura: {
+        id: 'tree_park_sakura',
+        assetId: 'tree_sakura_dome',
+        name: '公園のシンボル満開桜',
         type: 'object',
-        position: { x: 300, y: 780, z: 0 },
+        position: { x: 220, y: 760, z: 0 },
       },
-      tree_park_2: {
-        id: 'tree_park_2',
-        assetId: 'retro_tree',
-        name: '木漏れ日のケヤキ',
+      tree_park_ginkgo_grand: {
+        id: 'tree_park_ginkgo_grand',
+        assetId: 'tree_ginkgo_grand',
+        name: '大イチョウの御神木',
         type: 'object',
-        position: { x: 720, y: 790, z: 0 },
+        position: { x: 300, y: 840, z: 0 },
+      },
+      tree_park_apple: {
+        id: 'tree_park_apple',
+        assetId: 'tree_apple_ripe',
+        name: 'みずみずしいリンゴの木',
+        type: 'object',
+        position: { x: 180, y: 890, z: 0 },
+      },
+
+      // 噴水まわりの四季樹木
+      tree_park_north_sakura: {
+        id: 'tree_park_north_sakura',
+        assetId: 'tree_sakura_dome',
+        name: '噴水北の桜大樹',
+        type: 'object',
+        position: { x: 410, y: 735, z: 0 },
+      },
+      tree_park_north_maple: {
+        id: 'tree_park_north_maple',
+        assetId: 'tree_maple_umbrella',
+        name: '噴水北のもみじ',
+        type: 'object',
+        position: { x: 590, y: 735, z: 0 },
       },
       bench_park_1: {
         id: 'bench_park_1',
@@ -247,9 +302,54 @@ export function createInitialWorld(): AirasWorldData {
         position: { x: 430, y: 840, z: 0 },
         direction: 'down',
       },
+      bench_park_2: {
+        id: 'bench_park_2',
+        assetId: 'retro_bench',
+        name: 'もみじ木陰のベンチ',
+        type: 'object',
+        position: { x: 570, y: 840, z: 0 },
+        direction: 'down',
+      },
+      tree_park_south_ginkgo: {
+        id: 'tree_park_south_ginkgo',
+        assetId: 'tree_ginkgo_flame',
+        name: '南の黄金イチョウ',
+        type: 'object',
+        position: { x: 500, y: 920, z: 0 },
+      },
 
+      // 6. 清流（川）の河畔・木橋周辺: 雪の松・しだれ桜・冬木立
+      tree_river_pine: {
+        id: 'tree_river_pine',
+        assetId: 'tree_pine_snow',
+        name: '木橋のたもとの雪化粧黒松',
+        type: 'object',
+        position: { x: 820, y: 720, z: 0 },
+      },
+      tree_river_bare: {
+        id: 'tree_river_bare',
+        assetId: 'tree_winter_bare',
+        name: '川沿いの冬枯れケヤキ',
+        type: 'object',
+        position: { x: 960, y: 740, z: 0 },
+      },
+      bench_river: {
+        id: 'bench_river',
+        assetId: 'retro_bench',
+        name: '川のせせらぎベンチ',
+        type: 'object',
+        position: { x: 860, y: 860, z: 0 },
+        direction: 'down',
+      },
+      tree_river_weeping: {
+        id: 'tree_river_weeping',
+        assetId: 'tree_sakura_weeping',
+        name: 'せせらぎのしだれ桜',
+        type: 'object',
+        position: { x: 940, y: 860, z: 0 },
+      },
 
-      // 6. マイホーム・リラックス用ダブルベッド（川沿い）
+      // 7. マイホーム・リラックス用ダブルベッド（川沿い）
       bed_home_1: {
         id: 'bed_home_1',
         assetId: 'furniture_bed_double',

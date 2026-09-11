@@ -788,15 +788,238 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
     type: 'object',
     category: 'nature',
     sprite: {
-      url: svgToUri(retroTreeSvg),
-      width: 48,
-      height: 56,
+      url: resolveAssetUrl('/assets/objects/trees/zelkova_tall.png'),
+      width: 68,
+      height: 98,
       pixelArt: true,
     },
-    anchor: { x: 24, y: 54 },
-    collision: { enabled: true, type: 'box', offsetX: -6, offsetY: -8, width: 12, height: 8 },
+    anchor: { x: 34, y: 94 },
+    collision: { enabled: true, type: 'box', offsetX: -8, offsetY: -8, width: 16, height: 10 },
     depth: { enabled: true, offsetY: 0 },
-    metadata: { tags: ['木', '自然', '公園'], createdAt: Date.now(), source: 'preset' },
+    metadata: { tags: ['木', '自然', '公園', 'ケヤキ'], createdAt: Date.now(), source: 'preset' },
+    interactions: [
+      {
+        type: 'talk',
+        label: '木漏れ日を浴びる',
+        dialogue: ['青々とした葉の隙間から、柔らかな木漏れ日が降り注いでいる。深呼吸すると森の香りがした。'],
+      },
+    ],
+  },
+
+  tree_sakura_dome: {
+    id: 'tree_sakura_dome',
+    name: '満開の桜（大樹）',
+    type: 'object',
+    category: 'nature',
+    sprite: {
+      url: resolveAssetUrl('/assets/objects/trees/sakura_dome.png'),
+      width: 80,
+      height: 96,
+      pixelArt: true,
+    },
+    anchor: { x: 40, y: 92 },
+    collision: { enabled: true, type: 'box', offsetX: -8, offsetY: -8, width: 16, height: 10 },
+    depth: { enabled: true, offsetY: 0 },
+    metadata: { tags: ['春', '桜', '自然', '花見'], createdAt: Date.now(), source: 'preset' },
+    interactions: [
+      {
+        type: 'talk',
+        label: 'お花見をする',
+        dialogue: ['淡いピンクの花弁が満開に咲き誇っている。風が吹くたびにかすかな甘い香りが漂う。'],
+      },
+    ],
+  },
+
+  tree_sakura_weeping: {
+    id: 'tree_sakura_weeping',
+    name: 'しだれ桜',
+    type: 'object',
+    category: 'nature',
+    sprite: {
+      url: resolveAssetUrl('/assets/objects/trees/sakura_weeping.png'),
+      width: 72,
+      height: 104,
+      pixelArt: true,
+    },
+    anchor: { x: 36, y: 100 },
+    collision: { enabled: true, type: 'box', offsetX: -8, offsetY: -8, width: 16, height: 10 },
+    depth: { enabled: true, offsetY: 0 },
+    metadata: { tags: ['春', '桜', 'しだれ桜', '名木'], createdAt: Date.now(), source: 'preset' },
+    interactions: [
+      {
+        type: 'talk',
+        label: '枝垂れる桜を見上げる',
+        dialogue: ['流れる滝のように咲きこぼれるしだれ桜。見上げると春の空一面が桜色に染まっている。'],
+      },
+    ],
+  },
+
+  tree_sakura_bonsai: {
+    id: 'tree_sakura_bonsai',
+    name: '古木の一本桜',
+    type: 'object',
+    category: 'nature',
+    sprite: {
+      url: resolveAssetUrl('/assets/objects/trees/sakura_bonsai.png'),
+      width: 90,
+      height: 88,
+      pixelArt: true,
+    },
+    anchor: { x: 45, y: 84 },
+    collision: { enabled: true, type: 'box', offsetX: -10, offsetY: -8, width: 20, height: 10 },
+    depth: { enabled: true, offsetY: 0 },
+    metadata: { tags: ['春', '桜', '古木', '歴史'], createdAt: Date.now(), source: 'preset' },
+    interactions: [
+      {
+        type: 'talk',
+        label: '古木の幹に触れる',
+        dialogue: ['何十年もの年月を生き抜いてきた堂々たる幹。春の生命力にあふれている。'],
+      },
+    ],
+  },
+
+  tree_ginkgo_flame: {
+    id: 'tree_ginkgo_flame',
+    name: '黄金色のイチョウ',
+    type: 'object',
+    category: 'nature',
+    sprite: {
+      url: resolveAssetUrl('/assets/objects/trees/ginkgo_flame.png'),
+      width: 72,
+      height: 100,
+      pixelArt: true,
+    },
+    anchor: { x: 36, y: 96 },
+    collision: { enabled: true, type: 'box', offsetX: -8, offsetY: -8, width: 16, height: 10 },
+    depth: { enabled: true, offsetY: 0 },
+    metadata: { tags: ['秋', 'イチョウ', '紅葉', '黄金色'], createdAt: Date.now(), source: 'preset' },
+    interactions: [
+      {
+        type: 'talk',
+        label: '黄金の葉を拾う',
+        dialogue: ['鮮やかな黄金色に染まったイチョウの葉。秋の陽光を受けて黄金色に輝いている。'],
+      },
+    ],
+  },
+
+  tree_ginkgo_grand: {
+    id: 'tree_ginkgo_grand',
+    name: '大イチョウの御神木',
+    type: 'object',
+    category: 'nature',
+    sprite: {
+      url: resolveAssetUrl('/assets/objects/trees/ginkgo_grand.png'),
+      width: 96,
+      height: 98,
+      pixelArt: true,
+    },
+    anchor: { x: 48, y: 94 },
+    collision: { enabled: true, type: 'box', offsetX: -12, offsetY: -8, width: 24, height: 12 },
+    depth: { enabled: true, offsetY: 0 },
+    metadata: { tags: ['秋', 'イチョウ', '大樹', '名木'], createdAt: Date.now(), source: 'preset' },
+    interactions: [
+      {
+        type: 'talk',
+        label: '大樹を見上げる',
+        dialogue: ['公園の空を覆うほどの巨大なイチョウ。足元には黄金の絨毯が広がっている。'],
+      },
+    ],
+  },
+
+  tree_maple_umbrella: {
+    id: 'tree_maple_umbrella',
+    name: '深紅のもみじ',
+    type: 'object',
+    category: 'nature',
+    sprite: {
+      url: resolveAssetUrl('/assets/objects/trees/maple_umbrella.png'),
+      width: 80,
+      height: 90,
+      pixelArt: true,
+    },
+    anchor: { x: 40, y: 86 },
+    collision: { enabled: true, type: 'box', offsetX: -8, offsetY: -8, width: 16, height: 10 },
+    depth: { enabled: true, offsetY: 0 },
+    metadata: { tags: ['秋', 'もみじ', '紅葉', '深紅'], createdAt: Date.now(), source: 'preset' },
+    interactions: [
+      {
+        type: 'talk',
+        label: '紅葉狩りをする',
+        dialogue: ['燃えるような赤と朱色が重なり合う美しいもみじ。秋の風情が心に染み渡る。'],
+      },
+    ],
+  },
+
+  tree_pine_snow: {
+    id: 'tree_pine_snow',
+    name: '雪化粧の和風黒松',
+    type: 'object',
+    category: 'nature',
+    sprite: {
+      url: resolveAssetUrl('/assets/objects/trees/pine_snow_propped.png'),
+      width: 80,
+      height: 104,
+      pixelArt: true,
+    },
+    anchor: { x: 40, y: 100 },
+    collision: { enabled: true, type: 'box', offsetX: -8, offsetY: -8, width: 16, height: 10 },
+    depth: { enabled: true, offsetY: 0 },
+    metadata: { tags: ['冬', '松', '雪', '和風'], createdAt: Date.now(), source: 'preset' },
+    interactions: [
+      {
+        type: 'talk',
+        label: '雪の積もる枝を眺める',
+        dialogue: ['常緑の松葉の上にふんわりと積もった白雪。凛とした冬の佇まいが美しい。'],
+      },
+    ],
+  },
+
+  tree_winter_bare: {
+    id: 'tree_winter_bare',
+    name: '冬枯れのケヤキ',
+    type: 'object',
+    category: 'nature',
+    sprite: {
+      url: resolveAssetUrl('/assets/objects/trees/winter_icicle.png'),
+      width: 76,
+      height: 102,
+      pixelArt: true,
+    },
+    anchor: { x: 38, y: 98 },
+    collision: { enabled: true, type: 'box', offsetX: -8, offsetY: -8, width: 16, height: 10 },
+    depth: { enabled: true, offsetY: 0 },
+    metadata: { tags: ['冬', '冬木立', '氷柱', '静寂'], createdAt: Date.now(), source: 'preset' },
+    interactions: [
+      {
+        type: 'talk',
+        label: '冬の木立を眺める',
+        dialogue: ['葉を落とした繊細な枝先に、小さな氷柱がキラキラと光っている。春を静かに待つ大樹。'],
+      },
+    ],
+  },
+
+  tree_apple_ripe: {
+    id: 'tree_apple_ripe',
+    name: '実りのリンゴの木',
+    type: 'object',
+    category: 'nature',
+    sprite: {
+      url: resolveAssetUrl('/assets/objects/trees/apple_ripe.png'),
+      width: 68,
+      height: 104,
+      pixelArt: true,
+    },
+    anchor: { x: 34, y: 100 },
+    collision: { enabled: true, type: 'box', offsetX: -8, offsetY: -8, width: 16, height: 10 },
+    depth: { enabled: true, offsetY: 0 },
+    metadata: { tags: ['夏', '果樹', 'リンゴ', '収穫'], createdAt: Date.now(), source: 'preset' },
+    interactions: [
+      {
+        type: 'talk',
+        label: 'リンゴをもぎ取る',
+        dialogue: ['真っ赤に熟した甘いリンゴをもぎ取った！みずみずしい果汁が口いっぱいに広がった。'],
+      },
+    ],
   },
 
   retro_bench: {

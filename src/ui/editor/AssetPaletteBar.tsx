@@ -38,11 +38,11 @@ export const AssetPaletteBar: React.FC<AssetPaletteBarProps> = ({ isVisible }) =
 
       <div className="w-[1px] h-6 bg-white/10 mx-0.5" />
 
-      {/* アセットスロット一覧 (マインクラフト風ホットバー 1〜9) */}
+      {/* アセットスロット一覧 (マインクラフト風ホットバー 1〜9 + 横スクロール一覧) */}
       <div className="flex items-center gap-1">
-        {placeableAssets.slice(0, 9).map((asset, index) => {
+        {placeableAssets.map((asset, index) => {
           const isSelected = placingAssetId === asset.id;
-          const slotNumber = index + 1;
+          const slotNumber = index < 9 ? index + 1 : null;
 
           return (
             <button
@@ -56,17 +56,19 @@ export const AssetPaletteBar: React.FC<AssetPaletteBarProps> = ({ isVisible }) =
                   setActiveTool('place');
                 }
               }}
-              className={`p-1.5 rounded-xl flex flex-col items-center gap-1 transition-all group relative ${
+              className={`p-1.5 rounded-xl flex flex-col items-center gap-1 transition-all group relative flex-shrink-0 ${
                 isSelected
                   ? 'bg-amber-500/30 border border-amber-400/60 shadow-md ring-2 ring-amber-400/40'
                   : 'hover:bg-white/10 border border-transparent text-slate-300'
               }`}
-              title={`[${slotNumber}] ${asset.name} をマップに配置`}
+              title={slotNumber ? `[${slotNumber}] ${asset.name} をマップに配置` : `${asset.name} をマップに配置`}
             >
-              {/* スロット番号バッジ */}
-              <span className="absolute top-0.5 left-1 text-[9px] font-mono text-slate-400 font-bold">
-                {slotNumber}
-              </span>
+              {/* スロット番号バッジ (1〜9) */}
+              {slotNumber && (
+                <span className="absolute top-0.5 left-1 text-[9px] font-mono text-slate-400 font-bold">
+                  {slotNumber}
+                </span>
+              )}
 
               <div className="w-9 h-9 rounded-lg bg-slate-900/60 border border-white/10 flex items-center justify-center p-1 overflow-hidden">
                 <img
@@ -75,7 +77,7 @@ export const AssetPaletteBar: React.FC<AssetPaletteBarProps> = ({ isVisible }) =
                   className="max-w-full max-h-full pixelated object-contain group-hover:scale-110 transition-transform"
                 />
               </div>
-              <span className="text-[10px] max-w-[56px] truncate font-medium text-slate-300 group-hover:text-white">
+              <span className="text-[10px] max-w-[60px] truncate font-medium text-slate-300 group-hover:text-white">
                 {asset.name}
               </span>
             </button>

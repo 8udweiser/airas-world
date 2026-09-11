@@ -1,5 +1,6 @@
 import { get, set, del } from 'idb-keyval';
 import { AirasWorldData } from '../types/world';
+import { createInitialWorld } from '../world/initialWorld';
 
 const STORAGE_KEY_WORLD = 'airas_saved_world_v1';
 const AUTO_SAVE_DEBOUNCE_MS = 1200;
@@ -31,6 +32,23 @@ export class WorldStorage {
     try {
       const saved = await get<AirasWorldData>(STORAGE_KEY_WORLD);
       if (saved && saved.entities && saved.map) {
+        // 新しく initialWorld に追加された初期エンティティ（四季の木など）を既存セーブデータに自動マージ
+        try {
+          const initial = createInitialWorld();
+          let addedCount = 0;
+          for (const [key, ent] of Object.entries(initial.entities)) {
+            if (!saved.entities[key]) {
+              saved.entities[key] = ent;
+              addedCount++;
+            }
+          }
+          if (addedCount > 0) {
+            console.log(`[WorldStorage] 🌸 新しい初期エンティティ (${addedCount}件) を既存ワールドにマージしました`);
+          }
+        } catch (mergeErr) {
+          console.warn('[WorldStorage] 初期エンティティのマージに失敗しました:', mergeErr);
+        }
+
         console.log('[WorldStorage] 💾 保存されたワールドデータを復元しました (オブジェクト数:', Object.keys(saved.entities).length, ')');
         return saved;
       }

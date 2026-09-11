@@ -1,0 +1,184 @@
+{
+  "sakura_dome": {
+    "file": "sakura_dome.png",
+    "width": 747,
+    "height": 982,
+    "anchorX": 374,
+    "anchorY": 978
+  },
+  "sakura_bonsai": {
+    "file": "sakura_bonsai.png",
+    "width": 1132,
+    "height": 978,
+    "anchorX": 566,
+    "anchorY": 974
+  },
+  "sakura_weeping": {
+    "file": "sakura_weeping.png",
+    "width": 720,
+    "height": 1147,
+    "anchorX": 360,
+    "anchorY": 1143
+  },
+  "sakura_bud": {
+    "file": "sakura_bud.png",
+    "width": 542,
+    "height": 1433,
+    "anchorX": 271,
+    "anchorY": 1429
+  },
+  "sakura_full": {
+    "file": "sakura_full.png",
+    "width": 652,
+    "height": 1471,
+    "anchorX": 326,
+    "anchorY": 1467
+  },
+  "sakura_blizzard": {
+    "file": "sakura_blizzard.png",
+    "width": 626,
+    "height": 1455,
+    "anchorX": 313,
+    "anchorY": 1451
+  },
+  "sakura_leaf": {
+    "file": "sakura_leaf.png",
+    "width": 637,
+    "height": 1460,
+    "anchorX": 319,
+    "anchorY": 1456
+  },
+  "zelkova_dome": {
+    "file": "zelkova_dome.png",
+    "width": 335,
+    "height": 344,
+    "anchorX": 168,
+    "anchorY": 340
+  },
+  "zelkova_tall": {
+    "file": "zelkova_tall.png",
+    "width": 346,
+    "height": 498,
+    "anchorX": 173,
+    "anchorY": 494
+  },
+  "zelkova_wind": {
+    "file": "zelkova_wind.png",
+    "width": 333,
+    "height": 431,
+    "anchorX": 167,
+    "anchorY": 427
+  },
+  "apple_blossom": {
+    "file": "apple_blossom.png",
+    "width": 654,
+    "height": 1445,
+    "anchorX": 327,
+    "anchorY": 1441
+  },
+  "apple_green": {
+    "file": "apple_green.png",
+    "width": 654,
+    "height": 1445,
+    "anchorX": 327,
+    "anchorY": 1441
+  },
+  "apple_ripe": {
+    "file": "apple_ripe.png",
+    "width": 653,
+    "height": 1445,
+    "anchorX": 327,
+    "anchorY": 1441
+  },
+  "apple_harvested": {
+    "file": "apple_harvested.png",
+    "width": 653,
+    "height": 1445,
+    "anchorX": 327,
+    "anchorY": 1441
+  },
+  "ginkgo_flame": {
+    "file": "ginkgo_flame.png",
+    "width": 773,
+    "height": 1388,
+    "anchorX": 387,
+    "anchorY": 1384
+  },
+  "ginkgo_upright": {
+    "file": "ginkgo_upright.png",
+    "width": 692,
+    "height": 1447,
+    "anchorX": 346,
+    "anchorY": 1443
+  },
+  "ginkgo_grand": {
+    "file": "ginkgo_grand.png",
+    "width": 1199,
+    "height": 1219,
+    "anchorX": 600,
+    "anchorY": 1215
+  },
+  "maple_umbrella": {
+    "file": "maple_umbrella.png",
+    "width": 848,
+    "height": 944,
+    "anchorX": 424,
+    "anchorY": 940
+  },
+  "maple_bonsai": {
+    "file": "maple_bonsai.png",
+    "width": 772,
+    "height": 957,
+    "anchorX": 386,
+    "anchorY": 953
+  },
+  "maple_falling": {
+    "file": "maple_falling.png",
+    "width": 814,
+    "height": 966,
+    "anchorX": 407,
+    "anchorY": 962
+  },
+  "pine_snow_weeping": {
+    "file": "pine_snow_weeping.png",
+    "width": 867,
+    "height": 1282,
+    "anchorX": 434,
+    "anchorY": 1278
+  },
+  "pine_snow_slanted": {
+    "file": "pine_snow_slanted.png",
+    "width": 845,
+    "height": 1283,
+    "anchorX": 423,
+    "anchorY": 1279
+  },
+  "pine_snow_propped": {
+    "file": "pine_snow_propped.png",
+    "width": 956,
+    "height": 1329,
+    "anchorX": 478,
+    "anchorY": 1325
+  },
+  "winter_broom": {
+    "file": "winter_broom.png",
+    "width": 860,
+    "height": 1323,
+    "anchorX": 430,
+    "anchorY": 1319
+  },
+  "winter_icicle": {
+    "file": "winter_icicle.png",
+    "width": 854,
+    "height": 1324,
+    "anchorX": 427,
+    "anchorY": 1320
+  },
+  "winter_hollow": {
+    "file": "winter_hollow.png",
+    "width": 902,
+    "height": 1407,
+    "anchorX": 451,
+    "anchorY": 1403
+  }
+}
