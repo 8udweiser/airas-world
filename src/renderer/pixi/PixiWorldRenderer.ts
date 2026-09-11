@@ -200,6 +200,12 @@ export class PixiWorldRenderer implements IRenderer {
   // 🏃‍♂️💨 物理移動ベクトル & スムーズ大回り旋回ステート (ダッシュ・乗車時の慣性コーナリング)
   private currentMoveAngle: number = Math.PI / 2; // 現在の移動角度 (ラジアン)
   private isMoveAngleInitialized: boolean = false;
+  private movingDuration: number = 0; // 連続移動時間（秒）
+
+  // 🔄 立ち止まりからのクイック反転ターン（ピボットターン演出）
+  private isPivotTurning: boolean = false;
+  private pivotTurnTimer: number = 0;
+  private pivotTurnSequence: Direction[] = [];
 
   // コールバック
   public onEntityClick?: (entityId: string) => void;
@@ -505,6 +511,59 @@ export class PixiWorldRenderer implements IRenderer {
     }
   }
 
+  // 🔄 立ち止まりからのクイック反転ターン（ピボットターン）の向き遷移シーケンスを生成
+  private createPivotSequence(fromDir: Direction, toDir: Direction, isSprint: boolean): Direction[] {
+    const fromIdx = ROTATION_DIRECTIONS.indexOf(fromDir);
+    const toIdx = ROTATION_DIRECTIONS.indexOf(toDir);
+    if (fromIdx < 0 || toIdx < 0 || fromDir === toDir) return [toDir];
+
+    let diff = toIdx - fromIdx;
+
+    // 180度反転 (4ステップ離れている) の場合
+    if (Math.abs(diff) === 4) {
+      // 左右の反転時は下（手前正面）側を経由（キャラクターの表情が見えて自然で美しい）
+      if (fromDir === 'left' && toDir === 'right') {
+        // 小走り: 左下 ➜ 下 ➜ 右下 ➜ 右 / ダッシュ: 下 ➜ 右
+        return isSprint ? ['down', 'right'] : ['down-left', 'down', 'down-right', 'right'];
+      }
+      if (fromDir === 'right' && toDir === 'left') {
+        // 小走り: 右下 ➜ 下 ➜ 左下 ➜ 左 / ダッシュ: 下 ➜ 左
+        return isSprint ? ['down', 'left'] : ['down-right', 'down', 'down-left', 'left'];
+      }
+      // 上下の反転時は右側を経由
+      if (fromDir === 'up' && toDir === 'down') {
+        return isSprint ? ['right', 'down'] : ['up-right', 'right', 'down-right', 'down'];
+      }
+      if (fromDir === 'down' && toDir === 'up') {
+        return isSprint ? ['right', 'up'] : ['down-right', 'right', 'up-right', 'up'];
+      }
+    }
+
+    // 最短回転方向の算出 (-4 〜 +4)
+    if (diff > 4) diff -= 8;
+    if (diff < -4) diff += 8;
+
+    const step = Math.sign(diff);
+    const seq: Direction[] = [];
+
+    if (isSprint) {
+      // ダッシュ時は約90度刻みで素早くスパッと切り返す
+      if (Math.abs(diff) >= 3) {
+        const midIdx = (fromIdx + step * 2 + 8) % 8;
+        seq.push(ROTATION_DIRECTIONS[midIdx]);
+      }
+      seq.push(toDir);
+    } else {
+      // 小走りは45度刻みでパラパラと素早く回転
+      let cur = fromIdx;
+      while (cur !== toIdx) {
+        cur = (cur + step + 8) % 8;
+        seq.push(ROTATION_DIRECTIONS[cur]);
+      }
+    }
+    return seq;
+  }
+
   // キー入力に応じたプレイヤー物理演算
   private updatePlayerPhysics(dt: number) {
     const k = this.keys;
@@ -642,46 +701,86 @@ export class PixiWorldRenderer implements IRenderer {
       }
     }
 
-    // 移動の適用（衝突判定 ＆ 大回り慣性コーナリング ＆ スライディング移動）
+    // 移動の適用（衝突判定 ＆ ピボット反転ターン ＆ 大回り慣性コーナリング ＆ スライディング移動）
     if (isMoving) {
+      this.movingDuration += dt;
       const targetLen = Math.hypot(dx, dy);
       const targetAngle = Math.atan2(dy, dx);
+      const targetDeg = (targetAngle * 180) / Math.PI;
 
-      // 移動開始時の初期角度をキャラの現在の向きから設定
-      if (!this.isMoveAngleInitialized) {
-        this.currentMoveAngle = this.getDirectionAngle(this.playerState.direction);
-        this.isMoveAngleInitialized = true;
-      }
+      // 目標の8方向向きを算出
+      let targetDirection: Direction = 'down';
+      if (targetDeg >= -22.5 && targetDeg < 22.5) targetDirection = 'right';
+      else if (targetDeg >= 22.5 && targetDeg < 67.5) targetDirection = 'down-right';
+      else if (targetDeg >= 67.5 && targetDeg < 112.5) targetDirection = 'down';
+      else if (targetDeg >= 112.5 && targetDeg < 157.5) targetDirection = 'down-left';
+      else if (targetDeg >= 157.5 || targetDeg < -157.5) targetDirection = 'left';
+      else if (targetDeg >= -157.5 && targetDeg < -112.5) targetDirection = 'up-left';
+      else if (targetDeg >= -112.5 && targetDeg < -67.5) targetDirection = 'up';
+      else if (targetDeg >= -67.5 && targetDeg < -22.5) targetDirection = 'up-right';
 
-      // 旋回レート (rad/s):
-      // 歩き・スニーク: 28.0 (小回りが利きキビキビ即時反応)
-      // 小走り (jog): 15.0 (自然で軽快なコーナリング)
-      // ダッシュ (dash): 7.2 (スピードに乗った気持ちのいい大回り旋回！)
-      // 車両運転: 通常 5.2 / ダッシュ時 3.8 (ハイスピードな大回りドリフト旋回)
-      let turnRate = 28.0;
-      if (this.playerState.isDriving) {
-        turnRate = this.playerMoveTier === 'dash' ? 3.8 : 5.2;
-      } else {
-        if (this.playerMoveTier === 'dash') {
-          turnRate = 7.2;
-        } else if (this.playerMoveTier === 'jog') {
-          turnRate = 15.0;
+      // 🔄 立ち止まり（または動き出し直後）からの急反転判定
+      const isStartingFromIdle = !this.isMoveAngleInitialized || this.movingDuration <= dt * 1.5;
+
+      if (isStartingFromIdle) {
+        const fromDir = this.playerState.direction;
+        const fromIdx = ROTATION_DIRECTIONS.indexOf(fromDir);
+        const toIdx = ROTATION_DIRECTIONS.indexOf(targetDirection);
+        let dirDiff = Math.abs(toIdx - fromIdx);
+        if (dirDiff > 4) dirDiff = 8 - dirDiff;
+
+        // 90度以上の大きな方向転換かつ徒歩・ダッシュ時（非乗車時）
+        if (dirDiff >= 2 && !this.playerState.isDriving && (this.playerMoveTier === 'dash' || this.playerMoveTier === 'jog')) {
+          // 🔄 ピボット反転ターン開始！
+          this.isPivotTurning = true;
+          this.pivotTurnTimer = 0;
+          this.pivotTurnSequence = this.createPivotSequence(fromDir, targetDirection, this.playerMoveTier === 'dash');
+          // 移動角度は最初から即座に目標方向へ直進！大回り慣性で逆走するのを100%防止
+          this.currentMoveAngle = targetAngle;
+          this.isMoveAngleInitialized = true;
         } else {
-          turnRate = 28.0;
+          // 通常の歩き出し
+          this.isPivotTurning = false;
+          this.currentMoveAngle = this.getDirectionAngle(this.playerState.direction);
+          this.isMoveAngleInitialized = true;
         }
       }
 
-      // 最短角度差分 (-PI 〜 PI) を計算
-      let angleDiff = targetAngle - this.currentMoveAngle;
-      while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-      while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-
-      // dt に応じた旋回ステップ
-      const maxTurn = turnRate * dt;
-      if (Math.abs(angleDiff) <= maxTurn) {
+      // 旋回レート (rad/s):
+      // ピボットターン中は大回り慣性を適用せず即時目標角へ直進
+      // 走行中のコーナリング:
+      //   - ダッシュ (dash): 7.2 (スピードに乗った気持ちのいい大回り旋回！)
+      //   - 小走り (jog): 15.0 (自然で軽快なコーナリング)
+      //   - 歩き・スニーク: 28.0 (小回りが利きキビキビ即時反応)
+      //   - 車両運転: 通常 5.2 / ダッシュ時 3.8 (ハイスピードな大回りドリフト旋回)
+      if (this.isPivotTurning) {
         this.currentMoveAngle = targetAngle;
       } else {
-        this.currentMoveAngle += Math.sign(angleDiff) * maxTurn;
+        let turnRate = 28.0;
+        if (this.playerState.isDriving) {
+          turnRate = this.playerMoveTier === 'dash' ? 3.8 : 5.2;
+        } else {
+          if (this.playerMoveTier === 'dash') {
+            turnRate = 7.2;
+          } else if (this.playerMoveTier === 'jog') {
+            turnRate = 15.0;
+          } else {
+            turnRate = 28.0;
+          }
+        }
+
+        // 最短角度差分 (-PI 〜 PI) を計算
+        let angleDiff = targetAngle - this.currentMoveAngle;
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+        // dt に応じた旋回ステップ
+        const maxTurn = turnRate * dt;
+        if (Math.abs(angleDiff) <= maxTurn) {
+          this.currentMoveAngle = targetAngle;
+        } else {
+          this.currentMoveAngle += Math.sign(angleDiff) * maxTurn;
+        }
       }
 
       // 実際の進行方向ベクトル
@@ -707,36 +806,52 @@ export class PixiWorldRenderer implements IRenderer {
         this.playerState.y = nextY;
       }
 
-      // 向きの更新 (大回り旋回中の実際の進行角度からリアルタイムに8方向/4方向を滑らかに更新)
-      const deg = (this.currentMoveAngle * 180) / Math.PI;
-
-      if (this.playerState.isDriving) {
-        if (deg >= -45 && deg <= 45) {
-          this.playerState.direction = 'right';
-        } else if (deg >= 135 || deg <= -135) {
-          this.playerState.direction = 'left';
-        } else if (deg > 45 && deg < 135) {
-          this.playerState.direction = 'down';
+      // 向きの更新:
+      // 1. ピボットターン中: シーケンスに沿って素早く向きを切り替え
+      //    (ダッシュ: 40msでスパッと下・右 / 小走り: 35msでパラパラと左下・下・右下・右)
+      // 2. 通常移動中: 進行角度からリアルタイムに滑らかに更新
+      if (this.isPivotTurning && this.pivotTurnSequence.length > 0) {
+        this.pivotTurnTimer += dt;
+        const stepDuration = this.playerMoveTier === 'dash' ? 0.040 : 0.035;
+        const currentStepIndex = Math.floor(this.pivotTurnTimer / stepDuration);
+        if (currentStepIndex < this.pivotTurnSequence.length) {
+          this.playerState.direction = this.pivotTurnSequence[currentStepIndex];
         } else {
-          this.playerState.direction = 'up';
+          this.isPivotTurning = false;
+          this.pivotTurnSequence = [];
+          this.playerState.direction = targetDirection;
         }
       } else {
-        if (deg >= -22.5 && deg < 22.5) {
-          this.playerState.direction = 'right';
-        } else if (deg >= 22.5 && deg < 67.5) {
-          this.playerState.direction = 'down-right';
-        } else if (deg >= 67.5 && deg < 112.5) {
-          this.playerState.direction = 'down';
-        } else if (deg >= 112.5 && deg < 157.5) {
-          this.playerState.direction = 'down-left';
-        } else if (deg >= 157.5 || deg < -157.5) {
-          this.playerState.direction = 'left';
-        } else if (deg >= -157.5 && deg < -112.5) {
-          this.playerState.direction = 'up-left';
-        } else if (deg >= -112.5 && deg < -67.5) {
-          this.playerState.direction = 'up';
-        } else if (deg >= -67.5 && deg < -22.5) {
-          this.playerState.direction = 'up-right';
+        const deg = (this.currentMoveAngle * 180) / Math.PI;
+
+        if (this.playerState.isDriving) {
+          if (deg >= -45 && deg <= 45) {
+            this.playerState.direction = 'right';
+          } else if (deg >= 135 || deg <= -135) {
+            this.playerState.direction = 'left';
+          } else if (deg > 45 && deg < 135) {
+            this.playerState.direction = 'down';
+          } else {
+            this.playerState.direction = 'up';
+          }
+        } else {
+          if (deg >= -22.5 && deg < 22.5) {
+            this.playerState.direction = 'right';
+          } else if (deg >= 22.5 && deg < 67.5) {
+            this.playerState.direction = 'down-right';
+          } else if (deg >= 67.5 && deg < 112.5) {
+            this.playerState.direction = 'down';
+          } else if (deg >= 112.5 && deg < 157.5) {
+            this.playerState.direction = 'down-left';
+          } else if (deg >= 157.5 || deg < -157.5) {
+            this.playerState.direction = 'left';
+          } else if (deg >= -157.5 && deg < -112.5) {
+            this.playerState.direction = 'up-left';
+          } else if (deg >= -112.5 && deg < -67.5) {
+            this.playerState.direction = 'up';
+          } else if (deg >= -67.5 && deg < -22.5) {
+            this.playerState.direction = 'up-right';
+          }
         }
       }
 
