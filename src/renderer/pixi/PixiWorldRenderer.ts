@@ -194,6 +194,12 @@ export class PixiWorldRenderer implements IRenderer {
   private swipeStartTime: number = 0;
   private swipeRecentPoints: Array<{ x: number; y: number; t: number }> = [];
   private swipeActiveTier: 'walk' | 'jog' | 'dash' = 'walk';
+  private swipeAnalogDir: { x: number; y: number } = { x: 0, y: 0 };
+  private swipeDist: number = 0;
+
+  // 🏃‍♂️💨 物理移動ベクトル & スムーズ大回り旋回ステート (ダッシュ・乗車時の慣性コーナリング)
+  private currentMoveAngle: number = Math.PI / 2; // 現在の移動角度 (ラジアン)
+  private isMoveAngleInitialized: boolean = false;
 
   // コールバック
   public onEntityClick?: (entityId: string) => void;
@@ -484,6 +490,21 @@ export class PixiWorldRenderer implements IRenderer {
     }
   }
 
+  // 🧭 キャラクターの向きに対応するラジアン角度を取得
+  private getDirectionAngle(dir: Direction): number {
+    switch (dir) {
+      case 'right': return 0;
+      case 'down-right': return Math.PI / 4;
+      case 'down': return Math.PI / 2;
+      case 'down-left': return (3 * Math.PI) / 4;
+      case 'left': return Math.PI;
+      case 'up-left': return (-3 * Math.PI) / 4;
+      case 'up': return -Math.PI / 2;
+      case 'up-right': return -Math.PI / 4;
+      default: return Math.PI / 2;
+    }
+  }
+
   // キー入力に応じたプレイヤー物理演算
   private updatePlayerPhysics(dt: number) {
     const k = this.keys;
@@ -501,10 +522,17 @@ export class PixiWorldRenderer implements IRenderer {
     // 方向ベクトル
     let dx = 0;
     let dy = 0;
-    if (isUp) dy -= 1;
-    if (isDown) dy += 1;
-    if (isLeft) dx -= 1;
-    if (isRight) dx += 1;
+    if (this.isSwipingMovement && this.swipeDist >= 6) {
+      // 📱 スワイプ操作時は360度シームレスなアナログ方向ベクトルを直接採用！
+      dx = this.swipeAnalogDir.x;
+      dy = this.swipeAnalogDir.y;
+    } else {
+      // ⌨️ キーボード操作時はWASD / 矢印キー
+      if (isUp) dy -= 1;
+      if (isDown) dy += 1;
+      if (isLeft) dx -= 1;
+      if (isRight) dx += 1;
+    }
 
     const isMoving = dx !== 0 || dy !== 0;
     this.playerState.isMoving = isMoving;
@@ -614,11 +642,54 @@ export class PixiWorldRenderer implements IRenderer {
       }
     }
 
-    // 移動の適用（衝突判定 ＆ スライディング移動）
+    // 移動の適用（衝突判定 ＆ 大回り慣性コーナリング ＆ スライディング移動）
     if (isMoving) {
-      const len = Math.sqrt(dx * dx + dy * dy);
-      const moveDistX = (dx / len) * speed * dt;
-      const moveDistY = (dy / len) * speed * dt;
+      const targetLen = Math.hypot(dx, dy);
+      const targetAngle = Math.atan2(dy, dx);
+
+      // 移動開始時の初期角度をキャラの現在の向きから設定
+      if (!this.isMoveAngleInitialized) {
+        this.currentMoveAngle = this.getDirectionAngle(this.playerState.direction);
+        this.isMoveAngleInitialized = true;
+      }
+
+      // 旋回レート (rad/s):
+      // 歩き・スニーク: 28.0 (小回りが利きキビキビ即時反応)
+      // 小走り (jog): 15.0 (自然で軽快なコーナリング)
+      // ダッシュ (dash): 7.2 (スピードに乗った気持ちのいい大回り旋回！)
+      // 車両運転: 通常 5.2 / ダッシュ時 3.8 (ハイスピードな大回りドリフト旋回)
+      let turnRate = 28.0;
+      if (this.playerState.isDriving) {
+        turnRate = this.playerMoveTier === 'dash' ? 3.8 : 5.2;
+      } else {
+        if (this.playerMoveTier === 'dash') {
+          turnRate = 7.2;
+        } else if (this.playerMoveTier === 'jog') {
+          turnRate = 15.0;
+        } else {
+          turnRate = 28.0;
+        }
+      }
+
+      // 最短角度差分 (-PI 〜 PI) を計算
+      let angleDiff = targetAngle - this.currentMoveAngle;
+      while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+      while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+      // dt に応じた旋回ステップ
+      const maxTurn = turnRate * dt;
+      if (Math.abs(angleDiff) <= maxTurn) {
+        this.currentMoveAngle = targetAngle;
+      } else {
+        this.currentMoveAngle += Math.sign(angleDiff) * maxTurn;
+      }
+
+      // 実際の進行方向ベクトル
+      const actualDirX = Math.cos(this.currentMoveAngle);
+      const actualDirY = Math.sin(this.currentMoveAngle);
+
+      const moveDistX = actualDirX * speed * dt;
+      const moveDistY = actualDirY * speed * dt;
 
       // X方向の移動検証 (天面より下にいる時のみ壁としてブロック)
       const nextX = this.playerState.x + moveDistX;
@@ -636,25 +707,36 @@ export class PixiWorldRenderer implements IRenderer {
         this.playerState.y = nextY;
       }
 
-      // 向きの更新 (車両運転時は4方向、歩行時は8方向フル対応)
+      // 向きの更新 (大回り旋回中の実際の進行角度からリアルタイムに8方向/4方向を滑らかに更新)
+      const deg = (this.currentMoveAngle * 180) / Math.PI;
+
       if (this.playerState.isDriving) {
-        if (Math.abs(dx) > Math.abs(dy)) {
-          this.playerState.direction = dx > 0 ? 'right' : 'left';
+        if (deg >= -45 && deg <= 45) {
+          this.playerState.direction = 'right';
+        } else if (deg >= 135 || deg <= -135) {
+          this.playerState.direction = 'left';
+        } else if (deg > 45 && deg < 135) {
+          this.playerState.direction = 'down';
         } else {
-          this.playerState.direction = dy > 0 ? 'down' : 'up';
+          this.playerState.direction = 'up';
         }
       } else {
-        const absX = Math.abs(dx);
-        const absY = Math.abs(dy);
-        if (absX > 0.3 && absY > 0.3) {
-          if (dy > 0 && dx > 0) this.playerState.direction = 'down-right';
-          else if (dy > 0 && dx < 0) this.playerState.direction = 'down-left';
-          else if (dy < 0 && dx > 0) this.playerState.direction = 'up-right';
-          else if (dy < 0 && dx < 0) this.playerState.direction = 'up-left';
-        } else if (absX > absY) {
-          this.playerState.direction = dx > 0 ? 'right' : 'left';
-        } else {
-          this.playerState.direction = dy > 0 ? 'down' : 'up';
+        if (deg >= -22.5 && deg < 22.5) {
+          this.playerState.direction = 'right';
+        } else if (deg >= 22.5 && deg < 67.5) {
+          this.playerState.direction = 'down-right';
+        } else if (deg >= 67.5 && deg < 112.5) {
+          this.playerState.direction = 'down';
+        } else if (deg >= 112.5 && deg < 157.5) {
+          this.playerState.direction = 'down-left';
+        } else if (deg >= 157.5 || deg < -157.5) {
+          this.playerState.direction = 'left';
+        } else if (deg >= -157.5 && deg < -112.5) {
+          this.playerState.direction = 'up-left';
+        } else if (deg >= -112.5 && deg < -67.5) {
+          this.playerState.direction = 'up';
+        } else if (deg >= -67.5 && deg < -22.5) {
+          this.playerState.direction = 'up-right';
         }
       }
 
@@ -692,6 +774,7 @@ export class PixiWorldRenderer implements IRenderer {
         });
       }
     } else {
+      this.isMoveAngleInitialized = false;
       this.walkAnimTimer = 0;
       this.stepTimer = 0;
     }
@@ -2080,10 +2163,24 @@ export class PixiWorldRenderer implements IRenderer {
 
       // 3. 全画面スワイプ移動 (オブジェクトやボタン以外の画面どこからでもスワイプ移動！)
       if (this.isSwipingMovement && (this.swipePointerId === null || this.swipePointerId === e.pointerId)) {
-        const deltaX = e.clientX - this.swipeStartPos.x;
-        const deltaY = e.clientY - this.swipeStartPos.y;
-        // 縦も横と同じ距離にしたいので縦幅10に対して判定を行わずスワイプ距離は常に横幅基準で判定
-        const dist = Math.hypot(deltaX, deltaY);
+        let deltaX = e.clientX - this.swipeStartPos.x;
+        let deltaY = e.clientY - this.swipeStartPos.y;
+        let dist = Math.hypot(deltaX, deltaY);
+
+        // 🎯 動的アンカー追従 (Follow Drag / Dynamic Floating Anchor):
+        // 指がアンカー（swipeStartPos）から遠く離れすぎないよう、最大半径（75px）でアンカーを指に追従させる！
+        // これにより、指が画面右端まで行っても、少し上や左に戻すだけで即座に方向転換が可能になる！
+        const maxRadius = 75;
+        if (dist > maxRadius) {
+          const excess = dist - maxRadius;
+          const dirX = deltaX / dist;
+          const dirY = deltaY / dist;
+          this.swipeStartPos.x += dirX * excess;
+          this.swipeStartPos.y += dirY * excess;
+          deltaX = e.clientX - this.swipeStartPos.x;
+          deltaY = e.clientY - this.swipeStartPos.y;
+          dist = maxRadius;
+        }
 
         const now = performance.now();
         this.swipeRecentPoints.push({ x: e.clientX, y: e.clientY, t: now });
@@ -2096,45 +2193,43 @@ export class PixiWorldRenderer implements IRenderer {
         const pointDist = Math.hypot(e.clientX - oldestPoint.x, e.clientY - oldestPoint.y);
         const recentVelocity = pointDist / pointDt; // px / ms
 
-        // デッドゾーン (8px) 未満は停止
-        if (dist < 8) {
+        // デッドゾーン (6px) 未満は停止
+        if (dist < 6) {
+          this.swipeDist = 0;
+          this.swipeAnalogDir = { x: 0, y: 0 };
           this.clearDirectionKeys();
           return;
         }
 
-        // スワイプ距離は常に画面横幅基準で判定 (3/10 で少しスワイプ、6/10 で大きくスワイプ)
-        const W = window.innerWidth;
-        const smallThreshold = W * 0.30;
-        const largeThreshold = W * 0.60;
+        // 速度と移動距離によるティア昇格:
+        // ・素早くスワイプ (> 0.40 px/ms) ➜ 小走り (jog)
+        // ・勢いよく素早くスワイプ (> 0.65 px/ms) または開始直後のフリック ➜ ダッシュ (dash)
+        // ⚠️ 一度ダッシュ (dash) や小走り (jog) になったら、旋回中も指を画面から離さない限りティアを絶対に維持！
+        const isFastSwipe = recentVelocity > 0.40 || (now - this.swipeStartTime < 300 && dist >= 25);
+        const isVeryFastSwipe = recentVelocity > 0.65 || (now - this.swipeStartTime < 250 && dist >= 40);
 
-        const isFastSwipe = recentVelocity > 0.60 || (now - this.swipeStartTime < 280 && dist >= 35);
-
-        // 状態遷移:
-        // ・ゆっくりスワイプで歩き（ゆっくりスワイプなら大きく引いても歩きのまま。8方向に大きく引いても歩き）
-        //   ➜ 素早くスワイプで小走り、素早く大きくスワイプでダッシュ
-        // ・素早く少しスワイプで小走り（そのまま8方向にスワイプしても小走り、そこから大きく引いても小走りのまま、素早く大きくスワイプでダッシュ）
-        // ・素早く大きくスワイプでダッシュ（そのまま8方向スワイプでもダッシュのまま）
         if (this.swipeActiveTier === 'walk') {
-          if (isFastSwipe) {
-            if (dist >= largeThreshold) {
-              this.swipeActiveTier = 'dash';
-            } else {
-              this.swipeActiveTier = 'jog';
-            }
+          if (isVeryFastSwipe) {
+            this.swipeActiveTier = 'dash';
+          } else if (isFastSwipe) {
+            this.swipeActiveTier = 'jog';
           }
-          // ゆっくりスワイプなら大きく引いても walk のまま維持
         } else if (this.swipeActiveTier === 'jog') {
-          if (isFastSwipe && dist >= largeThreshold) {
+          if (isVeryFastSwipe) {
             this.swipeActiveTier = 'dash';
           }
-          // ゆっくり大きく引いた場合は jog のまま維持
-        } else if (this.swipeActiveTier === 'dash') {
-          // そのまま8方向スワイプでもダッシュのまま維持
         }
+        // dash の時は絶対にティアを落とさない！
 
         this.playerMoveTier = this.swipeActiveTier;
 
-        // 8方向スムーズ角度判定 (-180° 〜 180°)
+        // 360度シームレスなアナログ方向ベクトルを保存 (物理演算で大回り旋回に使用)
+        const analogDirX = deltaX / dist;
+        const analogDirY = deltaY / dist;
+        this.swipeDist = dist;
+        this.swipeAnalogDir = { x: analogDirX, y: analogDirY };
+
+        // 8方向判定 (-180° 〜 180°) キーフォールバック
         const angle = Math.atan2(deltaY, deltaX);
         const deg = (angle * 180) / Math.PI;
 
@@ -2159,6 +2254,9 @@ export class PixiWorldRenderer implements IRenderer {
         this.swipeRecentPoints = [];
         this.swipeActiveTier = 'walk';
         this.playerMoveTier = 'walk';
+        this.swipeDist = 0;
+        this.swipeAnalogDir = { x: 0, y: 0 };
+        this.isMoveAngleInitialized = false;
         this.clearDirectionKeys();
 
         // タップ時の処理（クリック自動歩行 targetMovePos は完全廃止）
