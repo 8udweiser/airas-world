@@ -19,6 +19,16 @@ export interface RemotePlayerInfo {
   chatBubble?: { text: string; time: number } | null;
 }
 
+export interface WorldEditPacket {
+  type: 'world_edit';
+  senderId: string;
+  action: 'place_entity' | 'remove_entity' | 'move_entity' | 'set_tile' | 'change_weather' | 'set_time' | 'full_sync';
+  data: any;
+  timestamp: number;
+}
+
+export type NetworkPacket = PlayerPacket | WorldEditPacket;
+
 export interface PlayerPacket {
   type: 'player_sync' | 'chat_message' | 'player_leave';
   senderId: string;
@@ -56,6 +66,7 @@ class MultiplayerManager {
   // コールバック
   public onRemotePlayersChange?: (players: RemotePlayerInfo[]) => void;
   public onChatReceived?: (senderName: string, text: string) => void;
+  public onWorldEditReceived?: (packet: WorldEditPacket) => void;
   public onConnectionStatusChange?: (connectedCount: number, isOnline: boolean) => void;
 
   private isStarted: boolean = false;
@@ -307,7 +318,36 @@ class MultiplayerManager {
     } else if (data.type === 'player_leave') {
       this.remotePlayers.delete(data.senderId);
       this.notifyPlayersChange();
+    } else if (data.type === 'world_edit') {
+      this.onWorldEditReceived?.(data as WorldEditPacket);
     }
+  }
+
+  /**
+   * 🗺️ マップ編集（オブジェクト配置・移動・削除、タイル塗替、天候・時間変更）を全プレイヤーに同期配信
+   */
+  public broadcastWorldEdit(action: WorldEditPacket['action'], data: any) {
+    const packet: WorldEditPacket = {
+      type: 'world_edit',
+      senderId: this.myId,
+      action,
+      data,
+      timestamp: Date.now(),
+    };
+
+    // 1. 同一ブラウザの別タブへ即時同期
+    try {
+      this.broadcastChannel?.postMessage(packet);
+    } catch (_) {}
+
+    // 2. 接続中の全P2Pリモートプレイヤーへ即時配信（ホスト経由で全体にリレー）
+    this.connections.forEach((conn) => {
+      if (conn.open) {
+        try {
+          conn.send(packet);
+        } catch (_) {}
+      }
+    });
   }
 
   private notifyPlayersChange() {

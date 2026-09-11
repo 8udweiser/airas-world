@@ -561,8 +561,20 @@ export const App: React.FC = () => {
       rendererRef.current?.updateRemotePlayers(players);
     };
 
+    multiplayerManager.onWorldEditReceived = (packet) => {
+      useWorldStore.getState().applyRemoteWorldEdit(packet);
+      const updatedWorld = useWorldStore.getState().world;
+      rendererRef.current?.syncWorld(updatedWorld);
+    };
+
     multiplayerManager.onConnectionStatusChange = (count, isOnline) => {
       setPeerOnlineInfo({ count, isOnline });
+      // 👑 ホスト側: 接続者が増えた時に最新マップ全体を全同期配信
+      if (multiplayerManager.isHost && count > 0) {
+        try {
+          multiplayerManager.broadcastWorldEdit('full_sync', useWorldStore.getState().world);
+        } catch (_) {}
+      }
     };
 
     return () => {

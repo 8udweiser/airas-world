@@ -41,4 +41,6 @@ export interface IRenderer {
   ) => void;
   getEntityAtScreen?: (screenX: number, screenY: number) => string | null;
   setEntityDirection?: (entityId: string, newDir: Direction) => void;
+  syncWorld?: (world: AirasWorldData) => void;
+  updateRemotePlayers?: (players: any[]) => void;
 }

@@ -30,29 +30,48 @@ export function createInitialWorld(): AirasWorldData {
           else if (globalY >= 4 && globalY <= 6) {
             tileId = 'tile_sidewalk';
           }
-          // y = 7..10: 北側商店街歩道
+          // y = 7..10: 北側商店街歩道 (敷石タイル)
           else if (globalY >= 7 && globalY <= 10) {
             tileId = 'tile_sidewalk';
           }
-          // y = 11..16: 車道 (アスファルト)
+          // y = 11..16: メインストリート大通り (アスファルト)
           else if (globalY >= 11 && globalY <= 16) {
-            tileId = 'tile_asphalt';
+            // x = 34..37 は川を渡る大通り橋
+            if (globalX >= 34 && globalX <= 37) {
+              tileId = 'tile_asphalt';
+            } else {
+              tileId = 'tile_asphalt';
+            }
           }
-          // y = 17..19: 南側歩道
+          // y = 17..19: 南側大通り歩道
           else if (globalY >= 17 && globalY <= 19) {
             tileId = 'tile_sidewalk';
           }
-          // y = 20..31: 公園・緑地 & 清流（川）
+          // y = 20..31: 緑地公園・噴水広場・清流・黄金の砂浜・湖
           else if (globalY >= 20) {
-            // x = 34..37: 公園を縦断する清流（川）
+            // 🌊 x = 34..37: 公園を縦断して南へ注ぐ清流
             if (globalX >= 34 && globalX <= 37) {
-              // y = 24..25 は木橋
+              // y = 24..25 は木造の遊歩道橋
               if (globalY >= 24 && globalY <= 25) {
                 tileId = 'tile_sidewalk';
               } else {
                 tileId = 'tile_water';
               }
-            } else {
+            }
+            // ⛲ x = 12..22, y = 21..26: 噴水を取り囲む石畳の中央広場
+            else if (globalX >= 12 && globalX <= 22 && globalY >= 21 && globalY <= 26) {
+              tileId = 'tile_sidewalk';
+            }
+            // 🏖️ y = 28..29, x = 0..16: 湖畔に広がる美しい黄金の砂浜
+            else if (globalY >= 28 && globalY <= 29 && globalX >= 0 && globalX <= 16) {
+              tileId = 'tile_sand';
+            }
+            // 🌊 y = 30..31, x = 0..18: 南西の広大な湖面（波が打ち寄せる水域）
+            else if (globalY >= 30 && globalX >= 0 && globalX <= 18) {
+              tileId = 'tile_water';
+            }
+            // 🌲 その他: 豊かな緑地・芝生
+            else {
               tileId = 'tile_grass';
             }
           }

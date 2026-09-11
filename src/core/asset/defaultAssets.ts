@@ -18,6 +18,22 @@ const waterTileSvg = `
   <circle cx="18" cy="4" r="1.2" fill="#bae6fd" opacity="0.7" />
 </svg>`;
 
+// 🏖️ 黄金の砂浜・ビーチタイル (32x32)
+const sandTileSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+  <rect x="0" y="0" width="32" height="32" fill="#fde68a" />
+  <rect x="0" y="0" width="32" height="32" fill="#fef08a" opacity="0.35" />
+  <rect x="3" y="5" width="1" height="1" fill="#d97706" opacity="0.45" />
+  <rect x="11" y="9" width="1" height="1" fill="#b45309" opacity="0.35" />
+  <rect x="23" y="4" width="1" height="1" fill="#f59e0b" opacity="0.6" />
+  <rect x="17" y="15" width="1" height="1" fill="#d97706" opacity="0.4" />
+  <rect x="7" y="21" width="1" height="1" fill="#b45309" opacity="0.3" />
+  <rect x="27" y="19" width="1" height="1" fill="#f59e0b" opacity="0.5" />
+  <rect x="14" y="27" width="1" height="1" fill="#d97706" opacity="0.4" />
+  <path d="M2,12 Q10,10 18,13 T32,11" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.35" />
+  <path d="M0,24 Q12,22 22,25 T32,23" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.3" />
+</svg>`;
+
 // 🪣 空のブリキバケツ (32x32)
 const bucketEmptySvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
@@ -1278,6 +1294,24 @@ export const DEFAULT_ASSETS: Record<string, AirasAsset> = {
     collision: { enabled: false, type: 'none', offsetX: 0, offsetY: 0, width: 0, height: 0 },
     depth: { enabled: false, offsetY: 0 },
     metadata: { tags: ['川', '水', '清流', '自然'], createdAt: Date.now(), source: 'preset' },
+  },
+
+  // 🏖️ 黄金の砂浜タイル (ビーチ・湖畔)
+  tile_sand: {
+    id: 'tile_sand',
+    name: '黄金の砂浜・湖畔',
+    type: 'tile',
+    category: 'tile',
+    sprite: {
+      url: svgToUri(sandTileSvg),
+      width: 32,
+      height: 32,
+      pixelArt: true,
+    },
+    anchor: { x: 0, y: 0 },
+    collision: { enabled: false, type: 'none', offsetX: 0, offsetY: 0, width: 0, height: 0 },
+    depth: { enabled: false, offsetY: 0 },
+    metadata: { tags: ['砂浜', '湖畔', 'ビーチ', '自然'], createdAt: Date.now(), source: 'preset' },
   },
 
   // 🪣 空のバケツ (水を汲むツール)

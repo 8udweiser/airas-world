@@ -7,6 +7,7 @@ import { CommandManager } from '../core/commands/CommandManager';
 import { IWorldCommand, SerializedCommand } from '../core/types/command';
 import { ChangeWeatherCommand, MoveObjectCommand, DeleteObjectCommand, CreateObjectCommand } from '../core/commands/WorldCommands';
 import { WorldStorage } from '../core/storage/WorldStorage';
+import { multiplayerManager } from '../core/multiplayer/MultiplayerManager';
 
 interface WorldStoreState {
   world: AirasWorldData;
@@ -51,11 +52,12 @@ interface WorldStoreState {
   // アセット登録
   registerAsset: (asset: AirasAsset) => void;
 
-  // 保存・復元・リセット
+  // 保存・復元・リセット・リモート同期
   isSaveLoaded: boolean;
   loadSavedWorld: (worldData: AirasWorldData) => void;
   resetWorldToDefault: () => Promise<void>;
   importWorldData: (worldData: AirasWorldData) => void;
+  applyRemoteWorldEdit: (packet: any) => void;
 }
 
 const initialCommandManager = new CommandManager();
@@ -95,6 +97,25 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
       if (res.success) {
         set({ world: newWorld });
         WorldStorage.scheduleAutoSave(newWorld);
+
+        // 🌐 マルチプレイヤー同期: コマンド種別に応じたパケットを他プレイヤーに即時配信
+        try {
+          const serialized = cmd.serialize();
+          if (serialized.type === 'CREATE_OBJECT') {
+            multiplayerManager.broadcastWorldEdit('place_entity', serialized.payload.entity);
+          } else if (serialized.type === 'DELETE_OBJECT') {
+            multiplayerManager.broadcastWorldEdit('remove_entity', { entityId: serialized.payload.entity?.id || serialized.payload.entityId });
+          } else if (serialized.type === 'MOVE_OBJECT') {
+            multiplayerManager.broadcastWorldEdit('move_entity', {
+              entityId: serialized.payload.entityId,
+              position: serialized.payload.to,
+              direction: serialized.payload.toDir,
+            });
+          } else if (serialized.type === 'CHANGE_WEATHER') {
+            multiplayerManager.broadcastWorldEdit('change_weather', { weather: serialized.payload.weather });
+          }
+        } catch (_) {}
+
         return true;
       }
       return false;
@@ -264,6 +285,9 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
           },
         },
       }));
+      try {
+        multiplayerManager.broadcastWorldEdit('set_time', { time });
+      } catch (_) {}
     },
 
     updatePlayerPosition: (x, y, direction, isMoving) => {
@@ -337,6 +361,11 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
 
       set({ world: newWorld });
       WorldStorage.scheduleAutoSave(newWorld);
+
+      try {
+        multiplayerManager.broadcastWorldEdit('set_tile', { worldX, worldY, tileId });
+      } catch (_) {}
+
       return true;
     },
 
@@ -373,6 +402,113 @@ export const useWorldStore = create<WorldStoreState>((set, get) => {
         world: worldData,
       });
       WorldStorage.scheduleAutoSave(worldData);
+      try {
+        multiplayerManager.broadcastWorldEdit('full_sync', worldData);
+      } catch (_) {}
+    },
+
+    // 🌐 他プレイヤーからのリアルタイム編集パケットの適用
+    applyRemoteWorldEdit: (packet: any) => {
+      const { world } = get();
+      if (!packet || !packet.action) return;
+
+      if (packet.action === 'place_entity') {
+        const entity: WorldEntity = packet.data;
+        if (!entity || !entity.id) return;
+        const newWorld = {
+          ...world,
+          entities: {
+            ...world.entities,
+            [entity.id]: entity,
+          },
+        };
+        set({ world: newWorld });
+        WorldStorage.scheduleAutoSave(newWorld);
+      } else if (packet.action === 'remove_entity') {
+        const { entityId } = packet.data;
+        if (!entityId || !world.entities[entityId]) return;
+        const newEntities = { ...world.entities };
+        delete newEntities[entityId];
+        const newWorld = {
+          ...world,
+          entities: newEntities,
+        };
+        set({ world: newWorld });
+        WorldStorage.scheduleAutoSave(newWorld);
+      } else if (packet.action === 'move_entity') {
+        const { entityId, position, direction } = packet.data;
+        const target = world.entities[entityId];
+        if (!target) return;
+        const newWorld = {
+          ...world,
+          entities: {
+            ...world.entities,
+            [entityId]: {
+              ...target,
+              position: { ...target.position, ...position },
+              direction: direction || target.direction,
+            },
+          },
+        };
+        set({ world: newWorld });
+        WorldStorage.scheduleAutoSave(newWorld);
+      } else if (packet.action === 'set_tile') {
+        const { worldX, worldY, tileId } = packet.data;
+        const tileSize = world.map.tileSize || 32;
+        const chunkSize = world.map.chunkSize || 16;
+        const tileX = Math.floor(worldX / tileSize);
+        const tileY = Math.floor(worldY / tileSize);
+        const cx = Math.floor(tileX / chunkSize);
+        const cy = Math.floor(tileY / chunkSize);
+        const chunkKey = `${cx},${cy}`;
+        const chunk = world.map.chunks[chunkKey];
+        if (!chunk || !chunk.tiles) return;
+
+        const lx = ((tileX % chunkSize) + chunkSize) % chunkSize;
+        const ly = ((tileY % chunkSize) + chunkSize) % chunkSize;
+        if (!chunk.tiles[ly] || !chunk.tiles[ly][lx]) return;
+
+        const newTiles = chunk.tiles.map((row, rIdx) => {
+          if (rIdx !== ly) return row;
+          return row.map((t, cIdx) => {
+            if (cIdx !== lx) return t;
+            return { ...t, tileId };
+          });
+        });
+
+        const newChunks = {
+          ...world.map.chunks,
+          [chunkKey]: { ...chunk, tiles: newTiles },
+        };
+        const newWorld = {
+          ...world,
+          map: { ...world.map, chunks: newChunks },
+        };
+        set({ world: newWorld });
+        WorldStorage.scheduleAutoSave(newWorld);
+      } else if (packet.action === 'change_weather') {
+        const { weather } = packet.data;
+        set((state) => ({
+          world: {
+            ...state.world,
+            environment: { ...state.world.environment, weather },
+          },
+        }));
+      } else if (packet.action === 'set_time') {
+        const { time } = packet.data;
+        set((state) => ({
+          world: {
+            ...state.world,
+            environment: { ...state.world.environment, time },
+          },
+        }));
+      } else if (packet.action === 'full_sync') {
+        const syncedWorld = packet.data;
+        if (syncedWorld && syncedWorld.map && syncedWorld.entities) {
+          set({ world: syncedWorld });
+          WorldStorage.scheduleAutoSave(syncedWorld);
+        }
+      }
     },
   };
 });

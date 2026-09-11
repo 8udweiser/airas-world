@@ -5,6 +5,7 @@ import { IRenderer, RendererGhostEntity } from '../IRenderer';
 import { audioManager, SurfaceType } from '../../audio/AudioManager';
 import { RemotePlayerInfo } from '../../core/multiplayer/MultiplayerManager';
 import { resolveAssetUrl } from '../../core/utils/url';
+import { WaterPhysicsEngine } from '../../core/physics/WaterPhysicsEngine';
 
 export const ROTATION_DIRECTIONS: Direction[] = [
   'down',        // 0: 下 (正面)
@@ -40,6 +41,8 @@ export class PixiWorldRenderer implements IRenderer {
   private groundBgGraphics: Graphics = new Graphics();
   private tileContainer: Container = new Container();
   private waterFlowGraphics: Graphics = new Graphics(); // 自動水流 & コースティクス
+  private shoreWaveGraphics: Graphics = new Graphics(); // 🏖️ 寄せては返す砂浜の白波エフェクト
+  private waterPhysics: WaterPhysicsEngine = new WaterPhysicsEngine(32); // 🌊 8方向水流物理 & 標高シミュレーション
   private staticShadowGraphics: Graphics = new Graphics(); // 建物・街路樹の静的接地影（キャッシュ）
   private shadowGraphics: Graphics = new Graphics(); // プレイヤー動的指向性投影影
   private remoteShadowGraphics: Graphics = new Graphics(); // 👥 リモートプレイヤー動的接地影
@@ -260,6 +263,7 @@ export class PixiWorldRenderer implements IRenderer {
     this.stageContainer.addChild(this.groundBgGraphics); // 広大な背景
     this.stageContainer.addChild(this.tileContainer);
     this.stageContainer.addChild(this.waterFlowGraphics); // 🌊 リアルな水流 & コースティクス
+    this.stageContainer.addChild(this.shoreWaveGraphics); // 🏖️ 寄せては返す砂浜の白波エフェクト
     this.stageContainer.addChild(this.staticShadowGraphics); // 🏛️ 建物・街路樹の静的接地影 (CPU負荷ゼロ)
     this.stageContainer.addChild(this.shadowGraphics); // 👤 プレイヤー光源連動リアル投影影
     this.stageContainer.addChild(this.remoteShadowGraphics); // 👥 リモートプレイヤー動的接地影
@@ -664,7 +668,21 @@ export class PixiWorldRenderer implements IRenderer {
     }
 
     // 現在の足場高さ (地面=0、またはオブジェクトの天面)
-    const floorZ = this.getElevatedFloorZ(this.playerState.x, this.playerState.y);
+    let floorZ = this.getElevatedFloorZ(this.playerState.x, this.playerState.y);
+
+    // 🌊 水流物理演算 (水深・流速・押し流し・逆流抵抗)
+    const waterForce = this.waterPhysics.getWaterFlowForceAt(this.playerState.x, this.playerState.y);
+    const inWater = waterForce.inWater && !this.playerState.isDriving;
+
+    // 水に入っている時の水深・沈み込み表現 (泳ぎ)
+    if (inWater) {
+      if (this.playerState.z <= floorZ + 0.5) {
+        floorZ = -4; // 水中では足元が水中に沈み込む
+        if (!this.playerState.isJumping) {
+          this.playerState.z = -4;
+        }
+      }
+    }
 
     // ジャンプ物理 (歩きジャンプ=小ジャンプ、小走りジャンプ=中ジャンプ、ダッシュジャンプ=大ジャンプ)
     const gravity = 800; // px/s^2
@@ -720,7 +738,7 @@ export class PixiWorldRenderer implements IRenderer {
       else if (targetDeg >= -67.5 && targetDeg < -22.5) targetDirection = 'up-right';
 
       // 🔄 立ち止まり（または動き出し直後）からの急反転判定
-      const isStartingFromIdle = !this.isMoveAngleInitialized || this.movingDuration <= dt * 1.5;
+      const isStartingFromIdle = !this.isMoveAngleInitialized || this.movingDuration <= dt * 2.0;
 
       if (isStartingFromIdle) {
         const fromDir = this.playerState.direction;
@@ -729,19 +747,19 @@ export class PixiWorldRenderer implements IRenderer {
         let dirDiff = Math.abs(toIdx - fromIdx);
         if (dirDiff > 4) dirDiff = 8 - dirDiff;
 
-        // 90度以上の大きな方向転換かつ徒歩・ダッシュ時（非乗車時）
-        if (dirDiff >= 2 && !this.playerState.isDriving && (this.playerMoveTier === 'dash' || this.playerMoveTier === 'jog')) {
-          // 🔄 ピボット反転ターン開始！
+        // 90度以上の大きな方向転換時（非乗車時）
+        if (dirDiff >= 2 && !this.playerState.isDriving) {
+          // 🔄 ピボット反転ターン開始！（向きのみアニメーションさせ、移動は即座に入力方向へ直進）
           this.isPivotTurning = true;
           this.pivotTurnTimer = 0;
           this.pivotTurnSequence = this.createPivotSequence(fromDir, targetDirection, this.playerMoveTier === 'dash');
-          // 移動角度は最初から即座に目標方向へ直進！大回り慣性で逆走するのを100%防止
+          // 移動角度は最初から即座に目標方向へ直進！下や逆方向へズレるのを100%防止
           this.currentMoveAngle = targetAngle;
           this.isMoveAngleInitialized = true;
         } else {
           // 通常の歩き出し
           this.isPivotTurning = false;
-          this.currentMoveAngle = this.getDirectionAngle(this.playerState.direction);
+          this.currentMoveAngle = targetAngle;
           this.isMoveAngleInitialized = true;
         }
       }
@@ -784,11 +802,37 @@ export class PixiWorldRenderer implements IRenderer {
       }
 
       // 実際の進行方向ベクトル
-      const actualDirX = Math.cos(this.currentMoveAngle);
-      const actualDirY = Math.sin(this.currentMoveAngle);
+      let actualDirX = Math.cos(this.currentMoveAngle);
+      let actualDirY = Math.sin(this.currentMoveAngle);
 
-      const moveDistX = actualDirX * speed * dt;
-      const moveDistY = actualDirY * speed * dt;
+      // 🛑 水平入力時はY移動を厳密に0に固定（反転時に下へズレる問題を完全根絶！）
+      if (Math.abs(dy) < 0.001) {
+        actualDirY = 0;
+      }
+      if (Math.abs(dx) < 0.001) {
+        actualDirX = 0;
+      }
+
+      // 🌊 水流による移動速度の増減（逆流に逆らうのは難しく、順流に乗ると加速！）
+      let effectiveSpeed = speed;
+      if (inWater) {
+        const flowLen = Math.hypot(waterForce.flowVx, waterForce.flowVy);
+        if (flowLen > 0.1) {
+          const normFlowX = waterForce.flowVx / flowLen;
+          const normFlowY = waterForce.flowVy / flowLen;
+          const dot = actualDirX * normFlowX + actualDirY * normFlowY;
+          if (dot < -0.2) {
+            // 逆流に逆らって泳ぐ：速度が最大45%低下 (泳ぎの抵抗)
+            effectiveSpeed = speed * Math.max(0.45, 1.0 + dot * 0.45);
+          } else if (dot > 0.2) {
+            // 流れに乗って泳ぐ：速度がブースト！
+            effectiveSpeed = speed * (1.0 + dot * 0.35);
+          }
+        }
+      }
+
+      const moveDistX = actualDirX * effectiveSpeed * dt;
+      const moveDistY = actualDirY * effectiveSpeed * dt;
 
       // X方向の移動検証 (天面より下にいる時のみ壁としてブロック)
       const nextX = this.playerState.x + moveDistX;
@@ -890,8 +934,39 @@ export class PixiWorldRenderer implements IRenderer {
       }
     } else {
       this.isMoveAngleInitialized = false;
+      this.movingDuration = 0;
       this.walkAnimTimer = 0;
       this.stepTimer = 0;
+    }
+
+    // 🌊 水流による自動押し流し（静止中も流され、移動中も水流ベクトルが加算される）
+    if (inWater && (waterForce.flowVx !== 0 || waterForce.flowVy !== 0)) {
+      const pushFactor = isMoving ? 0.70 : 1.0;
+      const pushDistX = waterForce.flowVx * pushFactor * dt;
+      const pushDistY = waterForce.flowVy * pushFactor * dt;
+
+      const nextPushX = this.playerState.x + pushDistX;
+      const collidersX = this.getCollidingObjects(nextPushX, this.playerState.y);
+      if (!collidersX.some((c) => this.playerState.z < c.topZ - 4)) {
+        this.playerState.x = nextPushX;
+      }
+
+      const nextPushY = this.playerState.y + pushDistY;
+      const collidersY = this.getCollidingObjects(this.playerState.x, nextPushY);
+      if (!collidersY.some((c) => this.playerState.z < c.topZ - 4)) {
+        this.playerState.y = nextPushY;
+      }
+
+      // 水しぶき・水紋パーティクル
+      if (Math.random() < 0.25) {
+        this.dustParticles.push({
+          x: this.playerState.x + (Math.random() - 0.5) * 10,
+          y: this.playerState.y + 2 + (Math.random() - 0.5) * 4,
+          vx: (Math.random() - 0.5) * 12,
+          vy: -6 - Math.random() * 8,
+          life: 0.35,
+        });
+      }
     }
 
     // 車両エンジン音 (乗車時はリアルタイムに回転数・ニトロ反映)
@@ -1216,6 +1291,7 @@ export class PixiWorldRenderer implements IRenderer {
     // 1. 静的マップタイルの初期化（一度だけ実行）
     if (this.tileContainer.children.length === 0) {
       await this.renderTiles(world, assets);
+      this.waterPhysics.updateWorldWaterMap(world);
     }
 
     // 2. プレイヤーの登録・テクスチャプリロード
@@ -1448,6 +1524,7 @@ export class PixiWorldRenderer implements IRenderer {
     if (!targetWorld || !targetAssets) return;
     this.tileContainer.removeChildren();
     await this.renderTiles(targetWorld, targetAssets);
+    this.waterPhysics.updateWorldWaterMap(targetWorld);
   }
 
   private async renderTiles(world: AirasWorldData, assets: Record<string, AirasAsset>) {
@@ -1663,6 +1740,34 @@ export class PixiWorldRenderer implements IRenderer {
       this.waterFlowGraphics
         .ellipse(this.playerState.x, this.playerState.y, rippleR, rippleR * 0.45)
         .stroke({ color: 0xe0f2fe, width: 1.2, alpha: Math.max(0.1, rippleAlpha) });
+    }
+
+    // 🏖️ 寄せては返す砂浜の波打ち際エフェクト (Shore waves)
+    this.shoreWaveGraphics.clear();
+    const waves = this.waterPhysics.updateShoreWaves(this.waterAnimationTime);
+    for (const wave of waves) {
+      if (wave.alpha <= 0.04) continue;
+      if (wave.x < minVx || wave.x > maxVx || wave.y < minVy || wave.y > maxVy) continue;
+
+      const wx = wave.x + Math.cos(wave.angle) * wave.crestOffset;
+      const wy = wave.y + Math.sin(wave.angle) * wave.crestOffset;
+      const perpAngle = wave.angle + Math.PI / 2;
+      const halfW = wave.width * 0.5;
+      const x1 = wx - Math.cos(perpAngle) * halfW;
+      const y1 = wy - Math.sin(perpAngle) * halfW;
+      const x2 = wx + Math.cos(perpAngle) * halfW;
+      const y2 = wy + Math.sin(perpAngle) * halfW;
+
+      // 寄せては返す白波（ソフトな淡青外枠 + くっきりした白い泡）
+      this.shoreWaveGraphics
+        .moveTo(x1, y1)
+        .quadraticCurveTo(wx + Math.cos(wave.angle) * 1.5, wy + Math.sin(wave.angle) * 1.5, x2, y2)
+        .stroke({ color: 0xbae6fd, width: 4.2, alpha: wave.alpha * 0.45 });
+
+      this.shoreWaveGraphics
+        .moveTo(x1, y1)
+        .quadraticCurveTo(wx + Math.cos(wave.angle) * 3, wy + Math.sin(wave.angle) * 3, x2, y2)
+        .stroke({ color: 0xffffff, width: 2.4, alpha: wave.alpha });
     }
   }
 
@@ -2684,6 +2789,18 @@ export class PixiWorldRenderer implements IRenderer {
       );
     }
     audioManager.playPlace();
+  }
+
+  // 🌐 他プレイヤー編集またはワールド更新の即時同期
+  public async syncWorld(world: AirasWorldData): Promise<void> {
+    this.currentWorld = world;
+    this.currentWeather = world.environment.weather;
+    if (this.currentAssets) {
+      await this.render(world, this.currentAssets);
+      await this.refreshTiles(world, this.currentAssets);
+      this.renderStaticShadows(world, this.currentAssets);
+      this.waterPhysics.updateWorldWaterMap(world);
+    }
   }
 
   destroy(): void {
