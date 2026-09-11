@@ -19,6 +19,7 @@ export class PixiWorldRenderer implements IRenderer {
   private waterFlowGraphics: Graphics = new Graphics(); // 自動水流 & コースティクス
   private staticShadowGraphics: Graphics = new Graphics(); // 建物・街路樹の静的接地影（キャッシュ）
   private shadowGraphics: Graphics = new Graphics(); // プレイヤー動的指向性投影影
+  private remoteShadowGraphics: Graphics = new Graphics(); // 👥 リモートプレイヤー動的接地影
   private selectionGraphics: Graphics = new Graphics();
   private depthContainer: Container = new Container();
   private particleGraphics: Graphics = new Graphics(); // ダッシュ土煙 & 水しぶき
@@ -155,6 +156,7 @@ export class PixiWorldRenderer implements IRenderer {
     this.stageContainer.addChild(this.waterFlowGraphics); // 🌊 リアルな水流 & コースティクス
     this.stageContainer.addChild(this.staticShadowGraphics); // 🏛️ 建物・街路樹の静的接地影 (CPU負荷ゼロ)
     this.stageContainer.addChild(this.shadowGraphics); // 👤 プレイヤー光源連動リアル投影影
+    this.stageContainer.addChild(this.remoteShadowGraphics); // 👥 リモートプレイヤー動的接地影
     this.stageContainer.addChild(this.selectionGraphics);
     this.stageContainer.addChild(this.depthContainer); // Yソート
     this.stageContainer.addChild(this.particleGraphics); // ダッシュ土煙 & 水しぶき
@@ -940,6 +942,8 @@ export class PixiWorldRenderer implements IRenderer {
     if (!this.currentAssets) return;
     const activeIds = new Set<string>();
 
+    this.remoteShadowGraphics.clear();
+
     for (const p of players) {
       const spriteId = `__remote_${p.id}`;
       activeIds.add(spriteId);
@@ -976,6 +980,36 @@ export class PixiWorldRenderer implements IRenderer {
       sprite.x = p.x;
       sprite.y = p.y - p.z + bobY;
       (sprite as any).worldFootY = p.y;
+
+      // 👤 リモートプレイヤーのリアル接地影（ジャンプ z による影の拡縮）
+      if (p.isDriving) {
+        const isHorizontal = p.direction === 'left' || p.direction === 'right';
+        const rx = isHorizontal ? 42 : 24;
+        const ry = isHorizontal ? 9 : 14;
+        this.remoteShadowGraphics
+          .ellipse(p.x, p.y, rx, ry)
+          .fill({ color: 0x000000, alpha: 0.45 });
+      } else {
+        const airHeight = Math.max(0, p.z);
+        const shadowScale = Math.max(0.3, 1 - airHeight / 160);
+        const rx = 8 * shadowScale;
+        const ry = 3 * shadowScale;
+        const alpha = 0.35 * shadowScale;
+        this.remoteShadowGraphics
+          .ellipse(p.x, p.y, rx, ry)
+          .fill({ color: 0x000000, alpha });
+      }
+
+      // 💨 リモートプレイヤーがダッシュしている時は足元から土煙を発生
+      if (p.isSprinting && p.isMoving && Math.random() < 0.25) {
+        this.dustParticles.push({
+          x: p.x + (Math.random() - 0.5) * 8,
+          y: p.y - 2,
+          vx: (Math.random() - 0.5) * 0.6,
+          vy: -Math.random() * 0.6,
+          life: 1.0,
+        });
+      }
     }
 
     // 退室したリモートプレイヤーの削除
@@ -1530,6 +1564,11 @@ export class PixiWorldRenderer implements IRenderer {
           pickedId = id;
           break;
         }
+      }
+
+      // タッチ操作の場合はカメラドラッグを遮断（画面のブレやカメラパンを完全防止）
+      if (e.pointerType === 'touch') {
+        return;
       }
 
       if (pickedId) {

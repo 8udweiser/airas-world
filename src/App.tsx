@@ -54,6 +54,7 @@ export const App: React.FC = () => {
   const [nearbyBench, setNearbyBench] = useState<{ id: string; name: string } | null>(null);
   const [nearbyBed, setNearbyBed] = useState<{ id: string; name: string } | null>(null);
   const [remotePlayers, setRemotePlayers] = useState<RemotePlayerInfo[]>([]);
+  const [peerOnlineInfo, setPeerOnlineInfo] = useState<{ count: number; isOnline: boolean }>({ count: 0, isOnline: false });
   const [playerScreenPos, setPlayerScreenPos] = useState<{ x: number; y: number } | null>(null);
   const [isLowPerfMode, setIsLowPerfMode] = useState(false);
   const [bgmTrackInfo, setBgmTrackInfo] = useState<{ title: string; isPlaying: boolean }>(() => {
@@ -217,25 +218,7 @@ export const App: React.FC = () => {
       let activeBedId: string | null = null;
 
       renderer.onPlayerMoveTick = (px, py, _z, _dir, liveFps) => {
-        const now = performance.now();
-        if (now - lastTickTime < 180) return;
-        lastTickTime = now;
-
-        // F3デバッグ用FPS更新
-        useUIStore.getState().setFps(liveFps);
-
-        // プレイヤーの画面座標を更新（頭上チャットフキダシ用）
-        const sPos = renderer.worldToScreen(px, py);
-        setPlayerScreenPos(sPos);
-
-        const driving = renderer.playerState.isDriving;
-        const sitting = renderer.playerState.isSitting;
-        const sleeping = renderer.playerState.isSleeping;
-        setIsDriving((prev) => (prev !== driving ? driving : prev));
-        setIsSitting((prev) => (prev !== sitting ? sitting : prev));
-        setIsSleeping((prev) => (prev !== sleeping ? sleeping : prev));
-
-        // 👥 マルチプレイヤー状態を送信
+        // 👥 マルチプレイヤー状態を送信（ジャンプやダッシュ、アクションを瞬時に相手端末へ同期）
         multiplayerManager.sendMyState({
           assetId: renderer.playerState.assetId,
           x: px,
@@ -244,10 +227,28 @@ export const App: React.FC = () => {
           direction: _dir,
           isMoving: renderer.playerState.isMoving,
           isSprinting: renderer.playerState.isSprinting,
-          isDriving: driving,
-          isSitting: sitting,
-          isSleeping: sleeping,
+          isDriving: renderer.playerState.isDriving,
+          isSitting: renderer.playerState.isSitting,
+          isSleeping: renderer.playerState.isSleeping,
         });
+
+        const now = performance.now();
+        if (now - lastTickTime < 120) return;
+        lastTickTime = now;
+
+        // F3デバッグ用FPS更新
+        useUIStore.getState().setFps(liveFps);
+
+        // プレイヤーの画面座標を更新（頭上チャットフキダシ用）
+        const sPos = renderer.worldToScreen(px, py - _z);
+        setPlayerScreenPos(sPos);
+
+        const driving = renderer.playerState.isDriving;
+        const sitting = renderer.playerState.isSitting;
+        const sleeping = renderer.playerState.isSleeping;
+        setIsDriving((prev) => (prev !== driving ? driving : prev));
+        setIsSitting((prev) => (prev !== sitting ? sitting : prev));
+        setIsSleeping((prev) => (prev !== sleeping ? sleeping : prev));
 
         if (driving || sitting || sleeping) {
           activeVehicleId = null;
@@ -459,6 +460,10 @@ export const App: React.FC = () => {
     multiplayerManager.onRemotePlayersChange = (players) => {
       setRemotePlayers(players);
       rendererRef.current?.updateRemotePlayers(players);
+    };
+
+    multiplayerManager.onConnectionStatusChange = (count, isOnline) => {
+      setPeerOnlineInfo({ count, isOnline });
     };
 
     return () => {
@@ -687,8 +692,30 @@ export const App: React.FC = () => {
         onTogglePerfMode={handleTogglePerfMode}
       />
 
-      {/* 右上操作ボタン群 (ポータル / アバター切り替え) */}
+      {/* 右上操作ボタン群 (P2P同期状況 / ポータル / アバター切り替え) */}
       <div className="absolute top-16 right-4 z-30 flex items-center gap-2">
+        {/* 🟢 リアルタイムマルチプレイヤー同期バッジ */}
+        <button
+          onClick={() => setIsPortalOpen(true)}
+          className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-cyan-400/40 text-xs shadow-lg transition-all cursor-pointer bg-slate-950/70 hover:border-cyan-300 backdrop-blur-md"
+          title={`ルーム: ${multiplayerManager.roomId} (${multiplayerManager.isHost ? 'ホスト' : 'クライアント'}) - クリックでQRコード表示`}
+        >
+          <span
+            className={`w-2 h-2 rounded-full ${
+              remotePlayers.length > 0
+                ? 'bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400'
+                : 'bg-cyan-400'
+            }`}
+          />
+          <span className="font-extrabold text-[11px] text-white tracking-tight">
+            {remotePlayers.length > 0
+              ? `同期中 (${remotePlayers.length + 1}人)`
+              : multiplayerManager.isHost
+              ? 'ホスト待受中'
+              : 'P2P接続中'}
+          </span>
+        </button>
+
         <button
           onClick={() => setIsPortalOpen(true)}
           className="glass-panel px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-indigo-400/40 text-xs text-indigo-200 hover:text-white hover:border-indigo-400 shadow-lg hover:shadow-indigo-500/20 transition-all cursor-pointer bg-indigo-950/40"
@@ -909,7 +936,11 @@ export const App: React.FC = () => {
       )}
 
       {/* 💬 頭上フキダシチャット & メッセージ送受信 */}
-      <ChatSystem remotePlayers={remotePlayers} playerScreenPos={playerScreenPos} />
+      <ChatSystem
+        remotePlayers={remotePlayers}
+        playerScreenPos={playerScreenPos}
+        renderer={rendererRef.current}
+      />
 
       {/* 🌐 全プラットフォーム公開ポータル & スマホ接続共有モーダル */}
       <PortalLandingModal isOpen={isPortalOpen} onClose={() => setIsPortalOpen(false)} />
@@ -925,8 +956,8 @@ export const App: React.FC = () => {
         onToggleSit={handleToggleSit}
       />
 
-      {/* 画面左下: マイクラ風キーヒント */}
-      <div className="absolute bottom-4 left-4 z-20 glass-panel px-3 py-1.5 rounded-xl border border-white/10 text-[11px] text-slate-300 pointer-events-none flex items-center gap-3">
+      {/* 画面左下: マイクラ風キーヒント (PCのみ表示) */}
+      <div className="hidden md:flex absolute bottom-4 left-4 z-20 glass-panel px-3 py-1.5 rounded-xl border border-white/10 text-[11px] text-slate-300 pointer-events-none items-center gap-3">
         <div className="flex items-center gap-1.5">
           <span className="px-1.5 py-0.5 rounded bg-black/40 font-mono text-[10px] text-amber-300 border border-white/10">WASD</span>
           <span>移動</span>

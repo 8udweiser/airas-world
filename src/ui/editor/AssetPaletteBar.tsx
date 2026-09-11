@@ -17,7 +17,7 @@ export const AssetPaletteBar: React.FC<AssetPaletteBarProps> = ({ isVisible }) =
   const placeableAssets = Object.values(assets).filter((a) => a.type !== 'tile');
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 max-w-[95vw] overflow-x-auto p-1.5 glass-panel rounded-2xl border border-white/15 shadow-2xl flex items-center gap-1.5 animate-in fade-in slide-in-from-bottom-4 duration-200">
+    <div className="hidden md:flex absolute bottom-4 left-1/2 -translate-x-1/2 z-30 max-w-[95vw] overflow-x-auto p-1.5 glass-panel rounded-2xl border border-white/15 shadow-2xl items-center gap-1.5 animate-in fade-in slide-in-from-bottom-4 duration-200">
       {/* 選択ツール */}
       <button
         onClick={() => {

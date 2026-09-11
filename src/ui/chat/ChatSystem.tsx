@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Send, X } from 'lucide-react';
 import { multiplayerManager, RemotePlayerInfo } from '../../core/multiplayer/MultiplayerManager';
 
+import { PixiWorldRenderer } from '../../renderer/pixi/PixiWorldRenderer';
+
 interface ChatMessage {
   id: string;
   sender: string;
@@ -14,12 +16,14 @@ interface ChatSystemProps {
   onSendMessage?: (text: string) => void;
   remotePlayers: RemotePlayerInfo[];
   playerScreenPos?: { x: number; y: number } | null;
+  renderer?: PixiWorldRenderer | null;
 }
 
 export const ChatSystem: React.FC<ChatSystemProps> = ({
   onSendMessage,
   remotePlayers,
   playerScreenPos,
+  renderer,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -109,6 +113,46 @@ export const ChatSystem: React.FC<ChatSystemProps> = ({
           <div className="w-2 h-2 bg-slate-900 border-r border-b border-cyan-400/60 rotate-45 mx-auto -mt-1" />
         </div>
       )}
+
+      {/* 👥 リモートプレイヤー（スマホやPCの参加者）の頭上ネームタグ ＆ チャットフキダシ */}
+      {renderer &&
+        remotePlayers.map((p) => {
+          const sPos = renderer.worldToScreen(p.x, p.y - p.z);
+          return (
+            <div
+              key={p.id}
+              className="fixed pointer-events-none z-30 -translate-x-1/2 -translate-y-full transition-all duration-75 flex flex-col items-center gap-1"
+              style={{
+                left: sPos.x,
+                top: sPos.y - 42,
+              }}
+            >
+              {/* チャットフキダシ */}
+              {p.chatBubble && Date.now() - p.chatBubble.time < 5000 && (
+                <div className="glass-panel px-3.5 py-1.5 rounded-2xl border border-amber-400/80 shadow-2xl text-amber-100 text-xs font-bold max-w-[200px] text-center break-words animate-in fade-in zoom-in-95 backdrop-blur-md">
+                  {p.chatBubble.text}
+                  <div className="w-2 h-2 bg-slate-900 border-r border-b border-amber-400/80 rotate-45 mx-auto -mt-1" />
+                </div>
+              )}
+
+              {/* 🏷️ ネームタグ & リアルタイムステータスバッジ */}
+              <div className="px-2.5 py-0.5 rounded-full bg-slate-950/85 border border-cyan-400/50 text-[10px] font-extrabold text-white shadow-xl flex items-center gap-1.5 backdrop-blur-md">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="tracking-tight">{p.name}</span>
+                {p.z > 2 && (
+                  <span className="px-1 py-0.2 rounded bg-cyan-500 text-[9px] text-slate-950 font-black animate-bounce">
+                    JUMP
+                  </span>
+                )}
+                {p.isSprinting && (
+                  <span className="px-1 py-0.2 rounded bg-amber-500 text-[9px] text-slate-950 font-black animate-pulse">
+                    DASH
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
 
       {/* チャットトグルボタン (左下HUD上) */}
       <div className="fixed bottom-14 left-4 z-30">
